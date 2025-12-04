@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>PulzdAI</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div class="container">
+    <header>
+      <h1>PulzdAI</h1>
+      <button id="theme-toggle" title="Toggle theme">◐</button>
+    </header>
+
+    <main>
+      <div class="input-section">
+        <textarea id="prompt" placeholder="Enter your task..." rows="4"></textarea>
+        <div class="controls">
+          <select id="agent">
+            <option value="auto">Auto (Router)</option>
+            <option value="claude">Claude</option>
+            <option value="gemini">Gemini</option>
+            <option value="codex">Codex</option>
+            <option value="ollama">Ollama</option>
+          </select>
+          <button id="run-btn">Run Task</button>
+        </div>
+      </div>
+
+      <div class="output-section">
+        <div class="output-header">
+          <span>Output</span>
+          <span id="status"></span>
+        </div>
+        <pre id="output"></pre>
+        <div id="stats" class="stats"></div>
+      </div>
+    </main>
+  </div>
+
+  <script src="script.js"></script>
+</body>
+</html>

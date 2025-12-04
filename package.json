@@ -1,0 +1,44 @@
+{
+  "name": "pulzdai",
+  "version": "0.1.0",
+  "description": "Multi-LLM Orchestrator - Route tasks intelligently across Claude, Gemini, Codex, and local models",
+  "type": "module",
+  "bin": {
+    "ai": "./dist/cli/index.js",
+    "pulzdai": "./dist/cli/index.js"
+  },
+  "files": ["dist", "web"],
+  "scripts": {
+    "dev": "bun run src/cli/index.ts",
+    "build": "bun build src/cli/index.ts --outdir dist/cli --target node --packages external && chmod +x dist/cli/index.js",
+    "start": "node dist/cli/index.js",
+    "test": "bun test",
+    "typecheck": "tsc"
+  },
+  "dependencies": {
+    "@fastify/static": "^8.0.0",
+    "commander": "^12.1.0",
+    "execa": "^9.5.1",
+    "fastify": "^5.1.0",
+    "ink": "^6.5.1",
+    "ink-select-input": "^6.2.0",
+    "ink-text-input": "^6.0.0",
+    "nanospinner": "^1.2.2",
+    "ollama": "^0.5.11",
+    "picocolors": "^1.1.1"
+  },
+  "devDependencies": {
+    "@types/bun": "^1.1.14",
+    "@types/node": "^22.10.1",
+    "typescript": "^5.7.2"
+  },
+  "engines": {
+    "node": ">=20.0.0"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/youruser/pulzdai.git"
+  },
+  "keywords": ["ai", "llm", "claude", "gemini", "codex", "ollama", "orchestrator"],
+  "license": "MIT"
+}
