@@ -16,20 +16,30 @@ import {
 } from '../executor';
 import { listTemplates, loadTemplate } from '../executor/templates';
 import { WorkflowsManager } from './components/WorkflowsManager';
+import { CompareView } from './components/CompareView';
 import { generatePlan } from '../executor/planner';
 
 interface Message {
   id: string;
-  role: 'user' | 'assistant';
+  role: 'user' | 'assistant' | 'compare';
   content: string;
   agent?: string;
   duration?: number;
+  compareResults?: CompareResult[];
 }
 
 let messageId = 0;
 const nextId = () => String(++messageId);
 
-type AppMode = 'chat' | 'workflows';
+type AppMode = 'chat' | 'workflows' | 'compare';
+
+interface CompareResult {
+  agent: string;
+  content: string;
+  error?: string;
+  duration?: number;
+  loading?: boolean;
+}
 
 function App() {
   // Disable mouse tracking to prevent scroll events from triggering input
@@ -46,6 +56,8 @@ function App() {
   const [loading, setLoading] = useState(false);
   const [loadingText, setLoadingText] = useState('thinking...');
   const [mode, setMode] = useState<AppMode>('chat');
+  const [compareResults, setCompareResults] = useState<CompareResult[]>([]);
+  const [compareKey, setCompareKey] = useState(0); // Increments to reset CompareView state
 
   // Value options
   const [currentAgent, setCurrentAgent] = useState('auto');
@@ -90,6 +102,9 @@ function App() {
   // Memoize autocomplete items
   const autocompleteItems = useMemo(() => {
     if (!input.startsWith('/')) return [];
+    // Don't show autocomplete if user has typed arguments (space + more text)
+    const spaceIndex = input.indexOf(' ');
+    if (spaceIndex > 0 && input.length > spaceIndex + 1) return [];
     return getCommandSuggestions(input).map(cmd => ({
       label: cmd.label + '  ' + cmd.description,
       value: cmd.value
@@ -120,14 +135,15 @@ function App() {
       } else if (key.downArrow) {
         setAutocompleteIndex(i => Math.min(autocompleteItems.length - 1, i + 1));
         return;
-      } else if (key.return) {
+      } else if (key.tab) {
+        // Tab selects autocomplete item
         handleAutocompleteSelect(autocompleteItems[autocompleteIndex]);
         return;
       } else if (key.escape) {
         setInput('');
         return;
       }
-      return;
+      // Don't intercept Enter - let TextInput handle submit
     }
 
     if (key.upArrow) {
@@ -136,10 +152,47 @@ function App() {
       setInput(navigateHistory('down', input));
     } else if (key.escape) {
       setInput('');
+    } else if (key.tab && input.startsWith('/') && autocompleteItems.length > 0) {
+      // Tab completes when autocomplete available
+      handleAutocompleteSelect(autocompleteItems[autocompleteIndex]);
     }
   });
 
+  // Save current compare results to history and exit compare mode
+  const saveCompareToHistory = () => {
+    if (mode === 'compare' && compareResults.length > 0 && !compareResults.some(r => r.loading)) {
+      setMessages(prev => [...prev, {
+        id: nextId(),
+        role: 'compare',
+        content: '',
+        compareResults: compareResults
+      }]);
+      setMode('chat');
+      setCompareResults([]);
+    }
+  };
+
   const handleSubmit = async (value: string) => {
+    // Save any active compare to history before processing new input (only if there's actual input)
+    if (mode === 'compare' && value.trim()) {
+      saveCompareToHistory();
+    }
+
+    // If autocomplete is showing with single match, execute that command
+    if (autocompleteItems.length === 1) {
+      const cmd = autocompleteItems[0].value.trim();
+      setInput('');
+      setInputKey(k => k + 1);
+      addToHistory(cmd);
+      await handleSlashCommand(cmd);
+      return;
+    }
+    // If multiple matches, select highlighted item (user needs to pick)
+    if (autocompleteItems.length > 1) {
+      handleAutocompleteSelect(autocompleteItems[autocompleteIndex]);
+      return;
+    }
+
     if (!value.trim()) return;
 
     // Add to history
@@ -210,7 +263,19 @@ Options:
 Utility:
   /help   - Show this help
   /clear  - Clear chat history
-  /exit   - Exit`);
+  /exit   - Exit
+
+Keyboard:
+  Tab        - Autocomplete command
+  Up/Down    - Navigate autocomplete or history
+  Enter      - Submit or select autocomplete
+  Esc        - Cancel/clear
+
+Compare View:
+  ←/→        - Navigate agents
+  Enter      - Expand selected
+  Tab        - Show all stacked
+  Esc        - Back`);
         break;
 
       case 'clear':
@@ -283,9 +348,17 @@ Utility:
           break;
         }
 
+        // Add user message to chat history
         setMessages(prev => [...prev, { id: nextId(), role: 'user', content: '/compare ' + agentsStr + ' "' + task + '"' }]);
-        setLoading(true);
-        setLoadingText('comparing ' + agents.join(', ') + '...');
+
+        // Initialize compare results with loading state
+        setCompareKey(k => k + 1); // Reset CompareView state (side-by-side)
+        setCompareResults(agents.map(agent => ({
+          agent,
+          content: '',
+          loading: true
+        })));
+        setMode('compare');
 
         try {
           const plan = buildComparePlan(task, {
@@ -296,25 +369,31 @@ Utility:
 
           const result = await execute(plan);
 
-          // Format results
-          let output = '';
-          for (let i = 0; i < agents.length; i++) {
-            const agent = agents[i];
+          // Build visual compare results
+          const visualResults: CompareResult[] = agents.map((agent, i) => {
             const stepResult = result.results.find(r => r.stepId === 'step_' + i);
-            output += '── ' + agent + ' ──\n';
-            output += (stepResult?.content || stepResult?.error || 'No response') + '\n\n';
-          }
+            return {
+              agent,
+              content: stepResult?.content || '',
+              error: stepResult?.error,
+              duration: stepResult?.duration,
+              loading: false
+            };
+          });
 
-          if (pick && result.finalOutput) {
-            output += '── Selected (best) ──\n' + result.finalOutput;
-          }
-
-          addMessage(output.trim(), 'compare');
+          setCompareResults(visualResults);
+          // Keep in compare mode - will be saved to history when user types something new
         } catch (err) {
-          addMessage('Error: ' + (err as Error).message);
+          // Show error in compare view
+          const errorResults = agents.map(agent => ({
+            agent,
+            content: '',
+            error: (err as Error).message,
+            loading: false
+          }));
+          setCompareResults(errorResults);
+          // Keep in compare mode - will be saved to history when user types something new
         }
-
-        setLoading(false);
         break;
       }
 
@@ -434,29 +513,68 @@ Utility:
         />
       )}
 
-      {/* Chat Mode */}
-      {mode === 'chat' && (
+      {/* Chat Mode (also shows compare results inline) */}
+      {(mode === 'chat' || mode === 'compare') && (
         <>
           {/* Messages */}
-          <Box flexDirection="column" marginBottom={1}>
+          <Box flexDirection="column" marginBottom={1} width="100%">
             {messages.map((msg) => (
-              <Box key={msg.id} marginBottom={1}>
-                {msg.role === 'user' ? (
-                  <Text>
-                    <Text color="green" bold>{'> '}</Text>
-                    <Text>{msg.content}</Text>
-                  </Text>
-                ) : (
-                  <Box flexDirection="column">
-                    {msg.agent && (
-                      <Text dimColor>── {msg.agent} {msg.duration ? '(' + (msg.duration / 1000).toFixed(1) + 's)' : ''} ──</Text>
-                    )}
-                    <Text>{msg.content}</Text>
-                  </Box>
-                )}
-              </Box>
+              msg.role === 'compare' && msg.compareResults ? (
+                // Static render for historical compare results (no hooks, no re-renders)
+                <Box key={msg.id} flexDirection="column" marginBottom={1} width="100%">
+                  {msg.compareResults.map((result, i) => {
+                    const isError = !!result.error;
+                    const lineLength = Math.floor(((process.stdout.columns || 80) - 2) * 0.8);
+                    return (
+                      <Box key={i} flexDirection="column" marginBottom={i < msg.compareResults!.length - 1 ? 1 : 0}>
+                        <Text color={isError ? 'red' : '#fc8657'}>
+                          {'─'.repeat(2)} <Text bold color="#06ba9e">{result.agent}</Text>
+                          {isError && <Text color="red"> [FAILED]</Text>}
+                        </Text>
+                        <Text color={isError ? 'red' : '#fc8657'}>{'─'.repeat(lineLength)}</Text>
+                        <Box paddingY={1}>
+                          <Text color={isError ? 'red' : undefined} wrap="wrap">
+                            {result.content || result.error || 'No response'}
+                          </Text>
+                        </Box>
+                        <Text color={isError ? 'red' : '#fc8657'}>
+                          <Text color="green">●</Text>
+                          <Text dimColor> {result.duration ? (result.duration / 1000).toFixed(1) + 's' : '-'}</Text>
+                        </Text>
+                        <Text color={isError ? 'red' : '#fc8657'}>{'─'.repeat(lineLength)}</Text>
+                      </Box>
+                    );
+                  })}
+                </Box>
+              ) : (
+                <Box key={msg.id} marginBottom={1}>
+                  {msg.role === 'user' ? (
+                    <Text>
+                      <Text color="green" bold>{'> '}</Text>
+                      <Text>{msg.content}</Text>
+                    </Text>
+                  ) : (
+                    <Box flexDirection="column">
+                      {msg.agent && (
+                        <Text dimColor>── {msg.agent} {msg.duration ? '(' + (msg.duration / 1000).toFixed(1) + 's)' : ''} ──</Text>
+                      )}
+                      <Text>{msg.content}</Text>
+                    </Box>
+                  )}
+                </Box>
+              )
             ))}
           </Box>
+
+          {/* Compare View (inline) */}
+          {mode === 'compare' && (
+            <CompareView
+              key={compareKey}
+              results={compareResults}
+              onExit={saveCompareToHistory}
+              inputValue={input}
+            />
+          )}
 
           {/* Loading */}
           {loading && (
