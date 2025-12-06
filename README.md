@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="https://raw.githubusercontent.com/MedChaouch/Puzld.ai/main/assets/logo.png" alt="PuzldAI" width="200">
+  <img src="https://raw.githubusercontent.com/MedChaouch/Puzld.ai/main/assets/logo.jpg" alt="PuzldAI" width="200">
 </p>
 
 <h1 align="center">PuzldAI</h1>
