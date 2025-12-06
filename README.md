@@ -1,12 +1,40 @@
 <p align="center">
-  <img src="https://raw.githubusercontent.com/MedChaouch/Puzld.ai/main/assets/logo.jpg" alt="PuzldAI" width="200">
+  <img src="https://raw.githubusercontent.com/MedChaouch/Puzld.ai/main/assets/logo.jpg" width="300" alt="PuzldAI">
 </p>
-
-<h1 align="center">PuzldAI</h1>
 
 <p align="center">
-  Multi-LLM orchestration CLI — route tasks intelligently across Claude, Gemini, Codex, and local models.
+  <strong>One CLI. Multiple AI agents. Infinite possibilities.</strong>
 </p>
+
+<p align="center">
+  <a href="#install">Install</a> •
+  <a href="#quick-start">Quick Start</a> •
+  <a href="#features">Features</a> •
+  <a href="#configuration">Config</a>
+</p>
+
+<p align="center">
+  <img src="https://img.shields.io/npm/v/puzldai?color=blue" alt="npm">
+  <img src="https://img.shields.io/badge/license-AGPL--3.0-green" alt="license">
+  <img src="https://img.shields.io/badge/agents-Claude%20%7C%20Gemini%20%7C%20Codex%20%7C%20Ollama-purple" alt="agents">
+</p>
+
+---
+
+> **Stop switching between AI CLIs.** PuzldAI routes your tasks to the right agent automatically — or lets you orchestrate them together.
+
+---
+
+## Why PuzldAI?
+
+| Problem | Solution |
+|---------|----------|
+| Claude is great at code, Gemini at research | **Auto-routing** picks the best agent |
+| Want multiple opinions | **Compare mode** runs all agents in parallel |
+| Complex tasks need multiple steps | **Pipelines** chain agents together |
+| Repetitive workflows | **Templates** save and reuse pipelines |
+
+---
 
 ## Install
 
@@ -14,133 +42,153 @@
 npm install -g puzldai
 ```
 
-## Or run without install
+Or try without installing:
 
 ```bash
 npx puzldai
 ```
 
-## Usage
+---
+
+## Quick Start
 
 ```bash
-# Launch interactive TUI
+# Interactive TUI
 puzld
 
-# Run a single task
+# Single task
 puzld run "explain recursion"
 
-# Compare multiple agents
-puzld compare claude,gemini "best practice for error handling"
+# Compare agents
+puzld compare claude,gemini "best error handling practices"
 
-# Run a workflow
-puzld run -T code-review "function add(a, b) { return a + b; }"
+# Pipeline: analyze → code → review
+puzld run "build a logger" -P "gemini:analyze,claude:code,gemini:review"
 
-# Generate and execute a plan
-puzld plan "build a REST API for todos" -x
-
-# Check available agents
+# Check what's available
 puzld check
 ```
 
+---
+
 ## Features
 
-- **Auto-routing** — Automatically selects the best agent for each task
-- **Multi-agent compare** — Run the same task on multiple agents side-by-side
-- **Pipelines** — Chain agents together (e.g., `gemini:analyze,claude:code`)
-- **Workflows** — Save and reuse pipeline templates
-- **Autopilot** — AI-generated execution plans
-- **Interactive TUI** — Full terminal UI with autocomplete and keyboard navigation
+**Auto-routing** — Task analyzed locally, routed to best agent
+**Compare** — Same prompt, multiple agents, side-by-side results
+**Pipelines** — Chain agents: `gemini:analyze → claude:code → ollama:review`
+**Workflows** — Save pipelines as reusable templates
+**Autopilot** — AI generates the execution plan for you
+**TUI** — Full terminal UI with autocomplete, history, keyboard nav
+
+---
 
 ## Supported Agents
 
-| Agent | Source | Requirements |
-|-------|--------|--------------|
-| Claude | Anthropic | [Claude CLI](https://docs.anthropic.com/en/docs/claude-code) |
-| Gemini | Google | [Gemini CLI](https://github.com/google-gemini/gemini-cli) |
-| Codex | OpenAI | [Codex CLI](https://github.com/openai/codex) |
-| Ollama | Local | [Ollama](https://ollama.ai) running locally |
+| Agent | Source | Requirement |
+|-------|--------|-------------|
+| Claude | Anthropic | [Claude CLI](https://docs.anthropic.com) |
+| Gemini | Google | [Gemini CLI](https://ai.google.dev) |
+| Codex | OpenAI | [Codex CLI](https://openai.com) |
+| Ollama | Local | [Ollama](https://ollama.ai) running |
+
+---
+
+## Commands
+
+### TUI Mode
+
+```
+/compare claude,gemini "task"   Compare agents
+/autopilot "task"               AI-planned workflow
+/workflow code-review "code"    Run saved workflow
+/workflows                      Manage templates
+/agent claude                   Switch agent
+/help                           All commands
+```
+
+### CLI Mode
+
+```bash
+puzld                        # Launch TUI
+puzld run "task"             # Single task
+puzld run "task" -a claude   # Force agent
+puzld run "task" -P "..."    # Pipeline
+puzld run "task" -T template # Use template
+puzld compare a,b "task"     # Compare
+puzld plan "task" -x         # Auto-plan + execute
+puzld check                  # Agent status
+puzld serve                  # API server
+puzld template list          # List templates
+```
+
+---
 
 ## Configuration
 
-Config stored at `~/.pulzdai/config.json`
+`~/.pulzdai/config.json`
 
 ```json
 {
   "defaultAgent": "auto",
-  "routerModel": "llama3.2",
   "fallbackAgent": "claude",
+  "routerModel": "llama3.2",
   "adapters": {
     "claude": { "enabled": true, "path": "claude" },
     "gemini": { "enabled": true, "path": "gemini" },
     "codex": { "enabled": false, "path": "codex" },
-    "ollama": { "enabled": true, "model": "llama3.2", "host": "http://localhost:11434" }
+    "ollama": { "enabled": true, "model": "llama3.2" }
   }
 }
 ```
 
-## TUI Commands
-
-| Command | Description |
-|---------|-------------|
-| `/compare <agents> <task>` | Compare agents side-by-side |
-| `/autopilot <task>` | AI-generated execution plan |
-| `/workflow <name> <task>` | Run a saved workflow |
-| `/workflows` | Manage workflows (interactive) |
-| `/agent [name]` | Show/set current agent |
-| `/help` | Show all commands |
-| `/clear` | Clear chat history |
-| `/exit` | Exit |
-
-## CLI Commands
-
-```bash
-puzld                     # Launch TUI
-puzld run <task>          # Run a task
-puzld compare <agents>    # Compare agents
-puzld plan <task>         # Generate plan
-puzld check               # Check agent availability
-puzld serve               # Start API server
-puzld template list       # List workflow templates
-```
+---
 
 ## Architecture
 
 ```
-┌─────────────┐     ┌──────────────┐     ┌─────────────┐
-│   CLI/TUI   │────▶│  Orchestrator │────▶│   Adapters  │
-└─────────────┘     └──────────────┘     └─────────────┘
-                           │                    │
-                           ▼                    ▼
-                    ┌──────────────┐     ┌─────────────┐
-                    │ Local Router │     │ Claude      │
-                    │   (Ollama)   │     │ Gemini      │
-                    └──────────────┘     │ Codex       │
-                                         │ Ollama      │
-                                         └─────────────┘
+User Input
+    │
+    ▼
+┌─────────┐     ┌────────────┐     ┌──────────┐
+│ CLI/TUI │────▶│ Orchestrator│────▶│ Adapters │
+└─────────┘     └────────────┘     └──────────┘
+                      │                  │
+                      ▼                  ▼
+               ┌───────────┐      ┌─────────────┐
+               │  Router   │      │ Claude      │
+               │ (Ollama)  │      │ Gemini      │
+               └───────────┘      │ Codex       │
+                                  │ Ollama      │
+                                  └─────────────┘
 ```
+
+---
 
 ## Development
 
 ```bash
-# Clone
 git clone https://github.com/MedChaouch/Puzld.ai.git
-cd puzldai
-
-# Install dependencies
+cd Puzld.ai
 bun install
-
-# Build
 bun run build
-
-# Test locally
 npm link
 puzld
 ```
 
-## License
-
-AGPL-3.0-only — See [LICENSE](LICENSE) for details.
+---
 
 ## Contributing
 
 Pull requests welcome! Please ensure your changes pass the build before submitting.
+
+---
+
+## License
+
+**AGPL-3.0-only** — See [LICENSE](./LICENSE)
+
+---
+
+<p align="center">
+  <sub>Built by <a href="https://github.com/MedChaouch">Med Chaouch</a></sub>
+</p>
