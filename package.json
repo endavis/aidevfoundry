@@ -4,12 +4,14 @@
   "description": "Multi-LLM Orchestrator - Route tasks intelligently across Claude, Gemini, Codex, and local models",
   "type": "module",
   "bin": {
-    "puzld": "./dist/cli/index.js",
-    "puzldai": "./dist/cli/index.js"
+    "puzld": "dist/cli/index.js",
+    "puzldai": "dist/cli/index.js"
   },
   "files": [
     "dist",
-    "web"
+    "web",
+    "README.md",
+    "LICENSE"
   ],
   "scripts": {
     "dev": "bun run src/cli/index.ts",
@@ -40,7 +42,7 @@
   },
   "repository": {
     "type": "git",
-    "url": "https://github.com/MedChaouch/Puzld.ai.git"
+    "url": "git+https://github.com/MedChaouch/Puzld.ai.git"
   },
   "keywords": [
     "ai",
