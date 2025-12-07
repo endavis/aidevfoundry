@@ -205,22 +205,35 @@ puzld plan "task" -p claude    # Use specific agent as planner
 /workflow code-review "code"    Run saved workflow
 /workflows                      Manage templates
 /agent claude                   Switch agent
+/router ollama                  Set routing agent
+/planner claude                 Set autopilot planner
+/sequential                     Toggle: compare one-at-a-time
+/pick                           Toggle: select best from compare
+/execute                        Toggle: auto-run autopilot plans
+/interactive                    Toggle: pause between steps
 /help                           All commands
 ```
 
 ### CLI Mode
 
 ```bash
-puzld                        # Launch TUI
-puzld run "task"             # Single task
-puzld run "task" -a claude   # Force agent
-puzld run "task" -P "..."    # Pipeline
-puzld run "task" -T template # Use template
-puzld compare a,b "task"     # Compare
-puzld plan "task" -x         # Auto-plan + execute
-puzld check                  # Agent status
-puzld serve                  # API server
-puzld template list          # List templates
+puzld                           # Launch TUI
+puzld run "task"                # Single task
+puzld run "task" -a claude      # Force agent
+puzld run "task" -P "..."       # Pipeline
+puzld run "task" -T template    # Use template
+puzld compare a,b "task"        # Compare
+puzld plan "task"               # Generate plan
+puzld plan "task" -x            # Plan + execute
+puzld plan "task" -p claude     # Use specific planner
+puzld check                     # Agent status
+puzld serve                     # API server
+puzld agent                     # Interactive agent mode
+puzld template list             # List templates
+puzld template show <name>      # Show template details
+puzld template create <name>    # Create template
+puzld template edit <name>      # Edit template
+puzld template delete <name>    # Delete template
 ```
 
 ---
