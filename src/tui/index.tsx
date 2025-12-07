@@ -455,10 +455,17 @@ Compare View:
         setLoadingText('generating plan...');
 
         try {
-          const plan = await generatePlan(task, currentPlanner as AgentName);
+          const planResult = await generatePlan(task, currentPlanner as AgentName);
+
+          if (planResult.error || !planResult.plan) {
+            addMessage('Error: ' + (planResult.error || 'Failed to generate plan'), 'autopilot');
+            break;
+          }
+
+          const plan = planResult.plan;
 
           // Format plan display
-          let planDisplay = 'Plan: ' + plan.name + '\n\n';
+          let planDisplay = 'Plan: ' + (plan.prompt || task) + '\n\n';
           plan.steps.forEach((step, i) => {
             planDisplay += (i + 1) + '. [' + (step.agent || 'auto') + '] ' + step.action + '\n';
             planDisplay += '   ' + step.prompt.slice(0, 80) + (step.prompt.length > 80 ? '...' : '') + '\n';
