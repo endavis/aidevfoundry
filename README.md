@@ -114,9 +114,10 @@ Three views: **side-by-side**, **expanded**, or **stacked**.
 /pick                          # Toggle: select best response
 
 # CLI
-puzld compare claude,gemini "task"
-puzld compare claude,gemini,codex "task" -s   # Sequential mode
-puzld compare claude,gemini "task" -p         # Pick best response
+puzld compare "task"                          # Default: claude,gemini
+puzld compare "task" -a claude,gemini,codex   # Specify agents
+puzld compare "task" -s                       # Sequential mode
+puzld compare "task" -p                       # Pick best response
 ```
 
 <p align="center">
@@ -168,8 +169,11 @@ Save pipelines as reusable templates. Run them anywhere with a single command.
 
 # CLI
 puzld run "task" -T code-review
+puzld run "task" -T code-review -i   # Interactive mode
 puzld template list            # List all templates
+puzld template show my-flow    # Show template details
 puzld template create my-flow -P "claude:plan,codex:code"
+puzld template delete my-flow  # Delete template
 ```
 
 <p align="center">
@@ -244,9 +248,10 @@ puzld run "task" -a claude      # Force agent
 puzld run "task" -P "..."       # Pipeline
 puzld run "task" -T template    # Use template
 puzld run "task" -i             # Interactive: pause between steps
-puzld compare a,b "task"        # Compare
-puzld compare a,b "task" -s     # Sequential mode
-puzld compare a,b "task" -p     # Pick best response
+puzld compare "task"            # Compare (default: claude,gemini)
+puzld compare "task" -a a,b,c   # Specify agents
+puzld compare "task" -s         # Sequential mode
+puzld compare "task" -p         # Pick best response
 puzld plan "task"               # Generate plan
 puzld plan "task" -x            # Plan + execute
 puzld plan "task" -p claude     # Use specific planner
