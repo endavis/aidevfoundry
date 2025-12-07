@@ -17,7 +17,7 @@ export interface ContextItem {
   tokens: number;
   priority: number;        // Higher = keep longer (1-10)
   source?: string;         // Which step/agent produced this
-  timestamp?: number;
+  timestamp: number;       // Unix timestamp for recency scoring
   metadata?: Record<string, string>;
 }
 

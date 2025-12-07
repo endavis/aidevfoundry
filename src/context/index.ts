@@ -51,3 +51,13 @@ export {
   type MemoryContext,
   type MemoryConfig
 } from './pipeline-memory';
+
+// Semantic Relevance Scoring
+export {
+  scoreRelevance,
+  filterByRelevance,
+  getTopRelevant,
+  isEmbeddingAvailable,
+  type RelevanceScore,
+  type ScoringConfig
+} from './relevance';
