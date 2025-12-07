@@ -13,6 +13,13 @@ import {
   templateEditCommand,
   templateDeleteCommand
 } from './commands/template';
+import {
+  sessionListCommand,
+  sessionNewCommand,
+  sessionInfoCommand,
+  sessionDeleteCommand,
+  sessionClearCommand
+} from './commands/session';
 import { startTUI } from '../tui';
 import { readFileSync } from 'fs';
 import { join, dirname } from 'path';
@@ -48,8 +55,8 @@ program
   .action(compareCommand);
 
 program
-  .command('plan')
-  .description('Generate and optionally execute an LLM-planned workflow')
+  .command('autopilot')
+  .description('Generate and optionally execute an AI-planned workflow')
   .argument('<task>', 'The task to plan')
   .option('-x, --execute', 'Execute the plan after generating')
   .option('-p, --planner <agent>', 'Agent to use for planning', 'ollama')
@@ -118,6 +125,36 @@ templateCmd
   .command('delete <name>')
   .description('Delete a user template')
   .action(templateDeleteCommand);
+
+// Session subcommands
+const sessionCmd = program
+  .command('session')
+  .description('Manage chat sessions');
+
+sessionCmd
+  .command('list [agent]')
+  .description('List all sessions (optionally filter by agent)')
+  .action(sessionListCommand);
+
+sessionCmd
+  .command('new [agent]')
+  .description('Create a new session')
+  .action(sessionNewCommand);
+
+sessionCmd
+  .command('info <id>')
+  .description('Show session details')
+  .action(sessionInfoCommand);
+
+sessionCmd
+  .command('delete <id>')
+  .description('Delete a session')
+  .action(sessionDeleteCommand);
+
+sessionCmd
+  .command('clear <id>')
+  .description('Clear session history (keep session, remove messages)')
+  .action(sessionClearCommand);
 
 // If no arguments, launch TUI; otherwise parse commands
 if (process.argv.length <= 2) {

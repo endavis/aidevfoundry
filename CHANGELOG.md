@@ -22,6 +22,56 @@ All notable changes to PuzldAI will be documented in this file.
 - Key points extraction utility
 - Compression ratio metrics
 
+#### Context Window Manager (`src/context/window.ts`)
+- Agent-specific context rules (Claude verbose, Ollama minimal)
+- Priority-based compression (code priority 8, summaries priority 3)
+- Dynamic Ollama model limits (llama3.1=128k, mixtral=32k)
+- Structured context tags (`<code_context>`, `<previous_context>`)
+- User override via config `maxTokens`
+
+#### Pipeline Memory (`src/executor/memory.ts`)
+- Auto-summarized step outputs
+- Token-safe variable injection
+- Key point extraction for tight budgets
+- Memory stats tracking across steps
+- Budget-aware output formatting
+
+#### Semantic Relevance Scoring (`src/context/relevance.ts`)
+- Embedding-based relevance via Ollama (nomic-embed-text)
+- Keyword fallback using Jaccard similarity
+- Recency scoring with linear decay
+- Configurable weights (embedding vs keyword vs recency)
+- `filterByRelevance()` and `getTopRelevant()` utilities
+
+#### Session Manager (`src/memory/sessions.ts`)
+- Persistent chat history to `~/.puzldai/sessions/`
+- Auto-summarization when token limit reached
+- Per-agent session isolation
+- Token tracking per session
+- Compression ratio stats
+
+#### CLI Session Commands (`src/cli/commands/session.ts`)
+- `puzld session list [agent]` — List all sessions
+- `puzld session new [agent]` — Create a new session
+- `puzld session info <id>` — View session details
+- `puzld session delete <id>` — Remove a session
+- `puzld session clear <id>` — Clear history, keep session
+
+#### TUI Session Management (`src/tui/components/SessionsManager.tsx`)
+- `/session` — Create new session directly
+- `/resume` — Interactive picker with arrow navigation
+- Menu: All Sessions / Current Agent Sessions
+- Session detail view with stats
+- Resume, Clear History, Delete actions
+- Confirm dialogs default to "No" for safety
+
+#### TUI Settings Panel (`src/tui/components/SettingsPanel.tsx`)
+- `/settings` — Open tabbed settings panel
+- **Status tab:** Version, current agent, router, planner
+- **Session tab:** Active session info, message count, token usage, compression ratio
+- **Config tab:** Toggle sequential, pick, auto-execute, interactive mode
+- Tab to cycle, Enter/Space to toggle, Esc to exit
+
 ---
 
 ## [0.1.9] - 2024-12-07

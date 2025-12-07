@@ -25,9 +25,10 @@ const COMMANDS: Command[] = [
   // Nested
   { label: '/workflows', value: '/workflows', description: 'Manage workflows (interactive)' },
   // Sessions
-  { label: '/session', value: '/session ', description: 'Session management' },
-  { label: '/sessions', value: '/sessions', description: 'List all sessions' },
+  { label: '/session', value: '/session', description: 'Start new session' },
+  { label: '/resume', value: '/resume', description: 'Resume a previous session' },
   // Utility
+  { label: '/settings', value: '/settings', description: 'Open settings panel' },
   { label: '/help', value: '/help', description: 'Show available commands' },
   { label: '/clear', value: '/clear', description: 'Clear chat history' },
   { label: '/exit', value: '/exit', description: 'Exit the application' },

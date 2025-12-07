@@ -1,6 +1,9 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { render, Box, Text, useInput } from 'ink';
 import TextInput from 'ink-text-input';
+import { readFileSync } from 'fs';
+import { join, dirname } from 'path';
+import { fileURLToPath } from 'url';
 import { orchestrate } from '../orchestrator';
 import { Banner, WelcomeMessage } from './components/Banner';
 import { useHistory } from './hooks/useHistory';
@@ -16,6 +19,8 @@ import {
 } from '../executor';
 import { listTemplates, loadTemplate } from '../executor/templates';
 import { WorkflowsManager } from './components/WorkflowsManager';
+import { SessionsManager } from './components/SessionsManager';
+import { SettingsPanel } from './components/SettingsPanel';
 import { CompareView } from './components/CompareView';
 import { generatePlan } from '../executor/planner';
 import { isRouterAvailable } from '../router/router';
@@ -23,14 +28,13 @@ import { adapters } from '../adapters';
 import {
   getLatestSession,
   addMessage as addSessionMessage,
-  listSessions,
   createSession,
-  loadSession,
-  deleteSession,
   clearSessionHistory,
-  getSessionStats,
   type AgentSession
 } from '../memory';
+
+const __dirname = dirname(fileURLToPath(import.meta.url));
+const pkg = JSON.parse(readFileSync(join(__dirname, '../../package.json'), 'utf-8'));
 
 interface Message {
   id: string;
@@ -44,7 +48,7 @@ interface Message {
 let messageId = 0;
 const nextId = () => String(++messageId);
 
-type AppMode = 'chat' | 'workflows' | 'compare';
+type AppMode = 'chat' | 'workflows' | 'sessions' | 'settings' | 'compare';
 
 interface CompareResult {
   agent: string;
@@ -117,11 +121,8 @@ function App() {
     checkAgents();
   }, []);
 
-  // Load session for current agent
-  useEffect(() => {
-    const sess = getLatestSession(currentAgent);
-    setSession(sess);
-    // Restore messages from session
+  // Helper to restore messages from session
+  const restoreFromSession = (sess: AgentSession) => {
     if (sess.messages.length > 0) {
       const restored: Message[] = sess.messages.map((m, i) => ({
         id: String(i),
@@ -129,10 +130,25 @@ function App() {
         content: m.content
       }));
       setMessages(restored);
+      messageId = restored.length;
     } else {
       setMessages([]);
+      messageId = 0;
     }
-    messageId = sess.messages.length;
+  };
+
+  // Handle session load from SessionsManager
+  const handleLoadSession = (sess: AgentSession) => {
+    setSession(sess);
+    restoreFromSession(sess);
+    setMode('chat');
+  };
+
+  // Load session for current agent
+  useEffect(() => {
+    const sess = getLatestSession(currentAgent);
+    setSession(sess);
+    restoreFromSession(sess);
   }, [currentAgent]);
 
   // Handle workflow run from WorkflowsManager
@@ -334,6 +350,8 @@ function App() {
   /autopilot <task>         - AI-generated execution plan
   /workflow <name> <task>   - Run a saved workflow
   /workflows                - Manage workflows (interactive)
+  /session                  - Start new session
+  /resume                   - Resume a previous session
 
 Options:
   /agent [name]     - Show/set agent (claude, gemini, codex, ollama, auto)
@@ -344,16 +362,11 @@ Options:
   /execute          - Toggle: auto-run autopilot plans
   /interactive      - Toggle: pause between steps
 
-Sessions:
-  /session          - Session management help
-  /session new      - Start new session
-  /session info     - Current session stats
-  /sessions [agent] - List all sessions
-
 Utility:
-  /help   - Show this help
-  /clear  - Clear chat history
-  /exit   - Exit
+  /settings - Open settings panel
+  /help     - Show this help
+  /clear    - Clear chat history
+  /exit     - Exit
 
 Keyboard:
   Tab        - Autocomplete command
@@ -377,114 +390,20 @@ Compare View:
         messageId = 0;
         break;
 
-      case 'sessions': {
-        const allSessions = listSessions(rest || undefined);
-        if (allSessions.length === 0) {
-          addMessage('No sessions found.');
-        } else {
-          let output = 'Sessions' + (rest ? ' (' + rest + ')' : '') + ':\n\n';
-          allSessions.forEach((s, i) => {
-            const date = new Date(s.updatedAt).toLocaleDateString();
-            output += (i + 1) + '. ' + s.id + '\n';
-            output += '   Agent: ' + s.agent + ' | Messages: ' + s.messageCount + ' | ' + date + '\n';
-            output += '   ' + s.preview + '\n\n';
-          });
-          addMessage(output);
-        }
+      case 'resume':
+        setMode('sessions');
         break;
-      }
+
+      case 'settings':
+        setMode('settings');
+        break;
 
       case 'session': {
-        const subCmd = rest.split(' ')[0];
-        const sessionArg = rest.split(' ').slice(1).join(' ');
-
-        // Helper to restore messages from session
-        const restoreFromSession = (sess: AgentSession) => {
-          if (sess.messages.length > 0) {
-            const restored: Message[] = sess.messages.map((m, i) => ({
-              id: String(i),
-              role: m.role === 'system' ? 'assistant' : m.role,
-              content: m.content
-            }));
-            setMessages(restored);
-            messageId = restored.length;
-          } else {
-            setMessages([]);
-            messageId = 0;
-          }
-        };
-
-        switch (subCmd) {
-          case 'new': {
-            const freshSession = createSession(currentAgent);
-            setSession(freshSession);
-            setMessages([]);
-            messageId = 0;
-            addMessage('New session created: ' + freshSession.id);
-            break;
-          }
-
-          case 'load': {
-            if (!sessionArg) {
-              addMessage('Usage: /session load <session_id>');
-              break;
-            }
-            const loaded = loadSession(sessionArg);
-            if (!loaded) {
-              addMessage('Session not found: ' + sessionArg);
-              break;
-            }
-            setSession(loaded);
-            restoreFromSession(loaded);
-            addMessage('Loaded session: ' + loaded.id);
-            break;
-          }
-
-          case 'delete': {
-            if (!sessionArg) {
-              addMessage('Usage: /session delete <session_id>');
-              break;
-            }
-            if (deleteSession(sessionArg)) {
-              addMessage('Deleted session: ' + sessionArg);
-              if (session?.id === sessionArg) {
-                const freshSession = createSession(currentAgent);
-                setSession(freshSession);
-                setMessages([]);
-                messageId = 0;
-              }
-            } else {
-              addMessage('Session not found: ' + sessionArg);
-            }
-            break;
-          }
-
-          case 'info': {
-            if (!session) {
-              addMessage('No active session');
-              break;
-            }
-            const stats = getSessionStats(session);
-            addMessage(
-              'Session: ' + session.id + '\n' +
-              'Agent: ' + session.agent + '\n' +
-              'Messages: ' + stats.messageCount + '\n' +
-              'Tokens: ' + stats.totalTokens + ' (summary: ' + stats.summaryTokens + ')\n' +
-              'Compression: ' + stats.compressionRatio + '%'
-            );
-            break;
-          }
-
-          default:
-            addMessage(
-              'Session commands:\n' +
-              '  /session new        - Start new session\n' +
-              '  /session load <id>  - Load a session\n' +
-              '  /session delete <id> - Delete a session\n' +
-              '  /session info       - Current session info\n' +
-              '  /sessions [agent]   - List all sessions'
-            );
-        }
+        const freshSession = createSession(currentAgent);
+        setSession(freshSession);
+        setMessages([]);
+        messageId = 0;
+        addMessage('New session started');
         break;
       }
 
@@ -715,7 +634,7 @@ Compare View:
   return (
     <Box flexDirection="column" padding={1}>
       {/* Banner */}
-      <Banner agents={agentStatus} />
+      <Banner version={pkg.version} agents={agentStatus} />
 
       {/* Notification */}
       {notification && (
@@ -734,6 +653,35 @@ Compare View:
         <WorkflowsManager
           onBack={() => setMode('chat')}
           onRun={handleWorkflowRun}
+        />
+      )}
+
+      {/* Sessions Mode */}
+      {mode === 'sessions' && (
+        <SessionsManager
+          onBack={() => setMode('chat')}
+          onLoadSession={handleLoadSession}
+          currentAgent={currentAgent}
+        />
+      )}
+
+      {/* Settings Mode */}
+      {mode === 'settings' && (
+        <SettingsPanel
+          onBack={() => setMode('chat')}
+          version={pkg.version}
+          currentAgent={currentAgent}
+          routerAgent={currentRouter}
+          plannerAgent={currentPlanner}
+          session={session}
+          sequential={sequential}
+          pick={pick}
+          autoExecute={executeMode}
+          interactive={interactive}
+          onToggleSequential={() => setSequential(s => !s)}
+          onTogglePick={() => setPick(p => !p)}
+          onToggleExecute={() => setExecuteMode(e => !e)}
+          onToggleInteractive={() => setInteractive(i => !i)}
         />
       )}
 
