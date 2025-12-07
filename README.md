@@ -243,16 +243,22 @@ puzld run "task"                # Single task
 puzld run "task" -a claude      # Force agent
 puzld run "task" -P "..."       # Pipeline
 puzld run "task" -T template    # Use template
+puzld run "task" -i             # Interactive: pause between steps
 puzld compare a,b "task"        # Compare
+puzld compare a,b "task" -s     # Sequential mode
+puzld compare a,b "task" -p     # Pick best response
 puzld plan "task"               # Generate plan
 puzld plan "task" -x            # Plan + execute
 puzld plan "task" -p claude     # Use specific planner
 puzld check                     # Agent status
-puzld serve                     # API server
 puzld agent                     # Interactive agent mode
+puzld agent -a claude           # Force specific agent
+puzld serve                     # API server
+puzld serve -p 8080             # Custom port
+puzld serve -w                  # With web terminal
 puzld template list             # List templates
 puzld template show <name>      # Show template details
-puzld template create <name>    # Create template
+puzld template create <name> -P "..." -d "desc"
 puzld template edit <name>      # Edit template
 puzld template delete <name>    # Delete template
 ```
