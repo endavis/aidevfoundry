@@ -190,7 +190,15 @@ puzld plan "task" -p claude    # Use specific agent as planner
 ```
 
 <p align="center">
-  <img src="https://raw.githubusercontent.com/MedChaouch/Puzld.ai/main/assets/autopilot-mode/1.png" width="700" alt="Autopilot Mode">
+  <img src="https://raw.githubusercontent.com/MedChaouch/Puzld.ai/main/assets/autopilot-mode/1.png" width="700" alt="Autopilot Mode 1">
+</p>
+
+<p align="center">
+  <img src="https://raw.githubusercontent.com/MedChaouch/Puzld.ai/main/assets/autopilot-mode/2.png" width="700" alt="Autopilot Mode 2">
+</p>
+
+<p align="center">
+  <img src="https://raw.githubusercontent.com/MedChaouch/Puzld.ai/main/assets/autopilot-mode/3.png" width="700" alt="Autopilot Mode 3">
 </p>
 
 ---
