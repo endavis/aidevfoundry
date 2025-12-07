@@ -83,6 +83,12 @@ puzld check
 
 Run the same prompt on multiple agents and compare results side-by-side.
 
+Three views: **side-by-side**, **expanded**, or **stacked**.
+
+```bash
+puzld compare claude,gemini "explain async/await"
+```
+
 <p align="center">
   <img src="https://raw.githubusercontent.com/MedChaouch/Puzld.ai/main/assets/compare-mode/1.png" width="700" alt="Compare Mode 1">
 </p>
