@@ -7,6 +7,7 @@
 
 import { summarizeIfNeeded, extractKeyPoints, isSummarizerAvailable } from './summarizer';
 import { estimateTokens, truncateForAgent } from './tokens';
+import { getScaffolder, type Scaffold } from './scaffolding';
 import type { StepResult } from '../executor/types';
 import type { ExecutionContext } from '../executor/context';
 
@@ -20,6 +21,7 @@ export interface StepOutput {
   summaryTokens: number; // Token count of summary
   keyPoints: string[];   // Extracted key points
   timestamp: number;
+  scaffold?: Scaffold;   // Scaffolded chunks for very large outputs
 }
 
 /**
@@ -43,6 +45,9 @@ export interface MemoryConfig {
   // Auto-summarize outputs above this token count
   summarizeThreshold: number;
 
+  // Scaffold outputs above this token count (very large outputs)
+  scaffoldThreshold: number;
+
   // Max tokens per variable injection
   maxInjectionTokens: number;
 
@@ -50,10 +55,12 @@ export interface MemoryConfig {
   preferSummaries: boolean;
 }
 
+// Research-backed thresholds (RAG best practices 2024)
 const DEFAULT_CONFIG: MemoryConfig = {
-  targetAgent: 'ollama',
-  summarizeThreshold: 2000,
-  maxInjectionTokens: 4000,
+  targetAgent: 'claude',
+  summarizeThreshold: 5000,   // 5k-15k: single summary
+  scaffoldThreshold: 15000,   // >15k: scaffold into 512-token chunks
+  maxInjectionTokens: 10000,
   preferSummaries: true
 };
 
@@ -78,10 +85,10 @@ export function createMemoryContext(
 /**
  * Process step result and store with memory management
  *
- * 1. Stores raw result
- * 2. Auto-summarizes if over threshold
- * 3. Extracts key points
- * 4. Calculates token counts
+ * Decision framework (RAG best practices 2024):
+ * - < 5k tokens: pass as-is
+ * - 5k-15k tokens: single abstractive summary
+ * - > 15k tokens: scaffold (512-token chunks with summaries)
  */
 export async function addStepResultWithMemory(
   ctx: MemoryContext,
@@ -101,8 +108,26 @@ export async function addStepResultWithMemory(
     timestamp: Date.now()
   };
 
-  // Auto-summarize if over threshold and summarizer is available
-  if (tokens > ctx.config.summarizeThreshold && await isSummarizerAvailable()) {
+  const summarizerAvailable = await isSummarizerAvailable();
+
+  // Scaffold very large outputs (> 15k tokens)
+  if (tokens > ctx.config.scaffoldThreshold && summarizerAvailable) {
+    try {
+      const scaffolder = getScaffolder();
+      const scaffold = await scaffolder.scaffold(content);
+
+      output.scaffold = scaffold;
+      output.summary = scaffold.summary;
+      output.summaryTokens = estimateTokens(scaffold.summary);
+      output.keyPoints = scaffold.chunks.map(c => c.summary);
+    } catch {
+      // Fallback to truncation
+      output.summary = truncateForAgent(content, ctx.config.targetAgent);
+      output.summaryTokens = estimateTokens(output.summary);
+    }
+  }
+  // Summarize medium outputs (5k-15k tokens)
+  else if (tokens > ctx.config.summarizeThreshold && summarizerAvailable) {
     try {
       const [summary, keyPoints] = await Promise.all([
         summarizeIfNeeded(content, ctx.config.summarizeThreshold),
@@ -113,7 +138,7 @@ export async function addStepResultWithMemory(
       output.summaryTokens = estimateTokens(summary);
       output.keyPoints = keyPoints;
     } catch {
-      // Fallback: keep raw as summary
+      // Fallback: truncate
       output.summary = truncateForAgent(content, ctx.config.targetAgent);
       output.summaryTokens = estimateTokens(output.summary);
     }

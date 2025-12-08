@@ -250,7 +250,11 @@ export function SessionsManager({ onBack, onLoadSession, currentAgent }: Session
         if (!fullSession) {
           return (
             <Box flexDirection="column">
-              <Text color="red">{error || 'Session not found'}</Text>
+              {error ? (
+                <Text color="red">{error}</Text>
+              ) : (
+                <Text dimColor>Loading session...</Text>
+              )}
               <Text dimColor>Press Esc to go back</Text>
             </Box>
           );

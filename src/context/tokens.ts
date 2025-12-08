@@ -14,18 +14,20 @@ export interface TokenConfig {
 
 // Known Ollama model context limits
 const KNOWN_MODEL_LIMITS: Record<string, number> = {
-  'llama3.2': 8000,
+  'llama3.2': 128000,
   'llama3.1': 128000,
   'llama3': 8000,
   'llama2': 4096,
   'mixtral': 32000,
-  'mistral': 8000,
+  'mistral': 32000,
   'codellama': 16000,
   'gemma2': 8000,
   'gemma': 8000,
-  'phi3': 4096,
-  'qwen2': 32000,
-  'deepseek': 32000,
+  'phi3': 128000,
+  'phi4': 128000,
+  'qwen2': 128000,
+  'qwen2.5': 128000,
+  'deepseek': 128000,
   'command-r': 128000,
 };
 

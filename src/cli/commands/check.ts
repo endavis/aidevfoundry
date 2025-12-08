@@ -36,21 +36,27 @@ async function checkDependencies(): Promise<CheckResult[]> {
   const results: CheckResult[] = [];
 
   const cliChecks = [
-    { name: 'claude', cmd: config.adapters.claude.path, args: ['--version'] },
-    { name: 'gemini', cmd: config.adapters.gemini.path, args: ['--version'] },
-    { name: 'codex', cmd: config.adapters.codex.path, args: ['--version'] },
-    { name: 'ollama', cmd: 'ollama', args: ['--version'] },
-    { name: 'ttyd', cmd: 'ttyd', args: ['--version'] },
+    { name: 'claude', cmd: config.adapters.claude.path, args: ['--version'], enabled: config.adapters.claude.enabled },
+    { name: 'gemini', cmd: config.adapters.gemini.path, args: ['--version'], enabled: config.adapters.gemini.enabled },
+    { name: 'codex', cmd: config.adapters.codex.path, args: ['--version'], enabled: config.adapters.codex.enabled },
+    { name: 'ollama', cmd: 'ollama', args: ['--version'], enabled: config.adapters.ollama.enabled },
+    { name: 'ttyd', cmd: 'ttyd', args: ['--version'], enabled: true },
   ];
 
-  for (const { name, cmd, args } of cliChecks) {
+  for (const { name, cmd, args, enabled } of cliChecks) {
+    // Check if disabled in config first
+    if (!enabled) {
+      results.push({ name, available: false, error: 'disabled in config' });
+      continue;
+    }
+
     try {
       const { stdout } = await execa(cmd, args, { timeout: 5000 });
       const version = stdout.trim().split('\n')[0].slice(0, 50);
       results.push({ name, available: true, version });
     } catch (err: unknown) {
       const error = err as Error & { code?: string };
-      const msg = error.code === 'ENOENT' ? 'not found' : error.message;
+      const msg = error.code === 'ENOENT' ? 'not found in PATH' : error.message;
       results.push({ name, available: false, error: msg });
     }
   }

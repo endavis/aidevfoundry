@@ -61,3 +61,16 @@ export {
   type RelevanceScore,
   type ScoringConfig
 } from './relevance';
+
+// Scaffolded Context Windows
+export {
+  ContextScaffolder,
+  getScaffolder,
+  scaffoldIfNeeded,
+  getContentWithinLimit,
+  type Scaffold,
+  type ScaffoldChunk,
+  type ScaffoldOptions,
+  type ReconstructOptions,
+  type ChunkType
+} from './scaffolding';
