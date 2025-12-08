@@ -13,11 +13,19 @@ All notable changes to PuzldAI will be documented in this file.
 - 3 view modes now available for pipelines (side-by-side, expanded, all)
 - Pipeline steps display 3 boxes per row with grid navigation
 - Pipeline name shown in header (workflow name or "Autopilot")
+- Colored header for autopilot mode (orange dashes, teal agent, yellow mode label)
+- Execution Modes reference tables in README
 
 ### Changed
 - `/workflow` command now uses CollaborationView instead of text output
 - `/autopilot` with execute mode now uses CollaborationView for results
 - WorkflowsManager runs also use the new pipeline view
+- README reorganized with Features and Supported Agents after Why PuzldAI
+- All README examples now use `puzldai` as main command (`puzld` as alias)
+
+### Fixed
+- Autopilot plan display no longer shows template variables ({{prompt}}, etc.)
+- Arrow keys in collaboration/compare mode now navigate boxes instead of command history
 
 ---
 
