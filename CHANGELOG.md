@@ -6,6 +6,21 @@ All notable changes to PuzldAI will be documented in this file.
 
 ---
 
+## [0.2.2] - 2025-12-08
+
+### Added
+- Pipeline view mode for `/workflow` and `/autopilot` commands
+- 3 view modes now available for pipelines (side-by-side, expanded, all)
+- Pipeline steps display 3 boxes per row with grid navigation
+- Pipeline name shown in header (workflow name or "Autopilot")
+
+### Changed
+- `/workflow` command now uses CollaborationView instead of text output
+- `/autopilot` with execute mode now uses CollaborationView for results
+- WorkflowsManager runs also use the new pipeline view
+
+---
+
 ## [0.2.1] - 2025-12-08
 
 ### Added

@@ -15,7 +15,7 @@ export interface CollaborationStep {
   round?: number;  // For debate rounds
 }
 
-export type CollaborationType = 'correct' | 'debate' | 'consensus';
+export type CollaborationType = 'correct' | 'debate' | 'consensus' | 'pipeline';
 
 interface CollaborationViewProps {
   type: CollaborationType;
@@ -23,6 +23,7 @@ interface CollaborationViewProps {
   onExit: () => void;
   inputValue?: string;
   interactive?: boolean;
+  pipelineName?: string;  // For pipeline type - workflow/autopilot name
 }
 
 type ViewMode = 'side-by-side' | 'expanded' | 'all';
@@ -41,11 +42,12 @@ function truncateLines(text: string, maxLines: number): { text: string; truncate
 }
 
 // Get title for collaboration type
-function getTitle(type: CollaborationType): { title: string; mode: string } {
+function getTitle(type: CollaborationType, pipelineName?: string): { title: string; mode: string } {
   switch (type) {
     case 'correct': return { title: 'Cross-Agent Correction', mode: 'Correct Mode' };
     case 'debate': return { title: 'Multi-Agent Debate', mode: 'Debate Mode' };
     case 'consensus': return { title: 'Consensus Building', mode: 'Consensus Mode' };
+    case 'pipeline': return { title: pipelineName || 'Pipeline', mode: 'Pipeline Mode' };
   }
 }
 
@@ -67,7 +69,7 @@ function getRoleDisplay(step: CollaborationStep): string {
   }
 }
 
-export function CollaborationView({ type, steps, onExit, inputValue = '', interactive = true }: CollaborationViewProps) {
+export function CollaborationView({ type, steps, onExit, inputValue = '', interactive = true, pipelineName }: CollaborationViewProps) {
   const [viewMode, setViewMode] = useState<ViewMode>('side-by-side');
   const [expandedIndex, setExpandedIndex] = useState<number>(0);
   const [highlightedIndex, setHighlightedIndex] = useState<number>(0);
@@ -89,8 +91,8 @@ export function CollaborationView({ type, steps, onExit, inputValue = '', intera
 
     // Arrow keys to navigate in side-by-side view
     if (viewMode === 'side-by-side') {
-      // Items per row: debate = 2, consensus = 3, correct = all
-      const itemsPerRow = type === 'debate' ? 2 : type === 'consensus' ? 3 : steps.length;
+      // Items per row: debate = 2, consensus/pipeline = 3, correct = all
+      const itemsPerRow = type === 'debate' ? 2 : (type === 'consensus' || type === 'pipeline') ? 3 : steps.length;
 
       if (key.leftArrow) {
         setHighlightedIndex(i => Math.max(0, i - 1));
@@ -151,7 +153,7 @@ export function CollaborationView({ type, steps, onExit, inputValue = '', intera
 
     return (
       <Box flexDirection="column" width="100%">
-        <Text bold color={BORDER_COLOR}>─── {getTitle(type).title} <Text color="yellow">[{getTitle(type).mode}]</Text> ───</Text>
+        <Text bold color={BORDER_COLOR}>─── {getTitle(type, pipelineName).title} <Text color="yellow">[{getTitle(type, pipelineName).mode}]</Text> ───</Text>
         <Box height={1} />
         {steps.map((step, i) => {
           const isError = !!step.error;
@@ -185,8 +187,8 @@ export function CollaborationView({ type, steps, onExit, inputValue = '', intera
 
   // === MODE 1: Side-by-side ===
   if (viewMode === 'side-by-side') {
-    // Boxes per row: debate = 2, consensus = 3, correct = all
-    const maxPerRow = type === 'debate' ? 2 : type === 'consensus' ? 3 : steps.length;
+    // Boxes per row: debate = 2, consensus/pipeline = 3, correct = all
+    const maxPerRow = type === 'debate' ? 2 : (type === 'consensus' || type === 'pipeline') ? 3 : steps.length;
     const rows: CollaborationStep[][] = [];
     for (let i = 0; i < steps.length; i += maxPerRow) {
       rows.push(steps.slice(i, i + maxPerRow));
@@ -251,7 +253,7 @@ export function CollaborationView({ type, steps, onExit, inputValue = '', intera
 
     return (
       <Box flexDirection="column" width="100%">
-        <Text bold color={BORDER_COLOR}>─── {getTitle(type).title} <Text color="yellow">[{getTitle(type).mode}]</Text> ───</Text>
+        <Text bold color={BORDER_COLOR}>─── {getTitle(type, pipelineName).title} <Text color="yellow">[{getTitle(type, pipelineName).mode}]</Text> ───</Text>
         <Box height={1} />
         {rows.map((row, rowIndex) => {
           const startIndex = rowIndex * maxPerRow;
@@ -286,7 +288,7 @@ export function CollaborationView({ type, steps, onExit, inputValue = '', intera
 
     return (
       <Box flexDirection="column">
-        <Text bold color={BORDER_COLOR}>─── {getTitle(type).title} <Text color="yellow">[{getTitle(type).mode}]</Text> ───</Text>
+        <Text bold color={BORDER_COLOR}>─── {getTitle(type, pipelineName).title} <Text color="yellow">[{getTitle(type, pipelineName).mode}]</Text> ───</Text>
         <Box height={1} />
         {/* Header divider */}
         <Text color={borderColor}>
@@ -326,7 +328,7 @@ export function CollaborationView({ type, steps, onExit, inputValue = '', intera
 
   return (
     <Box flexDirection="column">
-      <Text bold color={BORDER_COLOR}>─── {getTitle(type).title} <Text color="yellow">[{getTitle(type).mode}]</Text> ───</Text>
+      <Text bold color={BORDER_COLOR}>─── {getTitle(type, pipelineName).title} <Text color="yellow">[{getTitle(type, pipelineName).mode}]</Text> ───</Text>
       <Box height={1} />
       {steps.map((step, i) => {
         const isError = !!step.error;

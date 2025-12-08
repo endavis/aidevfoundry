@@ -49,6 +49,7 @@ interface Message {
   compareResults?: CompareResult[];
   collaborationSteps?: CollaborationStep[];
   collaborationType?: CollaborationType;
+  pipelineName?: string;
 }
 
 let messageId = 0;
@@ -90,6 +91,7 @@ function App() {
   const [collaborationSteps, setCollaborationSteps] = useState<CollaborationStep[]>([]);
   const [collaborationType, setCollaborationType] = useState<CollaborationType>('correct');
   const [collaborationKey, setCollaborationKey] = useState(0); // Increments to reset CollaborationView state
+  const [pipelineName, setPipelineName] = useState<string>('');
   const [notification, setNotification] = useState<string | null>(null);
   const [agentStatus, setAgentStatus] = useState<AgentStatus[]>([]);
   const [session, setSession] = useState<AgentSession | null>(null);
@@ -170,30 +172,48 @@ function App() {
 
   // Handle workflow run from WorkflowsManager
   const handleWorkflowRun = async (workflowName: string, task: string) => {
-    setMode('chat');
     setMessages(prev => [...prev, { id: nextId(), role: 'user', content: '/workflow ' + workflowName + ' "' + task + '"' }]);
-    setLoading(true);
-    setLoadingText('running ' + workflowName + '...');
 
     try {
       const template = loadTemplate(workflowName);
       if (!template) throw new Error('Workflow not found');
 
       const plan = buildPipelinePlan(task, { steps: template.steps });
+
+      // Initialize collaboration steps with loading state
+      const initialSteps: CollaborationStep[] = plan.steps.map(step => ({
+        agent: step.agent || 'auto',
+        role: step.action || 'execute',
+        content: '',
+        loading: true
+      }));
+
+      setCollaborationKey(k => k + 1);
+      setCollaborationSteps(initialSteps);
+      setCollaborationType('pipeline');
+      setPipelineName(workflowName);
+      setMode('collaboration');
+
       const result = await execute(plan);
 
-      let output = 'Workflow: ' + workflowName + '\n';
-      for (const stepResult of result.results) {
-        const step = plan.steps.find(s => s.id === stepResult.stepId);
-        output += '\n── ' + (step?.agent || 'auto') + ': ' + step?.action + ' ──\n';
-        output += (stepResult.content || stepResult.error || 'No output') + '\n';
-      }
-      setMessages(prev => [...prev, { id: nextId(), role: 'assistant', content: output, agent: workflowName }]);
+      // Build visual collaboration steps from results
+      const pipelineSteps: CollaborationStep[] = plan.steps.map((step) => {
+        const stepResult = result.results.find(r => r.stepId === step.id);
+        return {
+          agent: step.agent || 'auto',
+          role: step.action || 'execute',
+          content: stepResult?.content || '',
+          error: stepResult?.error,
+          duration: stepResult?.duration,
+          loading: false
+        };
+      });
+
+      setCollaborationSteps(pipelineSteps);
     } catch (err) {
       setMessages(prev => [...prev, { id: nextId(), role: 'assistant', content: 'Error: ' + (err as Error).message }]);
+      setMode('chat');
     }
-
-    setLoading(false);
   };
 
   // Memoize autocomplete items
@@ -277,7 +297,8 @@ function App() {
         role: 'collaboration',
         content: '',
         collaborationSteps: collaborationSteps,
-        collaborationType: collaborationType
+        collaborationType: collaborationType,
+        pipelineName: collaborationType === 'pipeline' ? pipelineName : undefined
       }]);
       setMode('chat');
       setCollaborationSteps([]);
@@ -647,6 +668,7 @@ Compare View:
 
           if (planResult.error || !planResult.plan) {
             addMessage('Error: ' + (planResult.error || 'Failed to generate plan'), 'autopilot');
+            setLoading(false);
             break;
           }
 
@@ -660,26 +682,48 @@ Compare View:
           });
 
           if (executeMode) {
-            addMessage(planDisplay + '\nExecuting...', 'autopilot');
-            setLoadingText('executing plan...');
+            addMessage(planDisplay, 'autopilot');
+            setLoading(false);
+
+            // Initialize collaboration steps with loading state
+            const initialSteps: CollaborationStep[] = plan.steps.map(step => ({
+              agent: step.agent || 'auto',
+              role: step.action || 'execute',
+              content: '',
+              loading: true
+            }));
+
+            setCollaborationKey(k => k + 1);
+            setCollaborationSteps(initialSteps);
+            setCollaborationType('pipeline');
+            setPipelineName('Autopilot');
+            setMode('collaboration');
 
             const result = await execute(plan);
 
-            let output = '\nResults:\n';
-            for (const stepResult of result.results) {
-              const step = plan.steps.find(s => s.id === stepResult.stepId);
-              output += '\n── ' + (step?.agent || 'auto') + ': ' + step?.action + ' ──\n';
-              output += (stepResult.content || stepResult.error || 'No output') + '\n';
-            }
-            addMessage(output, 'autopilot');
+            // Build visual collaboration steps from results
+            const pipelineSteps: CollaborationStep[] = plan.steps.map((step) => {
+              const stepResult = result.results.find(r => r.stepId === step.id);
+              return {
+                agent: step.agent || 'auto',
+                role: step.action || 'execute',
+                content: stepResult?.content || '',
+                error: stepResult?.error,
+                duration: stepResult?.duration,
+                loading: false
+              };
+            });
+
+            setCollaborationSteps(pipelineSteps);
           } else {
             addMessage(planDisplay + '\nUse /execute to enable auto-execution', 'autopilot');
+            setLoading(false);
           }
         } catch (err) {
           addMessage('Error: ' + (err as Error).message);
+          setLoading(false);
         }
 
-        setLoading(false);
         break;
       }
 
@@ -699,26 +743,53 @@ Compare View:
           break;
         }
 
+        // Add user message to chat history
         setMessages(prev => [...prev, { id: nextId(), role: 'user', content: '/workflow ' + wfName + ' "' + task + '"' }]);
-        setLoading(true);
-        setLoadingText('running ' + wfName + '...');
+
+        const plan = buildPipelinePlan(task, { steps: template.steps });
+
+        // Initialize collaboration steps with loading state
+        const initialSteps: CollaborationStep[] = plan.steps.map(step => ({
+          agent: step.agent || 'auto',
+          role: step.action || 'execute',
+          content: '',
+          loading: true
+        }));
+
+        setCollaborationKey(k => k + 1);
+        setCollaborationSteps(initialSteps);
+        setCollaborationType('pipeline');
+        setPipelineName(wfName);
+        setMode('collaboration');
 
         try {
-          const plan = buildPipelinePlan(task, { steps: template.steps });
           const result = await execute(plan);
 
-          let output = 'Workflow: ' + wfName + '\n';
-          for (const stepResult of result.results) {
-            const step = plan.steps.find(s => s.id === stepResult.stepId);
-            output += '\n── ' + (step?.agent || 'auto') + ': ' + step?.action + ' ──\n';
-            output += (stepResult.content || stepResult.error || 'No output') + '\n';
-          }
-          addMessage(output, wfName);
+          // Build visual collaboration steps from results
+          const pipelineSteps: CollaborationStep[] = plan.steps.map((step, i) => {
+            const stepResult = result.results.find(r => r.stepId === step.id);
+            return {
+              agent: step.agent || 'auto',
+              role: step.action || 'execute',
+              content: stepResult?.content || '',
+              error: stepResult?.error,
+              duration: stepResult?.duration,
+              loading: false
+            };
+          });
+
+          setCollaborationSteps(pipelineSteps);
         } catch (err) {
-          addMessage('Error: ' + (err as Error).message);
+          // Show error in collaboration view
+          const errorSteps = initialSteps.map(s => ({
+            ...s,
+            content: '',
+            error: (err as Error).message,
+            loading: false
+          }));
+          setCollaborationSteps(errorSteps);
         }
 
-        setLoading(false);
         break;
       }
 
@@ -1151,6 +1222,7 @@ Compare View:
                   steps={msg.collaborationSteps}
                   onExit={() => {}}
                   interactive={false}
+                  pipelineName={msg.pipelineName}
                 />
               ) : (
                 <Box key={msg.id} marginBottom={1}>
@@ -1190,6 +1262,7 @@ Compare View:
               steps={collaborationSteps}
               onExit={saveCollaborationToHistory}
               inputValue={input}
+              pipelineName={pipelineName}
             />
           )}
 
