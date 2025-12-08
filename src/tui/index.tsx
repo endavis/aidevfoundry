@@ -1235,7 +1235,14 @@ Compare View:
                     </Text>
                   ) : (
                     <Box flexDirection="column">
-                      {msg.agent && (
+                      {msg.agent === 'autopilot' ? (
+                        <Text>
+                          <Text color="#fc8657">──</Text>
+                          <Text bold color="#06ba9e"> {msg.agent} </Text>
+                          <Text color="yellow">[Autopilot Mode]</Text>
+                          <Text color="#fc8657"> ──</Text>
+                        </Text>
+                      ) : msg.agent && (
                         <Text dimColor>── {msg.agent} {msg.duration ? '(' + (msg.duration / 1000).toFixed(1) + 's)' : ''} ──</Text>
                       )}
                       <Text>{msg.content}</Text>
