@@ -23,6 +23,8 @@
 
 > **Stop switching between AI CLIs.** PuzldAI routes your tasks to the right agent automatically — or lets you orchestrate them together.
 
+PuzldAI is a fast, terminal-native framework for orchestrating multiple AI agents. It doesn't replace your AI tools—it connects them. Route tasks to the best agent automatically, compare responses side-by-side, chain agents in pipelines, or let them collaborate through correction, debate, and consensus. One CLI to rule them all.
+
 ---
 
 ## Why PuzldAI?
@@ -118,7 +120,7 @@ puzldai check
 | **Single** | One agent processes task | Quick questions, simple tasks | Basic |
 | **Compare** | Same task → multiple agents in parallel | See different perspectives | Parallel |
 | **Pipeline** | Agent A → Agent B → Agent C | Multi-step processing | Sequencing |
-| **Template** | Saved pipeline, reusable | Repeatable workflows | Sequencing |
+| **Workflow** | Saved pipeline, reusable | Repeatable workflows | Sequencing |
 | **Autopilot** | LLM generates plan → executes | Complex tasks, unknown steps | AI Planning |
 | **Correct** | Producer → Reviewer → Fix | Quality assurance, code review | Collaboration |
 | **Debate** | Agents argue in rounds, optional moderator | Find flaws in reasoning | Collaboration |
@@ -128,25 +130,25 @@ puzldai check
 
 | Mode | Option | Type | Default | Description |
 |------|--------|------|---------|-------------|
-| Single | $\textcolor{#e06c75}{\texttt{agent}}$ | AgentName | `auto` | Which agent to use |
-| Compare | $\textcolor{#e06c75}{\texttt{agents}}$ | AgentName[] | — | Agents to compare (min 2) |
-| | $\textcolor{#e06c75}{\texttt{sequential}}$ | boolean | `false` | Run one-at-a-time vs parallel |
-| | $\textcolor{#e06c75}{\texttt{pick}}$ | boolean | `false` | LLM selects best response |
-| Pipeline | $\textcolor{#e06c75}{\texttt{steps}}$ | PipelineStep[] | — | Sequence of agent:action |
-| | $\textcolor{#e06c75}{\texttt{interactive}}$ | boolean | `false` | Confirm between steps |
-| Template | $\textcolor{#e06c75}{\texttt{name}}$ | string | — | Template to load |
-| | $\textcolor{#e06c75}{\texttt{interactive}}$ | boolean | `false` | Confirm between steps |
-| Autopilot | $\textcolor{#e06c75}{\texttt{planner}}$ | AgentName | `ollama` | Agent that generates plan |
-| | $\textcolor{#e06c75}{\texttt{execute}}$ | boolean | `false` | Auto-run generated plan |
-| Correct | $\textcolor{#e06c75}{\texttt{producer}}$ | AgentName | `auto` | Agent that creates output |
-| | $\textcolor{#e06c75}{\texttt{reviewer}}$ | AgentName | `auto` | Agent that critiques |
-| | $\textcolor{#e06c75}{\texttt{fixAfterReview}}$ | boolean | `false` | Producer fixes based on review |
-| Debate | $\textcolor{#e06c75}{\texttt{agents}}$ | AgentName[] | — | Debating agents (min 2) |
-| | $\textcolor{#e06c75}{\texttt{rounds}}$ | number | `2` | Number of debate rounds |
-| | $\textcolor{#e06c75}{\texttt{moderator}}$ | AgentName | `none` | Synthesizes final conclusion |
-| Consensus | $\textcolor{#e06c75}{\texttt{agents}}$ | AgentName[] | — | Participating agents (min 2) |
-| | $\textcolor{#e06c75}{\texttt{maxRounds}}$ | number | `2` | Voting rounds |
-| | $\textcolor{#e06c75}{\texttt{synthesizer}}$ | AgentName | `auto` | Creates final output |
+| Single | `agent` | AgentName | `auto` | Which agent to use |
+| Compare | `agents` | AgentName[] | — | Agents to compare (min 2) |
+| | `sequential` | boolean | `false` | Run one-at-a-time vs parallel |
+| | `pick` | boolean | `false` | LLM selects best response |
+| Pipeline | `steps` | PipelineStep[] | — | Sequence of agent:action |
+| | `interactive` | boolean | `false` | Confirm between steps |
+| Workflow | `name` | string | — | Workflow to load |
+| | `interactive` | boolean | `false` | Confirm between steps |
+| Autopilot | `planner` | AgentName | `ollama` | Agent that generates plan |
+| | `execute` | boolean | `false` | Auto-run generated plan |
+| Correct | `producer` | AgentName | `auto` | Agent that creates output |
+| | `reviewer` | AgentName | `auto` | Agent that critiques |
+| | `fixAfterReview` | boolean | `false` | Producer fixes based on review |
+| Debate | `agents` | AgentName[] | — | Debating agents (min 2) |
+| | `rounds` | number | `2` | Number of debate rounds |
+| | `moderator` | AgentName | `none` | Synthesizes final conclusion |
+| Consensus | `agents` | AgentName[] | — | Participating agents (min 2) |
+| | `maxRounds` | number | `2` | Voting rounds |
+| | `synthesizer` | AgentName | `auto` | Creates final output |
 
 ---
 
