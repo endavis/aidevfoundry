@@ -44,8 +44,6 @@ export function CompareView({ results, onExit, inputValue = '', interactive = tr
 
   // Only handle keyboard input for interactive views
   useInput((char, key) => {
-    if (!interactive) return;
-
     // If user is typing, don't capture keys (except Escape)
     if (inputValue.trim() && !key.escape) {
       return;
@@ -100,7 +98,7 @@ export function CompareView({ results, onExit, inputValue = '', interactive = tr
       }
       return;
     }
-  });
+  }, { isActive: interactive });
 
   // Non-interactive views always show "all" mode
   if (!interactive) {

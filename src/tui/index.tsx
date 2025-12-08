@@ -281,7 +281,7 @@ function App() {
       // Tab completes when autocomplete available
       handleAutocompleteSelect(autocompleteItems[autocompleteIndex]);
     }
-  });
+  }, { isActive: mode !== 'collaboration' && mode !== 'compare' });
 
   // Save current compare results to history and exit compare mode
   const saveCompareToHistory = () => {

@@ -77,8 +77,6 @@ export function CollaborationView({ type, steps, onExit, inputValue = '', intera
   const anyLoading = steps.some(s => s.loading);
 
   useInput((char, key) => {
-    if (!interactive) return;
-
     // If user is typing, don't capture keys (except Escape)
     if (inputValue.trim() && !key.escape) {
       return;
@@ -144,7 +142,7 @@ export function CollaborationView({ type, steps, onExit, inputValue = '', intera
       }
       return;
     }
-  });
+  }, { isActive: interactive });
 
   // Non-interactive views always show "all" mode
   if (!interactive) {
