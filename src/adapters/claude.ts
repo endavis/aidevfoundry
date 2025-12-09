@@ -20,13 +20,19 @@ export const claudeAdapter: Adapter = {
   async run(prompt: string, options?: RunOptions): Promise<ModelResponse> {
     const config = getConfig();
     const startTime = Date.now();
+    const model = options?.model ?? config.adapters.claude.model;
 
     try {
       // claude -p "prompt" for non-interactive output
       // --tools "" disables all tools to prevent permission prompts
+      const args = ['-p', prompt, '--tools', ''];
+      if (model) {
+        args.push('--model', model);
+      }
+
       const { stdout, stderr } = await execa(
         config.adapters.claude.path,
-        ['-p', prompt, '--tools', ''],
+        args,
         {
           timeout: config.timeout,
           cancelSignal: options?.signal,
@@ -35,10 +41,12 @@ export const claudeAdapter: Adapter = {
         }
       );
 
+      const modelName = model ? `claude/${model}` : 'claude';
+
       if (stderr && !stdout) {
         return {
           content: '',
-          model: 'claude',
+          model: modelName,
           duration: Date.now() - startTime,
           error: stderr
         };
@@ -46,14 +54,15 @@ export const claudeAdapter: Adapter = {
 
       return {
         content: stdout || '',
-        model: 'claude',
+        model: modelName,
         duration: Date.now() - startTime
       };
     } catch (err: unknown) {
       const error = err as Error;
+      const modelName = model ? `claude/${model}` : 'claude';
       return {
         content: '',
-        model: 'claude',
+        model: modelName,
         duration: Date.now() - startTime,
         error: error.message
       };

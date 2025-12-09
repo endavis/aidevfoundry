@@ -4,6 +4,7 @@ import { orchestrate } from '../../orchestrator';
 
 interface AgentCommandOptions {
   agent?: string;
+  model?: string;
 }
 
 export async function agentCommand(options: AgentCommandOptions): Promise<void> {
@@ -14,9 +15,10 @@ export async function agentCommand(options: AgentCommandOptions): Promise<void> 
   });
 
   const agentName = options.agent || 'auto';
+  const modelName = options.model;
 
   console.log(pc.bold('\nPuzldAI Interactive Agent'));
-  console.log(pc.dim(`Mode: ${agentName === 'auto' ? 'Auto-routing' : `Using ${agentName}`}`));
+  console.log(pc.dim(`Mode: ${agentName === 'auto' ? 'Auto-routing' : `Using ${agentName}`}${modelName ? ` (model: ${modelName})` : ''}`));
   console.log(pc.dim('Type "exit" or "quit" to leave, Ctrl+C to cancel current task\n'));
 
   const prompt = () => {
@@ -73,6 +75,7 @@ export async function agentCommand(options: AgentCommandOptions): Promise<void> 
       try {
         const result = await orchestrate(trimmed, {
           agent: options.agent,
+          model: options.model,
           signal: controller.signal,
           onChunk: (chunk) => {
             streamed = true;

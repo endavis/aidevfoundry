@@ -10,9 +10,9 @@ export interface PulzdConfig {
   confidenceThreshold: number;
   logLevel: 'debug' | 'info' | 'warn' | 'error';
   adapters: {
-    claude: { enabled: boolean; path: string };
-    gemini: { enabled: boolean; path: string };
-    codex: { enabled: boolean; path: string };
+    claude: { enabled: boolean; path: string; model?: string };
+    gemini: { enabled: boolean; path: string; model?: string };
+    codex: { enabled: boolean; path: string; model?: string };
     ollama: { enabled: boolean; model: string; host: string; maxTokens?: number };
   };
   api: { port: number; host: string };

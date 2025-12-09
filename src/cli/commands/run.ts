@@ -13,6 +13,7 @@ import { loadTemplate, listTemplates } from '../../executor/templates';
 
 interface RunCommandOptions {
   agent?: string;
+  model?: string;
   pipeline?: string;
   template?: string;
   interactive?: boolean;
@@ -50,6 +51,7 @@ async function runSingleAgent(task: string, options: RunCommandOptions): Promise
   let streamed = false;
   const result = await orchestrate(task, {
     agent: options.agent,
+    model: options.model,
     onChunk: (chunk) => {
       streamed = true;
       process.stdout.write(chunk);

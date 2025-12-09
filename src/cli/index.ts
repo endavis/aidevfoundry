@@ -25,6 +25,12 @@ import {
   debateCommand,
   consensusCommand
 } from './commands/collaboration';
+import {
+  modelShowCommand,
+  modelListCommand,
+  modelSetCommand,
+  modelClearCommand
+} from './commands/model';
 import { startTUI } from '../tui';
 import { readFileSync } from 'fs';
 import { join, dirname } from 'path';
@@ -45,6 +51,7 @@ program
   .description('Run a task with the best available agent')
   .argument('<task>', 'The task to execute')
   .option('-a, --agent <agent>', 'Force specific agent (claude, gemini, codex, ollama)', 'auto')
+  .option('-m, --model <model>', 'Override model for the agent (e.g., sonnet, opus, gemini-2.5-flash)')
   .option('-P, --pipeline <steps>', 'Run as pipeline (e.g., "gemini:analyze,claude:code")')
   .option('-T, --template <name>', 'Use a saved pipeline template')
   .option('-i, --interactive', 'Prompt before each step in pipeline/template mode')
@@ -90,12 +97,38 @@ program
   .command('agent')
   .description('Interactive agent mode')
   .option('-a, --agent <agent>', 'Force specific agent (claude, gemini, codex, ollama)', 'auto')
-  .action((opts) => agentCommand({ agent: opts.agent }));
+  .option('-m, --model <model>', 'Override model for the agent')
+  .action((opts) => agentCommand({ agent: opts.agent, model: opts.model }));
 
 program
   .command('tui')
   .description('Launch interactive terminal UI')
   .action(() => startTUI());
+
+// Model subcommands
+const modelCmd = program
+  .command('model')
+  .description('Manage model settings');
+
+modelCmd
+  .command('show')
+  .description('Show current model settings')
+  .action(modelShowCommand);
+
+modelCmd
+  .command('list [agent]')
+  .description('List available models (optionally for specific agent)')
+  .action(modelListCommand);
+
+modelCmd
+  .command('set <agent> <model>')
+  .description('Set model for an agent (e.g., puzld model set claude sonnet)')
+  .action(modelSetCommand);
+
+modelCmd
+  .command('clear <agent>')
+  .description('Clear model override for an agent (use CLI default)')
+  .action(modelClearCommand);
 
 // Template subcommands
 const templateCmd = program

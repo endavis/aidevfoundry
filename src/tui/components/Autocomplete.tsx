@@ -19,6 +19,7 @@ const COMMANDS: Command[] = [
   { label: '/consensus', value: '/consensus ', description: 'Build consensus (rounds: /settings)' },
   // Options - Values
   { label: '/agent', value: '/agent ', description: 'Show/set agent' },
+  { label: '/model', value: '/model ', description: 'Show/set model for agents' },
   { label: '/router', value: '/router ', description: 'Show/set routing agent' },
   { label: '/planner', value: '/planner ', description: 'Show/set autopilot planner agent' },
   // Options - Toggles

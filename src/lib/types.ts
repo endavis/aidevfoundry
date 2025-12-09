@@ -12,6 +12,7 @@ export interface ModelResponse {
 export interface RunOptions {
   signal?: AbortSignal;
   onChunk?: (chunk: string) => void;
+  model?: string;
 }
 
 export interface Adapter {

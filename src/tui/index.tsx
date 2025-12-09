@@ -24,6 +24,10 @@ import { listTemplates, loadTemplate } from '../executor/templates';
 import { WorkflowsManager } from './components/WorkflowsManager';
 import { SessionsManager } from './components/SessionsManager';
 import { SettingsPanel } from './components/SettingsPanel';
+import { ModelPanel } from './components/ModelPanel';
+import { getConfig, saveConfig } from '../lib/config';
+import { getCLIDefaults } from '../lib/cliConfigs';
+import { getModelSuggestions } from '../lib/models';
 import { CompareView } from './components/CompareView';
 import { CollaborationView, type CollaborationStep, type CollaborationType } from './components/CollaborationView';
 import { generatePlan } from '../executor/planner';
@@ -56,7 +60,7 @@ interface Message {
 let messageId = 0;
 const nextId = () => String(++messageId);
 
-type AppMode = 'chat' | 'workflows' | 'sessions' | 'settings' | 'compare' | 'collaboration';
+type AppMode = 'chat' | 'workflows' | 'sessions' | 'settings' | 'model' | 'compare' | 'collaboration';
 
 interface CompareResult {
   agent: string;
@@ -114,6 +118,53 @@ function App() {
   const [debateModerator, setDebateModerator] = useState('none');
   const [consensusRounds, setConsensusRounds] = useState(2);
   const [consensusSynthesizer, setConsensusSynthesizer] = useState('auto');
+
+  // Model settings (loaded from config, fallback to CLI defaults)
+  const config = getConfig();
+  const cliDefaults = getCLIDefaults();
+  const [claudeModel, setClaudeModel] = useState(config.adapters.claude.model || cliDefaults.claude || '');
+  const [geminiModel, setGeminiModel] = useState(config.adapters.gemini.model || cliDefaults.gemini || '');
+  const [codexModel, setCodexModel] = useState(config.adapters.codex.model || cliDefaults.codex || '');
+  const [ollamaModel, setOllamaModel] = useState(config.adapters.ollama.model || cliDefaults.ollama || '');
+
+  // Model setters that persist to config (returns warning if unknown model)
+  const handleSetClaudeModel = (model: string): string | undefined => {
+    setClaudeModel(model);
+    const cfg = getConfig();
+    cfg.adapters.claude.model = model;
+    saveConfig(cfg);
+    const known = getModelSuggestions('claude');
+    if (known.length > 0 && !known.includes(model)) {
+      return `Warning: "${model}" not in known models. It may still work.`;
+    }
+  };
+  const handleSetGeminiModel = (model: string): string | undefined => {
+    setGeminiModel(model);
+    const cfg = getConfig();
+    cfg.adapters.gemini.model = model;
+    saveConfig(cfg);
+    const known = getModelSuggestions('gemini');
+    if (known.length > 0 && !known.includes(model)) {
+      return `Warning: "${model}" not in known models. It may still work.`;
+    }
+  };
+  const handleSetCodexModel = (model: string): string | undefined => {
+    setCodexModel(model);
+    const cfg = getConfig();
+    cfg.adapters.codex.model = model;
+    saveConfig(cfg);
+    const known = getModelSuggestions('codex');
+    if (known.length > 0 && !known.includes(model)) {
+      return `Warning: "${model}" not in known models. It may still work.`;
+    }
+  };
+  const handleSetOllamaModel = (model: string): string | undefined => {
+    setOllamaModel(model);
+    const cfg = getConfig();
+    cfg.adapters.ollama.model = model;
+    saveConfig(cfg);
+    // Ollama models are dynamic, no warning needed
+  };
 
   const { addToHistory, navigateHistory } = useHistory();
 
@@ -454,6 +505,7 @@ Multi-Agent Collaboration:
 
 Options:
   /agent [name]     - Show/set agent (claude, gemini, codex, ollama, auto)
+  /model [agent] [model] - Show/set model (or open model panel)
   /router [name]    - Show/set routing agent
   /planner [name]   - Show/set autopilot planner agent
   /sequential       - Toggle: compare one-at-a-time
@@ -496,6 +548,41 @@ Compare View:
 
       case 'settings':
         setMode('settings');
+        break;
+
+      case 'model':
+        if (rest) {
+          // /model <agent> [model] - show or set model for agent
+          const [agent, ...modelParts] = rest.split(' ');
+          const modelName = modelParts.join(' ');
+          if (['claude', 'gemini', 'codex', 'ollama'].includes(agent)) {
+            if (modelName) {
+              // Set model
+              switch (agent) {
+                case 'claude': handleSetClaudeModel(modelName); break;
+                case 'gemini': handleSetGeminiModel(modelName); break;
+                case 'codex': handleSetCodexModel(modelName); break;
+                case 'ollama': handleSetOllamaModel(modelName); break;
+              }
+              addMessage(`Model for ${agent} set to: ${modelName}`);
+            } else {
+              // Show model
+              let currentModel = '';
+              switch (agent) {
+                case 'claude': currentModel = claudeModel; break;
+                case 'gemini': currentModel = geminiModel; break;
+                case 'codex': currentModel = codexModel; break;
+                case 'ollama': currentModel = ollamaModel; break;
+              }
+              addMessage(`${agent} model: ${currentModel || '(default)'}`);
+            }
+          } else {
+            addMessage('Unknown agent. Use: claude, gemini, codex, ollama');
+          }
+        } else {
+          // /model - open model panel
+          setMode('model');
+        }
         break;
 
       case 'session': {
@@ -1221,6 +1308,21 @@ Compare View:
           onSetDebateModerator={setDebateModerator}
           onSetConsensusRounds={setConsensusRounds}
           onSetConsensusSynthesizer={setConsensusSynthesizer}
+        />
+      )}
+
+      {/* Model Selection Mode */}
+      {mode === 'model' && (
+        <ModelPanel
+          onBack={() => setMode('chat')}
+          claudeModel={claudeModel}
+          geminiModel={geminiModel}
+          codexModel={codexModel}
+          ollamaModel={ollamaModel}
+          onSetClaudeModel={handleSetClaudeModel}
+          onSetGeminiModel={handleSetGeminiModel}
+          onSetCodexModel={handleSetCodexModel}
+          onSetOllamaModel={handleSetOllamaModel}
         />
       )}
 

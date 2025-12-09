@@ -20,13 +20,21 @@ export const codexAdapter: Adapter = {
   async run(prompt: string, options?: RunOptions): Promise<ModelResponse> {
     const config = getConfig();
     const startTime = Date.now();
+    const model = options?.model ?? config.adapters.codex.model;
 
     try {
       // codex exec for non-interactive mode
       // --skip-git-repo-check allows running outside git repos
+      // -m for model selection
+      const args = ['exec', '--skip-git-repo-check'];
+      if (model) {
+        args.push('-m', model);
+      }
+      args.push(prompt);
+
       const { stdout, stderr } = await execa(
         config.adapters.codex.path,
-        ['exec', '--skip-git-repo-check', prompt],
+        args,
         {
           timeout: config.timeout,
           cancelSignal: options?.signal,
@@ -35,10 +43,12 @@ export const codexAdapter: Adapter = {
         }
       );
 
+      const modelName = model ? `codex/${model}` : 'codex';
+
       if (stderr && !stdout) {
         return {
           content: '',
-          model: 'codex',
+          model: modelName,
           duration: Date.now() - startTime,
           error: stderr
         };
@@ -46,14 +56,15 @@ export const codexAdapter: Adapter = {
 
       return {
         content: stdout || '',
-        model: 'codex',
+        model: modelName,
         duration: Date.now() - startTime
       };
     } catch (err: unknown) {
       const error = err as Error;
+      const modelName = model ? `codex/${model}` : 'codex';
       return {
         content: '',
-        model: 'codex',
+        model: modelName,
         duration: Date.now() - startTime,
         error: error.message
       };
