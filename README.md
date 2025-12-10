@@ -16,7 +16,8 @@
 <p align="center">
   <img src="https://img.shields.io/npm/v/puzldai?color=blue" alt="npm">
   <img src="https://img.shields.io/badge/license-AGPL--3.0-green" alt="license">
-  <img src="https://img.shields.io/badge/agents-Claude%20%7C%20Gemini%20%7C%20Codex%20%7C%20Ollama-purple" alt="agents">
+  <img src="https://img.shields.io/badge/agents-Claude%20Code%20%7C%20Gemini%20CLI%20%7C%20Codex%20CLI%20%7C%20Ollama-purple" alt="agents">
+  <img src="https://img.shields.io/badge/models-sonnet%20%7C%20opus%20%7C%20haiku%20%7C%20gemini--pro%20%7C%20gpt--codex-orange" alt="models">
 </p>
 
 ---
