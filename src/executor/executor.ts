@@ -287,7 +287,12 @@ async function executeStep(
   // Interactive confirmation before step
   if (config.onBeforeStep) {
     const previousResults = Object.values(ctx.steps);
-    const proceed = await config.onBeforeStep(step, stepIndex, previousResults);
+    const result = await config.onBeforeStep(step, stepIndex, previousResults);
+
+    // Handle both boolean and object return types
+    const proceed = typeof result === 'boolean' ? result : result.proceed;
+    const editedPrompt = typeof result === 'object' ? result.editedPrompt : undefined;
+
     if (!proceed) {
       stepStatus.set(step.id, 'skipped');
       emit({ stepId: step.id, type: 'skip', message: 'Skipped by user' });
@@ -296,6 +301,11 @@ async function executeStep(
         status: 'skipped',
         duration: 0
       };
+    }
+
+    // Apply edited prompt if provided
+    if (editedPrompt) {
+      step = { ...step, prompt: editedPrompt };
     }
   }
 

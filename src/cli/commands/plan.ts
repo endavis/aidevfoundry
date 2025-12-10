@@ -4,17 +4,20 @@
  * Usage:
  *   ai plan "complex task"
  *   ai plan "complex task" --execute
+ *   ai plan "complex task" --execute --interactive
  *   ai plan "complex task" --planner claude
  */
 
 import pc from 'picocolors';
+import * as readline from 'readline';
 import { createSpinner } from 'nanospinner';
 import { generatePlan, formatPlanForDisplay } from '../../executor/planner';
-import { execute, type AgentName, type ExecutionPlan } from '../../executor';
+import { execute, type AgentName, type ExecutionPlan, type PlanStep, type StepResult } from '../../executor';
 
 export interface PlanOptions {
   execute?: boolean;
   planner?: string;
+  interactive?: boolean;
 }
 
 export async function planCommand(
@@ -44,13 +47,63 @@ export async function planCommand(
 
   if (options.execute) {
     console.log(pc.bold('\n--- Executing Plan ---\n'));
-    await executePlan(result.plan);
+    if (options.interactive) {
+      console.log(pc.cyan('Interactive mode: You will be prompted before each step\n'));
+    }
+    await executePlan(result.plan, options.interactive);
   } else {
     console.log(pc.dim('Run with --execute to run this plan'));
+    console.log(pc.dim('Add --interactive for step-by-step confirmation'));
   }
 }
 
-async function executePlan(plan: ExecutionPlan): Promise<void> {
+function askQuestion(query: string): Promise<string> {
+  const rl = readline.createInterface({
+    input: process.stdin,
+    output: process.stdout
+  });
+
+  return new Promise(resolve => {
+    rl.question(query, answer => {
+      rl.close();
+      resolve(answer.trim().toLowerCase());
+    });
+  });
+}
+
+function createStepPrompt(totalSteps: number): (step: PlanStep, index: number, previousResults: StepResult[]) => Promise<boolean> {
+  return async (step: PlanStep, index: number, previousResults: StepResult[]): Promise<boolean> => {
+    const stepNum = index + 1;
+    const agent = step.agent || 'auto';
+
+    // Show previous step output if available
+    if (previousResults.length > 0) {
+      const lastResult = previousResults[previousResults.length - 1];
+      if (lastResult.content) {
+        console.log();
+        console.log(pc.bold('--- Previous Output ---'));
+        console.log(lastResult.content);
+        console.log(pc.bold('--- End Output ---'));
+      }
+    }
+
+    console.log();
+    console.log(pc.bold('Step ' + stepNum + '/' + totalSteps + ': ' + agent));
+    console.log(pc.dim('  Action: ' + step.action));
+    console.log(pc.dim('  Prompt: ' + step.prompt.slice(0, 100) + (step.prompt.length > 100 ? '...' : '')));
+
+    const answer = await askQuestion(pc.cyan('  Run this step? [Y/n/q] '));
+
+    if (answer === 'q' || answer === 'quit') {
+      console.log(pc.yellow('\nAborting plan...'));
+      process.exit(0);
+    }
+
+    return answer !== 'n' && answer !== 'no';
+  };
+}
+
+async function executePlan(plan: ExecutionPlan, interactive?: boolean): Promise<void> {
   const startTime = Date.now();
   const stepCount = plan.steps.length;
   let currentStep = 0;
@@ -68,7 +121,8 @@ async function executePlan(plan: ExecutionPlan): Promise<void> {
       } else if (event.type === 'error') {
         console.log(pc.red(`    ✗ ${event.message || 'failed'}`));
       }
-    }
+    },
+    onBeforeStep: interactive ? createStepPrompt(stepCount) : undefined
   });
 
   console.log();

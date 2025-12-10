@@ -71,6 +71,7 @@ program
   .description('Generate and optionally execute an AI-planned workflow')
   .argument('<task>', 'The task to plan')
   .option('-x, --execute', 'Execute the plan after generating')
+  .option('-i, --interactive', 'Prompt before each step (requires --execute)')
   .option('-p, --planner <agent>', 'Agent to use for planning', 'ollama')
   .action(planCommand);
 

@@ -238,7 +238,8 @@ export function WorkflowsManager({ onBack, onRun }: WorkflowsManagerProps) {
           setView('edit');
           const steps = template?.steps || [];
           setOriginalPipeline(steps.map(s => s.agent + ':' + s.action).join(','));
-          setEditSteps([]);
+          // Initialize editSteps with current steps (copy them)
+          setEditSteps(steps.map(s => ({ agent: s.agent, action: s.action })));
           setEditPhase('menu');
           setEditAgent('');
           setInputValue('');

@@ -6,6 +6,20 @@ All notable changes to PuzldAI will be documented in this file.
 
 ---
 
+## [0.2.63] - 2025-12-10
+
+### Added
+- Interactive mode for pipeline/workflow execution (Phase 6)
+  - TUI: Enable via `/settings` toggle, shows step confirmation dialog
+  - CLI: `--interactive` flag for `puzld run --pipeline/--template` and `puzld autopilot --execute`
+  - Options: [Y] Yes, [A] Yes All, [S] Skip, [E] Edit prompt, [X] Abort
+- StepConfirmation component with edit-in-place prompt support
+
+### Fixed
+- Workflow edit mode now preserves existing steps - exiting without changes no longer shows error
+
+---
+
 ## [0.2.62] - 2025-12-10
 
 ### Added

@@ -96,7 +96,7 @@ export interface ExecutorConfig {
   defaultRetries?: number;         // Default retries (default: 0)
   onEvent?: (event: TimelineEvent) => void;
   onChunk?: (stepId: string, chunk: string) => void;
-  onBeforeStep?: (step: PlanStep, index: number, previousResults: StepResult[]) => Promise<boolean>; // Return false to skip
+  onBeforeStep?: (step: PlanStep, index: number, previousResults: StepResult[]) => Promise<{ proceed: boolean; editedPrompt?: string } | boolean>; // Return false/{ proceed: false } to skip
   signal?: AbortSignal;
 }
 
