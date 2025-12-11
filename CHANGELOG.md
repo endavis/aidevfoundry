@@ -6,6 +6,23 @@ All notable changes to PuzldAI will be documented in this file.
 
 ---
 
+## [0.2.70] - 2025-12-11
+
+### Added
+- **Phase 8: SQLite Persistence** - Long-term memory with SQLite database
+  - Sessions, messages, and tasks stored in `~/.puzldai/puzldai.db`
+  - WAL mode for concurrent access
+  - Efficient indexed queries for listing and search
+  - Schema versioning for future migrations
+  - `initDatabase()`, `getDatabase()`, `closeDatabase()` APIs
+
+### Changed
+- Session storage migrated from JSON files to SQLite
+- `listSessions()` now uses single query with preview subquery (no N+1)
+- `searchSessions()` searches across messages and summaries efficiently
+
+---
+
 ## [0.2.69] - 2025-12-11
 
 ### Added
