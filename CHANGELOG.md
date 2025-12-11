@@ -6,6 +6,29 @@ All notable changes to PuzldAI will be documented in this file.
 
 ---
 
+## [0.2.72] - 2025-12-11
+
+### Added
+- **Phase 9.2: Agentic Execution Layer** - PuzldAI as execution layer, LLMs propose JSON
+  - `src/agentic/prompt-wrapper.ts` - Wraps tasks with JSON format instructions + context injection
+  - `src/agentic/response-parser.ts` - Extracts JSON from LLM responses with fallback strategies
+  - `src/agentic/edit-extractor.ts` - Converts AgenticResponse to ProposedEdit[]
+  - `src/agentic/file-executor.ts` - Applies file changes (create/edit/delete)
+  - `src/agentic/index.ts` - Main orchestrator: prompt → LLM → parse → extract
+  - `/agentic <task>` command [EXPERIMENTAL] - Review file edits with any agent
+  - Auto-injects file contents mentioned in task (10KB limit per file)
+  - Dynamic diff view height based on terminal size
+
+### Changed
+- Added `disableTools` flag to `RunOptions` for agentic mode
+- Claude adapter: `--tools ''` to disable native tools
+- Codex adapter: `--sandbox read-only` to disable native tools
+- Mistral/Gemini/Ollama adapters: documented tool limitations
+- DiffReview now uses terminal height for better diff display
+- Extended `ProposedEdit` to support 'Delete' operation
+
+---
+
 ## [0.2.71] - 2025-12-11
 
 ### Added

@@ -14,6 +14,8 @@ export interface RunOptions {
   onChunk?: (chunk: string) => void;
   onToolEvent?: (event: import('./stream-parser').StreamEvent) => void;
   model?: string;
+  /** Disable native tools (for agentic mode - LLM returns JSON, we apply files) */
+  disableTools?: boolean;
 }
 
 export interface Adapter {

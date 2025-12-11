@@ -21,6 +21,7 @@ export const codexAdapter: Adapter = {
     const config = getConfig();
     const startTime = Date.now();
     const model = options?.model ?? config.adapters.codex.model;
+    const disableTools = options?.disableTools ?? true; // Default: disable tools
 
     try {
       // codex exec for non-interactive mode
@@ -28,6 +29,12 @@ export const codexAdapter: Adapter = {
       // --json for JSONL output with token usage
       // -m for model selection
       const args = ['exec', '--skip-git-repo-check', '--json'];
+
+      // Disable native tools for agentic mode (LLM returns JSON, we apply files)
+      if (disableTools) {
+        args.push('--sandbox', 'read-only');
+      }
+
       if (model) {
         args.push('-m', model);
       }

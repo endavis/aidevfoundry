@@ -31,6 +31,8 @@ export const ollamaAdapter: Adapter = {
   async run(prompt: string, options?: RunOptions): Promise<ModelResponse> {
     const config = getConfig();
     const startTime = Date.now();
+    // Note: Ollama is a pure LLM API with no native tools, so disableTools is a no-op
+    const _disableTools = options?.disableTools ?? true;
 
     try {
       const ollama = getOllama();

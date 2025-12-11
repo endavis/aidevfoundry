@@ -44,8 +44,14 @@ import {
 import { checkForUpdate, markUpdated } from '../lib/updateCheck';
 import { UpdatePrompt } from './components/UpdatePrompt';
 import { AgentPanel } from './components/AgentPanel';
+import { DiffReview } from './components/DiffReview';
 import { execa } from 'execa';
 import type { PlanStep, StepResult } from '../executor';
+import { claudeAdapter, type DryRunResult } from '../adapters/claude';
+import type { ProposedEdit } from '../lib/edit-review';
+import { runAgentic, formatFileContext, type AgenticResult } from '../agentic';
+import { existsSync, readFileSync } from 'fs';
+import { resolve } from 'path';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const pkg = JSON.parse(readFileSync(join(__dirname, '../../package.json'), 'utf-8'));
@@ -65,7 +71,7 @@ interface Message {
 let messageId = 0;
 const nextId = () => String(++messageId);
 
-type AppMode = 'chat' | 'workflows' | 'sessions' | 'settings' | 'model' | 'compare' | 'collaboration' | 'agent';
+type AppMode = 'chat' | 'workflows' | 'sessions' | 'settings' | 'model' | 'compare' | 'collaboration' | 'agent' | 'review';
 
 interface CompareResult {
   agent: string;
@@ -98,6 +104,7 @@ function App() {
   const [collaborationKey, setCollaborationKey] = useState(0); // Increments to reset CollaborationView state
   const [pipelineName, setPipelineName] = useState<string>('');
   const [notification, setNotification] = useState<string | null>(null);
+  const [proposedEdits, setProposedEdits] = useState<ProposedEdit[]>([]);
   const [agentStatus, setAgentStatus] = useState<AgentStatus[]>([]);
   const [session, setSession] = useState<AgentSession | null>(null);
   const [updateInfo, setUpdateInfo] = useState<{ current: string; latest: string } | null>(null);
@@ -377,6 +384,9 @@ function App() {
 
   // Handle keyboard shortcuts
   useInput((char, key) => {
+    // Don't handle input in review mode - let DiffReview handle it
+    if (mode === 'review') return;
+
     // When autocomplete is showing, handle navigation
     if (autocompleteItems.length > 0) {
       if (key.upArrow) {
@@ -414,7 +424,7 @@ function App() {
       // Tab completes when autocomplete available
       handleAutocompleteSelect(autocompleteItems[autocompleteIndex]);
     }
-  }, { isActive: mode === 'chat' || autocompleteItems.length > 0 });
+  }, { isActive: (mode === 'chat' || autocompleteItems.length > 0) && mode !== 'review' });
 
   // Save current compare results to history and exit compare mode
   const saveCompareToHistory = () => {
@@ -563,6 +573,8 @@ function App() {
   /autopilot <task>         - AI-generated execution plan
   /workflow <name> <task>   - Run a saved workflow
   /workflows                - Manage workflows (interactive)
+  /agentic <task>           - [EXPERIMENTAL] Review file edits (any agent)
+  /review <task>            - Review file edits (Claude dry-run mode)
   /session                  - Start new session
   /resume                   - Resume a previous session
 
@@ -609,6 +621,150 @@ Compare View:
         }
         messageId = 0;
         break;
+
+      case 'review': {
+        // Edit Review Mode - dry-run Claude to capture proposed edits
+        if (!rest) {
+          addMessage('Usage: /review <task>\nExample: /review "create a hello world script at /tmp/hello.sh"', 'system');
+          break;
+        }
+
+        const taskMatch = rest.match(/^(?:"([^"]+)"|(.+))$/);
+        if (!taskMatch) {
+          addMessage('Usage: /review <task>', 'system');
+          break;
+        }
+        const task = taskMatch[1] || taskMatch[2];
+
+        setMessages(prev => [...prev, { id: nextId(), role: 'user', content: '/review "' + task + '"' }]);
+        setLoading(true);
+        setLoadingText('running dry-run...');
+
+        try {
+          const result = await claudeAdapter.dryRun(task);
+
+          if (result.proposedEdits.length === 0) {
+            addMessage(result.response.content || 'No file edits proposed.', 'claude');
+            setLoading(false);
+            break;
+          }
+
+          // Show summary of proposed edits (NOT Claude's "permission denied" response)
+          const editSummary = result.proposedEdits.map(e =>
+            `  ${e.operation}: ${e.filePath}${e.originalContent === null ? ' (new)' : ''}`
+          ).join('\n');
+          addMessage(`Claude proposed ${result.proposedEdits.length} file edit(s):\n${editSummary}\n\nReview each edit below:`, 'claude');
+
+          // Switch to review mode
+          setProposedEdits(result.proposedEdits);
+          setMode('review');
+          setLoading(false);
+        } catch (err) {
+          addMessage('Error: ' + (err as Error).message);
+          setLoading(false);
+        }
+        break;
+      }
+
+      case 'agentic': {
+        // Agentic Mode - LLM proposes JSON, PuzldAI applies files
+        if (!rest) {
+          addMessage('Usage: /agentic <task>\nExample: /agentic "create a hello world script at /tmp/hello.sh"', 'system');
+          break;
+        }
+
+        const taskMatch = rest.match(/^(?:"([^"]+)"|(.+))$/);
+        if (!taskMatch) {
+          addMessage('Usage: /agentic <task>', 'system');
+          break;
+        }
+        const task = taskMatch[1] || taskMatch[2];
+
+        // Get the appropriate adapter based on current agent setting
+        const agentName = currentAgent === 'auto' ? 'claude' : currentAgent;
+        const adapter = adapters[agentName as keyof typeof adapters];
+        if (!adapter) {
+          addMessage(`Unknown agent: ${agentName}`, 'system');
+          break;
+        }
+
+        setMessages(prev => [...prev, { id: nextId(), role: 'user', content: '/agentic "' + task + '"' }]);
+        setLoading(true);
+        setLoadingText(`running agentic mode with ${agentName}...`);
+
+        try {
+          // Extract file paths mentioned in the task and inject their contents
+          // Limit to 10KB per file to avoid slow responses
+          const MAX_FILE_SIZE = 10 * 1024;
+          const filePatterns = task.match(/[\w./\\-]+\.\w+/g) || [];
+          const files: Array<{ path: string; content: string }> = [];
+          for (const pattern of filePatterns) {
+            const filePath = resolve(process.cwd(), pattern);
+            if (existsSync(filePath)) {
+              try {
+                const content = readFileSync(filePath, 'utf-8');
+                if (content.length <= MAX_FILE_SIZE) {
+                  files.push({ path: pattern, content });
+                } else {
+                  // Truncate large files
+                  files.push({ path: pattern, content: content.slice(0, MAX_FILE_SIZE) + '\n... (truncated)' });
+                }
+              } catch {
+                // Skip unreadable files
+              }
+            }
+          }
+
+          const result = await runAgentic(task, {
+            adapter,
+            projectRoot: process.cwd(),
+            files: files.length > 0 ? files : undefined
+          });
+
+          if (!result.success) {
+            // Show detailed error with raw response hint
+            let errorMsg = `Agentic error: ${result.error}`;
+            if (result.rawResponse?.content) {
+              const preview = result.rawResponse.content.slice(0, 200);
+              errorMsg += `\n\nRaw response preview:\n${preview}${result.rawResponse.content.length > 200 ? '...' : ''}`;
+            }
+            addMessage(errorMsg, agentName);
+            setLoading(false);
+            break;
+          }
+
+          if (!result.proposedEdits || result.proposedEdits.length === 0) {
+            // Show the explanation if no file edits
+            const explanation = result.agenticResponse?.explanation || result.rawResponse.content || 'No file edits proposed.';
+            // Add context about what happened
+            let hint = '';
+            if (!result.agenticResponse) {
+              hint = '\n\n(LLM did not return JSON format - showing raw response)';
+            } else if (result.agenticResponse.files.length === 0) {
+              hint = '\n\n(LLM returned empty files array - no changes proposed)';
+            }
+            addMessage(explanation + hint, agentName);
+            setLoading(false);
+            break;
+          }
+
+          // Show summary of proposed edits
+          const editSummary = result.proposedEdits.map(e =>
+            `  ${e.operation}: ${e.filePath}${e.originalContent === null ? ' (new)' : ''}`
+          ).join('\n');
+          const explanation = result.agenticResponse?.explanation || '';
+          addMessage(`${explanation}\n\n${agentName} proposed ${result.proposedEdits.length} file edit(s):\n${editSummary}\n\nReview each edit below:`, agentName);
+
+          // Switch to review mode
+          setProposedEdits(result.proposedEdits);
+          setMode('review');
+          setLoading(false);
+        } catch (err) {
+          addMessage('Error: ' + (err as Error).message);
+          setLoading(false);
+        }
+        break;
+      }
 
       case 'resume':
         setMode('sessions');
@@ -1422,6 +1578,43 @@ Compare View:
             setTimeout(() => setNotification(null), 2000);
           }}
           onBack={() => setMode('chat')}
+        />
+      )}
+
+      {/* Edit Review Mode */}
+      {mode === 'review' && (
+        <DiffReview
+          edits={proposedEdits}
+          onComplete={(result) => {
+            const summary: string[] = [];
+            if (result.accepted.length > 0) {
+              summary.push('Applied ' + result.accepted.length + ' file(s)');
+            }
+            if (result.rejected.length > 0) {
+              summary.push('Rejected ' + result.rejected.length + ' file(s)');
+            }
+            if (result.skipped.length > 0) {
+              summary.push('Skipped ' + result.skipped.length + ' file(s)');
+            }
+            setMessages(prev => [...prev, {
+              id: nextId(),
+              role: 'assistant',
+              content: summary.join(', ') || 'Review complete',
+              agent: 'review'
+            }]);
+            setProposedEdits([]);
+            setMode('chat');
+          }}
+          onCancel={() => {
+            setMessages(prev => [...prev, {
+              id: nextId(),
+              role: 'assistant',
+              content: 'Review cancelled',
+              agent: 'review'
+            }]);
+            setProposedEdits([]);
+            setMode('chat');
+          }}
         />
       )}
 
