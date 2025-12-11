@@ -74,3 +74,13 @@ export {
   type ReconstructOptions,
   type ChunkType
 } from './scaffolding';
+
+// Dynamic Memory Injection (Phase 7)
+export {
+  assembleStepContext,
+  getDefaultRules,
+  mergeRules,
+  getAgentTokenBudget,
+  inferStepRole,
+  DEFAULT_RULES
+} from './injection';

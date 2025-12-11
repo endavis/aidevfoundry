@@ -48,7 +48,18 @@ export interface PlanStep {
   timeout?: number;                // Step-specific timeout (ms)
   condition?: string;              // Expression to evaluate (e.g., "{{step1.success}}")
   outputAs?: string;               // Variable name to store result
+  injectionRules?: InjectionRule[]; // Custom context injection rules (Phase 7)
+  role?: StepRole;                 // Semantic role for default injection rules
 }
+
+// Semantic role for default injection rules
+export type StepRole =
+  | 'code'       // Code generation - needs full requirements, code context
+  | 'review'     // Code review - needs code output, background summary
+  | 'analyze'    // Analysis - needs task, context key points
+  | 'fix'        // Bug fix - needs review feedback, original code
+  | 'plan'       // Planning - needs user input, constraints
+  | 'summarize'; // Summarization - needs full previous output
 
 // Execution plan - the universal unit
 export interface ExecutionPlan {
@@ -152,4 +163,44 @@ export interface ConsensusOptions {
   threshold?: number;        // Agreement threshold 0-1 (default: 0.7)
   maxRounds?: number;        // Max voting rounds (default: 3)
   synthesizer?: AgentName;   // Agent that creates final output
+}
+
+// --- Dynamic Memory Injection (Phase 7) ---
+
+// Context source types for injection
+export type ContextSource =
+  | 'previous_output'  // Output from previous step(s)
+  | 'step_output'      // Output from a specific step
+  | 'plan'             // Original plan/task description
+  | 'user_input'       // Original user prompt
+  | 'file_context';    // File/code context (future)
+
+// How to include the context
+export type IncludeMode =
+  | 'full'             // Include full content
+  | 'summary'          // Use summarized version
+  | 'keyPoints'        // Only key points extracted
+  | 'truncated'        // Truncate to fit
+  | 'none';            // Exclude entirely
+
+// Priority levels (1 = critical, 4 = low)
+export type ContextPriority = 1 | 2 | 3 | 4;
+
+// Injection rule for a single context source
+export interface InjectionRule {
+  source: ContextSource;
+  stepId?: string;              // Specific step ID, or undefined = all previous
+  include: IncludeMode;
+  maxTokens?: number;           // Max tokens for this source
+  priority: ContextPriority;    // 1=critical (always), 4=low (drop first)
+  tag?: string;                 // XML tag name, e.g. 'previous_analysis'
+  condition?: string;           // Condition expression, e.g. "{{step1.success}}"
+}
+
+// Configuration for context assembly
+export interface InjectionConfig {
+  rules: InjectionRule[];
+  tokenBudget: number;          // Total token budget for context
+  format: 'xml' | 'markdown';   // Output format (xml for Claude, markdown for others)
+  reserveForPrompt?: number;    // Tokens to reserve for the step's own prompt
 }

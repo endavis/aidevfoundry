@@ -26,6 +26,7 @@ import {
 import { adapters } from '../adapters';
 import { routeTask, isRouterAvailable } from '../router/router';
 import { getConfig } from '../lib/config';
+import { assembleStepContext, inferStepRole } from '../context/injection';
 
 const DEFAULT_TIMEOUT = 120000;
 const DEFAULT_MAX_CONCURRENCY = 3;
@@ -284,9 +285,35 @@ async function executeStep(
     };
   }
 
-  // Inject variables into prompt before showing confirmation
+  // Infer step role if not set (for default injection rules)
+  if (!step.role && !step.injectionRules) {
+    const inferredRole = inferStepRole(step.prompt, step.action);
+    if (inferredRole) {
+      step = { ...step, role: inferredRole };
+    }
+  }
+
+  // Assemble structured context using injection rules (Phase 7)
+  // This prepends context based on step role/rules before the prompt
+  let assembledContext = '';
+  if (step.role || step.injectionRules) {
+    try {
+      assembledContext = await assembleStepContext(step, ctx);
+    } catch {
+      // Fall back to basic injection if assembly fails
+      assembledContext = '';
+    }
+  }
+
+  // Inject variables into prompt (basic {{variable}} substitution)
   const injectedPrompt = injectVariables(step.prompt, ctx);
-  step = { ...step, prompt: injectedPrompt };
+
+  // Combine assembled context with injected prompt
+  const finalPrompt = assembledContext
+    ? `${assembledContext}\n\n${injectedPrompt}`
+    : injectedPrompt;
+
+  step = { ...step, prompt: finalPrompt };
 
   // Interactive confirmation before step
   if (config.onBeforeStep) {

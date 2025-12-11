@@ -6,6 +6,22 @@ All notable changes to PuzldAI will be documented in this file.
 
 ---
 
+## [0.2.69] - 2025-12-11
+
+### Added
+- **Phase 7: Dynamic Memory Injection** - Intelligent per-step context assembly
+  - Priority-based injection rules (critical → low) with graceful overflow
+  - Default rules per step role: `code`, `review`, `analyze`, `fix`, `plan`, `summarize`
+  - XML formatting for Claude, Markdown for other agents
+  - Role inference from prompt keywords
+  - `InjectionRule`, `StepRole`, `InjectionConfig` types
+
+### Changed
+- Executor now uses `assembleStepContext()` for smart context assembly before each step
+- Steps can define custom `injectionRules` or use defaults based on `role`
+
+---
+
 ## [0.2.68] - 2025-12-11
 
 ### Fixed
