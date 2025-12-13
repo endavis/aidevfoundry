@@ -6,6 +6,24 @@ All notable changes to PuzldAI will be documented in this file.
 
 ---
 
+## [0.2.81] - 2025-12-13
+
+### Changed
+- **Intelligent Routing** - LLM now decides how to respond (like Claude Code)
+  - Direct answers for questions/explanations
+  - JSON file edit proposals for code tasks (enters review mode)
+  - Clarifying questions for complex/unclear tasks
+  - Removed forced Plan/Build mode toggle
+  - Removed `/mode` command
+  - Updated help text to reflect new behavior
+
+### Removed
+- Plan/Build mode system (replaced by intelligent routing)
+- `/mode` command from autocomplete suggestions
+- Mode indicator under input
+
+---
+
 ## [0.2.80] - 2025-12-13
 
 ### Added

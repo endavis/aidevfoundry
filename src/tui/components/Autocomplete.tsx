@@ -9,8 +9,6 @@ interface Command {
 }
 
 const COMMANDS: Command[] = [
-  // Mode toggle
-  { label: '/mode', value: '/mode', description: 'Toggle Plan↔Build mode' },
   // Commands
   { label: '/compare', value: '/compare ', description: 'Compare agents side-by-side' },
   { label: '/autopilot', value: '/autopilot ', description: 'AI-generated execution plan' },

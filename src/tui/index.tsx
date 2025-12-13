@@ -726,7 +726,7 @@ Provide:
 Keep your response concise and focused on the plan, not the implementation.`;
 
       const startTime = Date.now();
-      const response = await adapter.prompt(planPrompt);
+      const response = await adapter.run(planPrompt);
       const duration = Date.now() - startTime;
 
       setCurrentPlan(response.content || '');
@@ -899,9 +899,121 @@ Keep your response concise and focused on the plan, not the implementation.`;
       return;
     }
 
-    // Default: Plan mode - analyze task (Tab toggles to Build)
+    // Intelligent routing - LLM decides what to do
     setInput('');
-    await runPlanMode(value);
+    await runIntelligentChat(value);
+  };
+
+  // Intelligent chat - LLM decides: answer, plan, or propose file edits
+  const runIntelligentChat = async (userMessage: string) => {
+    const agentName = currentAgent === 'auto' ? 'claude' : currentAgent;
+    const adapter = adapters[agentName as keyof typeof adapters];
+    if (!adapter) {
+      setMessages(prev => [...prev, { id: nextId(), role: 'assistant', content: `Unknown agent: ${agentName}`, agent: 'system' }]);
+      return;
+    }
+
+    setMessages(prev => [...prev, { id: nextId(), role: 'user', content: userMessage }]);
+    setLoading(true);
+    setLoadingText(`${agentName} is thinking...`);
+
+    try {
+      // Build context with file contents if files are mentioned
+      const MAX_FILE_SIZE = 10 * 1024;
+      const filePatterns = userMessage.match(/[\w./\\-]+\.\w+/g) || [];
+      const files: Array<{ path: string; content: string }> = [];
+      for (const pattern of filePatterns) {
+        const filePath = resolve(process.cwd(), pattern);
+        if (existsSync(filePath)) {
+          try {
+            const content = readFileSync(filePath, 'utf-8');
+            files.push({
+              path: pattern,
+              content: content.length <= MAX_FILE_SIZE ? content : content.slice(0, MAX_FILE_SIZE) + '\n... (truncated)'
+            });
+          } catch { /* Skip unreadable */ }
+        }
+      }
+
+      // System prompt that lets LLM decide how to respond
+      const systemPrompt = `You are a helpful coding assistant. Based on the user's message, decide the best way to respond:
+
+1. **Questions/Explanations**: Just answer directly and helpfully.
+2. **Code Tasks**: If the user wants file changes, respond with a JSON block containing proposed edits:
+   \`\`\`json
+   {
+     "explanation": "Brief explanation of changes",
+     "files": [
+       { "path": "path/to/file", "operation": "create|edit|delete", "content": "full file content" }
+     ]
+   }
+   \`\`\`
+3. **Complex Tasks**: If you need more context or the task is unclear, ask clarifying questions.
+
+Current directory: ${process.cwd()}
+${files.length > 0 ? `\nRelevant files:\n${files.map(f => `--- ${f.path} ---\n${f.content}`).join('\n\n')}` : ''}`;
+
+      const startTime = Date.now();
+      const response = await adapter.run(`${systemPrompt}\n\nUser: ${userMessage}`);
+      const duration = Date.now() - startTime;
+
+      const content = response.content || 'No response';
+
+      // Check if response contains JSON file edits
+      const jsonMatch = content.match(/```json\s*([\s\S]*?)\s*```/);
+      if (jsonMatch) {
+        try {
+          const parsed = JSON.parse(jsonMatch[1]);
+          if (parsed.files && Array.isArray(parsed.files) && parsed.files.length > 0) {
+            // Convert to proposed edits format and enter review mode
+            const edits = parsed.files.map((f: any) => ({
+              filePath: resolve(process.cwd(), f.path),
+              operation: f.operation || 'edit',
+              newContent: f.content,
+              originalContent: existsSync(resolve(process.cwd(), f.path))
+                ? readFileSync(resolve(process.cwd(), f.path), 'utf-8')
+                : null
+            }));
+
+            const editSummary = edits.map((e: any) =>
+              `  ${e.operation}: ${e.filePath}${e.originalContent === null ? ' (new)' : ''}`
+            ).join('\n');
+
+            setMessages(prev => [...prev, {
+              id: nextId(),
+              role: 'assistant',
+              content: `${parsed.explanation || ''}\n\nProposed ${edits.length} file edit(s):\n${editSummary}\n\nReview below:`,
+              agent: agentName,
+              duration
+            }]);
+
+            setProposedEdits(edits);
+            setMode('review');
+            setLoading(false);
+            return;
+          }
+        } catch { /* Not valid JSON, treat as normal response */ }
+      }
+
+      // Normal response
+      setMessages(prev => [...prev, {
+        id: nextId(),
+        role: 'assistant',
+        content,
+        agent: agentName,
+        duration,
+        tokens: response.tokens
+      }]);
+
+      if (response.tokens) {
+        setTokens(prev => prev + (response.tokens?.input || 0) + (response.tokens?.output || 0));
+      }
+
+      setMode('chat');
+    } catch (err) {
+      setMessages(prev => [...prev, { id: nextId(), role: 'assistant', content: 'Error: ' + (err as Error).message }]);
+    }
+    setLoading(false);
   };
 
   /* LEGACY DIRECT CHAT CODE - Commented out, now routing through /plan by default
@@ -1037,7 +1149,7 @@ Keep your response concise and focused on the plan, not the implementation.`;
     switch (command) {
       // === UTILITY ===
       case 'help':
-        addMessage(`Default: Type a task → Plan mode (/mode to toggle)
+        addMessage(`Just type a message - AI decides how to respond (answer, plan, or propose edits)
 
 Commands:
   /compare <agents> <task>  - Compare agents side-by-side
@@ -1088,29 +1200,6 @@ Compare View:
   Tab        - Show all stacked
   Esc        - Back`);
         break;
-
-      case 'mode': {
-        // Toggle between Plan and Build modes
-        if (agenticSubMode === 'plan') {
-          setAgenticSubMode('build');
-          setModeChangeNotice('→ Switched to Build mode');
-          setTimeout(() => setModeChangeNotice(null), 2000);
-          addMessage('Switched to Build mode. Your next task will propose file edits.', 'system');
-          if (currentPlanTask) {
-            runBuildMode(currentPlanTask);
-          }
-        } else {
-          setAgenticSubMode('plan');
-          setModeChangeNotice('→ Switched to Plan mode');
-          setTimeout(() => setModeChangeNotice(null), 2000);
-          addMessage('Switched to Plan mode. Your next task will analyze without changes.', 'system');
-          if (currentPlanTask) {
-            setProposedEdits([]);
-            runPlanMode(currentPlanTask);
-          }
-        }
-        break;
-      }
 
       case 'clear':
         setMessages([]);
@@ -2307,10 +2396,10 @@ Compare View:
       )}
 
       {/* Chat Mode (also shows compare/collaboration results inline) */}
-      {(mode === 'chat' || mode === 'compare' || mode === 'collaboration') && (
+      {(mode === 'chat' || mode === 'plan' || mode === 'compare' || mode === 'collaboration') && (
         <>
           {/* Messages - hide when active compare/collaboration to prevent terminal scroll */}
-          {mode === 'chat' && (
+          {(mode === 'chat' || mode === 'plan') && (
           <Box flexDirection="column" marginBottom={1} width="100%">
             {messages.map((msg) => (
               msg.role === 'compare' && msg.compareResults ? (
@@ -2441,26 +2530,16 @@ Compare View:
 
           {/* Input - hidden when in collaboration or compare mode */}
           {mode !== 'collaboration' && mode !== 'compare' && (
-            <Box flexDirection="column">
-              <Box borderStyle="round" borderColor="gray" paddingX={1}>
-                <Text color="green" bold>{'> '}</Text>
-                <TextInput
-                  key={inputKey}
-                  value={input}
-                  onChange={setInput}
-                  onSubmit={handleSubmit}
-                  placeholder="Describe a task or /help"
-                  focus={!showUpdatePrompt}
-                />
-              </Box>
-              {/* Mode indicator */}
-              <Box marginLeft={2} marginTop={0}>
-                <Text dimColor>
-                  Mode: <Text color={agenticSubMode === 'plan' ? 'cyan' : 'yellow'}>{agenticSubMode === 'plan' ? 'Plan' : 'Build'}</Text>
-                  <Text dimColor> · /mode to switch</Text>
-                </Text>
-                {modeChangeNotice && <Text color="green"> {modeChangeNotice}</Text>}
-              </Box>
+            <Box borderStyle="round" borderColor="gray" paddingX={1}>
+              <Text color="green" bold>{'> '}</Text>
+              <TextInput
+                key={inputKey}
+                value={input}
+                onChange={setInput}
+                onSubmit={handleSubmit}
+                placeholder="Ask anything or describe a task..."
+                focus={!showUpdatePrompt}
+              />
             </Box>
           )}
 
