@@ -26,6 +26,7 @@ const TOOL_TITLES: Record<string, string> = {
 
 export function PermissionPrompt({ request, onDecision }: PermissionPromptProps) {
   const [selectedIndex, setSelectedIndex] = useState(0);
+  const [isProcessing, setIsProcessing] = useState(false);
   const selectedIndexRef = useRef(selectedIndex);
 
   // Keep ref in sync with state
@@ -54,16 +55,22 @@ export function PermissionPrompt({ request, onDecision }: PermissionPromptProps)
   );
 
   useInput((input, key) => {
+    // Ignore input if already processing
+    if (isProcessing) return;
+
     if (key.upArrow) {
       setSelectedIndex(i => Math.max(0, i - 1));
     } else if (key.downArrow) {
       setSelectedIndex(i => Math.min(options.length - 1, i + 1));
     } else if (key.return) {
+      // Show processing state immediately
+      setIsProcessing(true);
       // Capture decision NOW, before setImmediate defers execution
       const idx = selectedIndexRef.current;
       const decision = options[idx]?.decision ?? 'allow';
       setImmediate(() => onDecision(decision));
     } else if (key.escape) {
+      setIsProcessing(true);
       setImmediate(() => onDecision('cancel'));
     }
   });
@@ -71,6 +78,15 @@ export function PermissionPrompt({ request, onDecision }: PermissionPromptProps)
   // Use tool-specific title if available, fall back to action-based title
   const title = TOOL_TITLES[request.tool] || ACTION_TITLES[request.action] || 'Permission required';
   const target = request.path || request.command || '';
+
+  // Show compact processing state
+  if (isProcessing) {
+    return (
+      <Box flexDirection="column" borderStyle="round" borderColor="gray" paddingX={1} paddingY={0} marginBottom={1}>
+        <Text dimColor>{title}: {options[selectedIndex]?.label}... </Text>
+      </Box>
+    );
+  }
 
   return (
     <Box flexDirection="column" borderStyle="round" borderColor="gray" paddingX={1} paddingY={1} marginBottom={1}>

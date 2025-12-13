@@ -22,9 +22,9 @@
 
 ---
 
-> **Beyond CLI wrappers.** PuzldAI is a complete AI orchestration framework — route tasks, execute file edits, build memory, and generate training data.
+> **Beyond CLI wrappers.** PuzldAI is a complete AI orchestration framework — route tasks, explore codebases, execute file edits, build memory, and generate training data.
 
-PuzldAI is a terminal-native framework for orchestrating multiple AI agents. Route tasks to the best agent, compare responses, chain agents in pipelines, or let them collaborate. But that's just the start: **Agentic Mode** lets LLMs propose file edits you review before applying. **Memory/RAG** stores decisions and code for future context. **Observation Layer** logs everything for DPO fine-tuning. One framework that grows with your AI workflow.
+PuzldAI is a terminal-native framework for orchestrating multiple AI agents. Route tasks to the best agent, compare responses, chain agents in pipelines, or let them collaborate. **Agentic Mode** gives LLMs tools to explore your codebase (view, glob, grep, bash) and propose file edits with permission prompts — like Claude Code, but for any LLM. **Memory/RAG** stores decisions and code for future context. **Observation Layer** logs everything for DPO fine-tuning. One framework that grows with your AI workflow.
 
 ---
 
@@ -38,7 +38,7 @@ PuzldAI is a terminal-native framework for orchestrating multiple AI agents. Rou
 | Complex tasks need multiple steps | **Pipelines** chain agents together |
 | Repetitive workflows | **Workflows** save and reuse pipelines |
 | Need agents to review each other | **Collaboration** — correct, debate, consensus |
-| Want LLM to edit files safely | **Agentic mode** — propose, review, apply |
+| Want LLM to explore & edit files safely | **Agentic mode** — tools, permission prompts, apply |
 | Context gets lost between sessions | **Memory/RAG** — semantic retrieval of past decisions |
 | Need data to fine-tune models | **Observations** — export DPO training pairs |
 | Need AI to understand your codebase | **Indexing** — AST parsing, semantic search, AGENTS.md |
@@ -54,7 +54,7 @@ PuzldAI is a terminal-native framework for orchestrating multiple AI agents. Rou
 - **Workflows** — Save pipelines as templates, run anywhere (TUI & CLI)
 - **Autopilot** — Describe the goal. AI builds the plan.
 - **Multi-Agent Collaboration** — Correct, debate, and build consensus across agents.
-- **Agentic Mode** — LLMs propose file edits, you review and apply. [EXPERIMENTAL]
+- **Agentic Mode** — LLMs explore your codebase, propose edits, you approve with permission prompts.
 - **Codebase Indexing** — AST parsing, semantic search, AGENTS.md support.
 - **Memory/RAG** — Semantic retrieval injects relevant context into prompts.
 - **Observation Layer** — Logs all interactions for training data generation.
@@ -65,13 +65,15 @@ PuzldAI is a terminal-native framework for orchestrating multiple AI agents. Rou
 
 ## Supported Agents
 
-| Agent | Source | Requirement |
-|-------|--------|-------------|
-| Claude | Anthropic | [Claude CLI](https://docs.anthropic.com) |
-| Gemini | Google | [Gemini CLI](https://ai.google.dev) |
-| Codex | OpenAI | [Codex CLI](https://openai.com) |
-| Ollama | Local | [Ollama](https://ollama.ai) running |
-| Mistral | Mistral AI | [Vibe CLI](https://github.com/mistralai/vibe) |
+| Agent | Source | Requirement | Agentic Mode |
+|-------|--------|-------------|--------------|
+| Claude | Anthropic | [Claude CLI](https://docs.anthropic.com) | ✅ Full support |
+| Gemini | Google | [Gemini CLI](https://ai.google.dev) | ⚠️ Auto-reads files |
+| Codex | OpenAI | [Codex CLI](https://openai.com) | ⚠️ Auto-reads files |
+| Ollama | Local | [Ollama](https://ollama.ai) running | ✅ Full support |
+| Mistral | Mistral AI | [Vibe CLI](https://github.com/mistralai/vibe) | ⚠️ Inconsistent |
+
+> **Note:** Some CLIs (Gemini, Codex) have built-in file reading that bypasses permission prompts. Claude and Ollama respect the permission system fully.
 
 ---
 
@@ -143,7 +145,9 @@ puzldai check
 | **Correct** | Producer → Reviewer → Fix | Quality assurance, code review | Collaboration |
 | **Debate** | Agents argue in rounds, optional moderator | Find flaws in reasoning | Collaboration |
 | **Consensus** | Propose → Vote → Synthesize | High-confidence answers | Collaboration |
-| **Agentic** | LLM proposes → User reviews → Apply | File edits with approval | Execution |
+| **Agentic** | LLM explores → Tools → Permission prompts → Apply | Codebase exploration + file edits | Execution |
+| **Plan** | LLM analyzes task → Describes approach | Planning before implementation | Execution |
+| **Build** | LLM explores + edits with full tool access | Direct implementation with tools | Execution |
 
 ### Mode Options
 
@@ -169,6 +173,10 @@ puzldai check
 | Consensus | `agents` | AgentName[] | — | Participating agents (min 2) |
 | | `maxRounds` | number | `2` | Voting rounds |
 | | `synthesizer` | AgentName | `auto` | Creates final output |
+| Agentic | `agent` | AgentName | `claude` | Agent to use for exploration |
+| | `tools` | string[] | all | Available tools (view, glob, grep, bash, write, edit) |
+| Plan | `agent` | AgentName | `claude` | Agent to analyze task |
+| Build | `agent` | AgentName | `claude` | Agent to implement |
 
 ### Model Selection
 
@@ -364,33 +372,58 @@ Configure rounds, moderator, and synthesizer in `/settings`.
 
 ---
 
-## Agentic Mode [EXPERIMENTAL]
+## Agentic Mode
 
-Let LLMs propose file edits that you review before applying. PuzldAI acts as the execution layer — the LLM proposes JSON, you decide what gets written.
+LLMs explore your codebase using tools, then propose file edits with permission prompts (like Claude Code). PuzldAI acts as the execution layer — the LLM explores and proposes, you approve what gets executed.
 
 ```bash
-# TUI
-/agentic "create a hello world script at hello.sh"
-/agentic "fix the bug in src/utils.ts"
-/agentic "add error handling to api/routes.ts"
+# TUI - Use @agent syntax to trigger agentic mode
+@claude fix the bug in src/utils.ts
+@gemini add error handling to api/routes.ts
+@ollama create a hello world script
+
+# Or use commands
+/plan @claude refactor the auth system      # Plan only (no execution)
+/build @claude implement the login form     # Full implementation with tools
 ```
 
+**Tools available to LLM:**
+| Tool | Description |
+|------|-------------|
+| `view` | Read file contents with line numbers |
+| `glob` | Find files by pattern (e.g., `**/*.ts`) |
+| `grep` | Search file contents with regex |
+| `bash` | Execute shell commands |
+| `write` | Create or overwrite files |
+| `edit` | Search and replace in files |
+
+**Permission prompts (like Claude Code):**
+- `Allow` — Execute this tool call
+- `Allow from directory` — Auto-approve reads from this directory
+- `Allow all reads` — Auto-approve all file reads
+- `Deny` — Skip this tool call
+- `Esc` — Cancel entire operation
+
+**Live tool activity:**
+- Colored status dots: ● green (done), yellow (running), red (error), gray (pending)
+- Tree-style result display with truncation
+- `Ctrl+S` to expand/collapse full output
+
 **How it works:**
-1. You describe the task
-2. LLM returns structured JSON with file operations (create/edit/delete)
-3. You review each proposed change with a diff view
-4. Accept, reject, or skip each file individually
+1. You describe the task with `@agent`
+2. LLM explores codebase using tools (view, glob, grep)
+3. Each tool call shows a permission prompt
+4. LLM proposes file edits (write, edit)
+5. You approve or deny each change
+6. PuzldAI applies approved changes
 
-**Review controls:**
-- `[A]` Accept — Apply this edit
-- `[R]` Reject — Skip this edit
-- `[S]` Skip — Decide later
-- `[Y]` Yes All — Accept all remaining
-- `[N]` No All — Reject all remaining
-- `←/→` Navigate between files
-- `↑/↓` Scroll diff
-
-Files mentioned in your task are automatically injected as context (up to 10KB each).
+**Consensus → Agentic workflow:**
+Run consensus first, then continue with an agent. The consensus result is automatically injected as context:
+```bash
+/consensus claude,gemini "best approach for auth"
+# Choose "Continue"
+@claude implement this    # Has consensus context
+```
 
 ---
 
@@ -492,7 +525,10 @@ When you run `/agentic`, project instructions are automatically injected into th
 /debate claude,gemini "topic"   Multi-agent debate
 /consensus claude,gemini "task" Build consensus
 
-/agentic "task"                 [EXPERIMENTAL] Review file edits
+@claude "task"                  Agentic mode with Claude
+@gemini "task"                  Agentic mode with Gemini
+/plan @claude "task"            Plan mode (analyze, no execution)
+/build @claude "task"           Build mode (full tool access)
 
 /index                          Codebase indexing options
 /index search "query"           Search indexed code
@@ -585,7 +621,7 @@ puzldai index --config            # Show project config
 ## Architecture
 
 ```
-User Input
+User Input (@claude "fix bug")
     │
     ▼
 ┌─────────┐     ┌────────────┐     ┌──────────┐
@@ -606,16 +642,22 @@ User Input
  └───────────┘ └───────────┘
         │             │
         ▼             ▼
+ ┌───────────────────────────────┐
+ │        Agent Loop             │
+ │  LLM ──▶ Tool Call ──▶ Result │
+ │   ▲           │          │    │
+ │   │     ┌─────▼─────┐    │    │
+ │   │     │ Permission│    │    │
+ │   │     │  Prompts  │    │    │
+ │   │     └───────────┘    │    │
+ │   └──────────────────────┘    │
+ └───────────────────────────────┘
+        │             │
+        ▼             ▼
  ┌───────────┐ ┌───────────┐
- │ Agentic   │ │  Export   │
- │ Executor  │ │  (DPO)    │
+ │   Diff    │ │  Export   │
+ │  Review   │ │  (DPO)    │
  └───────────┘ └───────────┘
-        │
-        ▼
- ┌───────────┐
- │   Diff    │
- │  Review   │
- └───────────┘
 ```
 
 ---

@@ -2,7 +2,7 @@
  * Config Detector (Phase 12)
  *
  * Detects project-level configuration:
- * - AGENTS.md (project instructions, like Droid/OpenCode)
+ * - AGENTS.md (project instructions)
  * - .puzldai/ config directory
  * - CLAUDE.md, CODEX.md (agent-specific instructions)
  * - .github/copilot-instructions.md

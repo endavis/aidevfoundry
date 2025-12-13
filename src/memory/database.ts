@@ -197,6 +197,45 @@ function runMigrations(database: Database.Database): void {
 
     database.prepare("UPDATE metadata SET value = '2' WHERE key = 'schema_version'").run();
   }
+
+  // Migration 3: Add unified sessions and messages tables (Multi-Model Context)
+  if (currentVersion < 3) {
+    database.exec(`
+      -- Unified sessions (agent-agnostic)
+      CREATE TABLE IF NOT EXISTS unified_sessions (
+        id TEXT PRIMARY KEY,
+        name TEXT,
+        summary TEXT DEFAULT '',
+        summary_tokens INTEGER DEFAULT 0,
+        total_tokens INTEGER DEFAULT 0,
+        message_count INTEGER DEFAULT 0,
+        agents_used TEXT DEFAULT '[]',
+        created_at INTEGER NOT NULL,
+        updated_at INTEGER NOT NULL
+      );
+
+      -- Unified messages with typed content parts
+      CREATE TABLE IF NOT EXISTS unified_messages (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        session_id TEXT NOT NULL,
+        role TEXT NOT NULL CHECK(role IN ('user', 'assistant', 'system', 'tool')),
+        content TEXT NOT NULL,
+        agent TEXT,
+        model TEXT,
+        tokens_input INTEGER DEFAULT 0,
+        tokens_output INTEGER DEFAULT 0,
+        timestamp INTEGER NOT NULL,
+        FOREIGN KEY (session_id) REFERENCES unified_sessions(id) ON DELETE CASCADE
+      );
+
+      CREATE INDEX IF NOT EXISTS idx_unified_messages_session
+        ON unified_messages(session_id, timestamp);
+      CREATE INDEX IF NOT EXISTS idx_unified_sessions_updated
+        ON unified_sessions(updated_at DESC);
+    `);
+
+    database.prepare("UPDATE metadata SET value = '3' WHERE key = 'schema_version'").run();
+  }
 }
 
 /**

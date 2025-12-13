@@ -84,3 +84,68 @@ export {
   inferStepRole,
   DEFAULT_RULES
 } from './injection';
+
+// Unified Message Format (Multi-Model Context)
+export {
+  type MessagePart,
+  type MessagePartType,
+  type TextPart,
+  type ReasoningPart,
+  type ToolCallPart,
+  type ToolResultPart,
+  type FilePart,
+  type MessageRole,
+  type UnifiedMessage,
+  CONTEXT_LIMITS,
+  getContextLimit,
+  createTextMessage,
+  getTextContent,
+  hasToolCalls,
+  getToolCalls,
+  getToolResults,
+  estimateMessageTokens,
+  calculateConversationTokens,
+} from './unified-message';
+
+// Provider Translation Layer
+export {
+  type ProviderTranslator,
+  type OpenAIMessage,
+  type AnthropicMessage,
+  type OllamaMessage,
+  type GeminiMessage,
+  openaiTranslator,
+  anthropicTranslator,
+  ollamaTranslator,
+  geminiTranslator,
+  getTranslator,
+  translateForAgent,
+} from './provider-translator';
+
+// Context Window Manager (Multi-Model)
+export {
+  type ContextOptions,
+  type PreparedContext,
+  prepareContextForAgent,
+  willFitInContext,
+  getConversationContextUsage,
+  estimateRemainingCapacity,
+  findCompactionSplitPoint,
+} from './context-manager';
+
+// Unified Session Storage
+export {
+  type UnifiedSession,
+  type UnifiedSessionMeta,
+  initUnifiedMessagesTable,
+  createUnifiedSession,
+  loadUnifiedSession,
+  saveUnifiedSession,
+  addUnifiedMessage,
+  listUnifiedSessions,
+  deleteUnifiedSession,
+  getLatestUnifiedSession,
+  clearUnifiedSessionMessages,
+  updateUnifiedSessionSummary,
+  getUnifiedSessionStats,
+} from './unified-session';

@@ -409,19 +409,31 @@ function App() {
   // Track if we've shown the resume hint (ref to avoid re-renders)
   const hasShownHint = useRef(false);
 
-  // Start fresh session for current agent (use /resume to continue previous)
+  // Create session on initial load only (not on agent switch)
+  // With unified sessions, chat history persists across agent switches
+  const hasInitialized = useRef(false);
   useEffect(() => {
-    const sess = createSession(currentAgent);
-    setSession(sess);
-    setMessages([]);
-    messageId = 0;
+    if (!hasInitialized.current) {
+      const sess = createSession(currentAgent);
+      setSession(sess);
+      hasInitialized.current = true;
 
-    // Show hint about resuming sessions on first launch only
-    if (!hasShownHint.current) {
-      setNotification('Use /resume to continue a previous session');
-      const timer = setTimeout(() => setNotification(null), 4000);
-      hasShownHint.current = true;
-      return () => clearTimeout(timer);
+      // Show hint about resuming sessions on first launch only
+      if (!hasShownHint.current) {
+        setNotification('Use /resume to continue a previous session');
+        const timer = setTimeout(() => setNotification(null), 4000);
+        hasShownHint.current = true;
+        return () => clearTimeout(timer);
+      }
+    }
+  }, []);
+
+  // Show notification when agent changes (but don't clear messages)
+  const prevAgent = useRef(currentAgent);
+  useEffect(() => {
+    if (prevAgent.current !== currentAgent && hasInitialized.current) {
+      // Agent switched - history preserved with unified sessions
+      prevAgent.current = currentAgent;
     }
   }, [currentAgent]);
 
@@ -930,12 +942,14 @@ Keep your response concise and focused on the plan, not the implementation.`;
     // Handle slash commands
     if (value.startsWith('/')) {
       setInput('');
+      setInputKey(k => k + 1); // Force TextInput to fully reset
       await handleSlashCommand(value);
       return;
     }
 
     // Intelligent routing - LLM decides what to do
     setInput('');
+    setInputKey(k => k + 1); // Force TextInput to fully reset
     await runIntelligentChat(value);
   };
 
@@ -946,6 +960,8 @@ Keep your response concise and focused on the plan, not the implementation.`;
       const { resolve } = pendingPermission;
       // Clear UI immediately
       setPendingPermission(null);
+      // Reset input state to prevent ghost text/cursor issues
+      setInputKey(k => k + 1);
       // Then resolve promise (triggers next tool)
       resolve({ decision });
     }
@@ -1018,7 +1034,16 @@ Keep your response concise and focused on the plan, not the implementation.`;
         onIteration: (iteration: number) => {
           setToolIteration(iteration);
           setLoadingText(`${agentName} exploring (${iteration})...`);
-        }
+        },
+
+        // Pass conversation history for multi-model context
+        conversationHistory: messages
+          .filter(m => m.role === 'user' || m.role === 'assistant')
+          .map(m => ({
+            role: m.role as 'user' | 'assistant',
+            content: m.content,
+            agent: m.agent
+          }))
       });
 
       const duration = result.duration;
@@ -1092,6 +1117,7 @@ Keep your response concise and focused on the plan, not the implementation.`;
     setLoading(false);
     setLoadingStartTime(undefined);
     setToolsExpanded(false); // Reset expanded state
+    setInputKey(k => k + 1); // Fresh TextInput when input reappears
   };
 
   /* LEGACY DIRECT CHAT CODE - Commented out, now routing through /plan by default
@@ -2235,14 +2261,6 @@ Compare View:
       )}
 
 
-      {/* Notification */}
-      {notification && (
-        <Box marginBottom={1}>
-          <Text color="#fc3855">i </Text>
-          <Text>{notification}</Text>
-        </Box>
-      )}
-
       {mode === 'chat' && (
         isFirstMessage && <WelcomeMessage />
       )}
@@ -2625,8 +2643,16 @@ Compare View:
             />
           )}
 
-          {/* Input - hidden when in collaboration, compare mode, or permission prompt */}
-          {mode !== 'collaboration' && mode !== 'compare' && !pendingPermission && (
+          {/* Notification - shows above input */}
+          {notification && (
+            <Box marginBottom={1}>
+              <Text color="#fc3855">ℹ </Text>
+              <Text>{notification}</Text>
+            </Box>
+          )}
+
+          {/* Input - hidden when loading, in collaboration, compare mode, or permission prompt */}
+          {mode !== 'collaboration' && mode !== 'compare' && !pendingPermission && !loading && (
             <Box borderStyle="round" borderColor="gray" paddingX={1}>
               <Text color="green" bold>{'> '}</Text>
               <TextInput

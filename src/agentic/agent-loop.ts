@@ -10,6 +10,7 @@ import {
   type PermissionHandler,
   permissionTracker
 } from './tools/permissions';
+import { getContextLimit } from '../context/unified-message';
 
 const MAX_ITERATIONS = 20;
 
@@ -52,6 +53,8 @@ export interface AgentLoopOptions extends RunOptions {
   onToolStart?: (call: ToolCall) => void;
   /** Callback when tool finishes */
   onToolEnd?: (call: ToolCall, result: ToolResult) => void;
+  /** Conversation history from previous messages (for multi-model context) */
+  conversationHistory?: Array<{ role: 'user' | 'assistant'; content: string; agent?: string }>;
 }
 
 export interface AgentLoopResult {
@@ -204,6 +207,47 @@ export async function runAgentLoop(
 
   // Build adapter-specific system prompt
   const systemPrompt = buildSystemPrompt(adapter.name, projectFiles, toolDescriptions);
+
+  // Add conversation history if provided (for multi-model context)
+  if (options.conversationHistory && options.conversationHistory.length > 0) {
+    // Get context limit for this agent and reserve space for system prompt, user message, and response
+    const contextLimit = getContextLimit(adapter.name, options.model);
+    // Reserve ~40% for system prompt + project files, ~20% for user message + response
+    const historyTokenBudget = Math.floor(contextLimit * 0.4);
+
+    // Format history for context
+    let historyContext = options.conversationHistory
+      .map(msg => {
+        const agentLabel = msg.agent ? ` (${msg.agent})` : '';
+        return `${msg.role}${agentLabel}: ${msg.content}`;
+      })
+      .join('\n\n');
+
+    // Estimate tokens (rough: 4 chars per token)
+    const estimatedTokens = Math.ceil(historyContext.length / 4);
+
+    // Compact if history exceeds budget
+    if (estimatedTokens > historyTokenBudget) {
+      const targetChars = historyTokenBudget * 4;
+
+      // Keep most recent messages (they're most relevant)
+      // Find a point to cut from the beginning
+      if (historyContext.length > targetChars) {
+        // Take from the end (most recent) and add ellipsis
+        historyContext = '...(earlier context truncated)...\n\n' + historyContext.slice(-targetChars);
+      }
+    }
+
+    // Add as context before the current message
+    messages.push({
+      role: 'user',
+      content: `<conversation_history>\nPrevious conversation:\n${historyContext}\n</conversation_history>`
+    });
+    messages.push({
+      role: 'assistant',
+      content: 'I understand the previous conversation context. I\'ll continue from where we left off.'
+    });
+  }
 
   // Initial message
   messages.push({ role: 'user', content: userMessage });
@@ -423,11 +467,17 @@ async function checkAndRequestPermission(
   let fullPath: string | undefined;
   let displayTarget: string | undefined;
 
-  if (filePath) {
+  // For glob/grep tools, prefer pattern for display (even if path is also provided)
+  if (pattern && (toolName === 'glob' || toolName === 'grep')) {
+    // For glob/grep, use the search directory as base path for auto-approval
+    const searchDir = filePath ? (filePath.startsWith('/') ? filePath : `${cwd}/${filePath}`) : cwd;
+    fullPath = searchDir;
+    displayTarget = pattern;
+  } else if (filePath) {
     fullPath = filePath.startsWith('/') ? filePath : `${cwd}/${filePath}`;
     displayTarget = fullPath;
   } else if (pattern) {
-    // For glob/grep, use cwd as the base path for auto-approval
+    // Fallback for other tools with pattern
     fullPath = cwd;
     displayTarget = pattern;
   }
