@@ -423,15 +423,20 @@ Provide a clear, actionable proposal.`,
         id: generateStepId(stepIndex),
         agent,
         action: 'prompt',
-        prompt: `Vote on the best proposal and explain your reasoning.
+        prompt: `IMPORTANT: You are voting in a consensus process. DO NOT execute any task. DO NOT write code. Your ONLY job is to vote.
 
-**Task:** {{prompt}}
+Review the proposals below and cast your vote for the best one.
 
-**Proposals:**
+**Original Task:** {{prompt}}
+
+**Proposals to vote on:**
 ${proposals}
 ${prevVotes ? `\n**Previous votes:**\n${prevVotes}` : ''}
 
-Pick the best proposal (can be your own or another's). Explain why. If you see consensus forming, acknowledge it.`,
+RESPOND ONLY WITH YOUR VOTE using this exact format (nothing else):
+
+**My Vote:** [agent name]'s proposal
+**Reasoning:** [1-2 sentences explaining why this proposal is best]`,
         // Round 0 depends on proposals, subsequent rounds depend on previous votes
         dependsOn: round === 0
           ? agents.map((_, i) => generateStepId(i))

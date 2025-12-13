@@ -106,10 +106,15 @@ async function generatePlanWithAdapter(
       return { plan: null, error: result.error };
     }
 
-    const parsed = parseResponse(result.content);
+    const { parsed, parseError } = parseResponseWithError(result.content);
 
     if (!parsed) {
-      return { plan: null, error: 'Failed to parse plan from LLM response' };
+      // Provide hint about what went wrong
+      const preview = result.content.slice(0, 200);
+      return {
+        plan: null,
+        error: `Failed to parse plan${parseError ? `: ${parseError}` : ''}. Response preview: ${preview}${result.content.length > 200 ? '...' : ''}`
+      };
     }
 
     const plan = buildPlanFromRaw(task, parsed);
@@ -123,30 +128,76 @@ async function generatePlanWithAdapter(
   }
 }
 
-function parseResponse(content: string): RawPlan | null {
+function parseResponseWithError(content: string): { parsed: RawPlan | null; parseError?: string } {
   let jsonStr = content.trim();
 
-  // Remove markdown code blocks if present
-  if (jsonStr.startsWith('```')) {
-    jsonStr = jsonStr.replace(/^```(?:json)?\n?/, '').replace(/\n?```$/, '');
+  // Remove markdown code blocks if present (various formats)
+  // Handle: ```json\n...\n``` or ```\n...\n``` anywhere in content
+  jsonStr = jsonStr
+    .replace(/```json\s*/gi, '')
+    .replace(/```\s*/g, '')
+    .trim();
+
+  // Try to find JSON object - greedy match for nested objects
+  let match = jsonStr.match(/\{[\s\S]*\}/);
+
+  // If no match, the LLM might have returned just steps array
+  if (!match) {
+    const arrayMatch = jsonStr.match(/\[[\s\S]*\]/);
+    if (arrayMatch) {
+      // Wrap in object
+      jsonStr = `{"steps": ${arrayMatch[0]}}`;
+      match = jsonStr.match(/\{[\s\S]*\}/);
+    }
   }
 
-  // Find JSON object
-  const match = jsonStr.match(/\{[\s\S]*\}/);
   if (!match) {
-    return null;
+    return { parsed: null, parseError: 'No JSON object found in response' };
   }
+
+  // Clean up common JSON issues
+  const cleanJson = match[0]
+    .replace(/,\s*}/g, '}')  // Trailing commas
+    .replace(/,\s*]/g, ']')  // Trailing commas in arrays
+    .replace(/'/g, '"');     // Single quotes to double
 
   try {
-    const parsed = JSON.parse(match[0]) as RawPlan;
+    const parsed = JSON.parse(cleanJson) as RawPlan;
 
     if (!parsed.steps || !Array.isArray(parsed.steps)) {
-      return null;
+      return { parsed: null, parseError: 'JSON missing "steps" array' };
     }
 
-    return parsed;
-  } catch {
-    return null;
+    // Validate steps have required fields
+    for (const step of parsed.steps) {
+      if (!step.agent || !step.action) {
+        // Try to fill in defaults
+        step.agent = step.agent || 'auto';
+        step.action = step.action || 'prompt';
+        step.description = step.description || step.action;
+      }
+    }
+
+    return { parsed };
+  } catch (err) {
+    const jsonError = (err as Error).message;
+
+    // Last resort: try to extract steps manually
+    try {
+      const stepsMatch = content.match(/"steps"\s*:\s*\[([\s\S]*?)\]/);
+      if (stepsMatch) {
+        const stepsJson = `[${stepsMatch[1]}]`
+          .replace(/,\s*]/g, ']')
+          .replace(/'/g, '"');
+        const steps = JSON.parse(stepsJson) as RawPlanStep[];
+        if (steps.length > 0) {
+          return { parsed: { steps } };
+        }
+      }
+    } catch {
+      // Give up
+    }
+    return { parsed: null, parseError: jsonError };
   }
 }
 

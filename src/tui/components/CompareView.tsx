@@ -16,7 +16,6 @@ interface CompareResult {
 interface CompareViewProps {
   results: CompareResult[];
   onExit: () => void;
-  inputValue?: string;
   interactive?: boolean; // Set to false for historical views (shows "all" mode, no keyboard)
 }
 
@@ -77,7 +76,7 @@ function truncateLines(text: string, maxLines: number): { text: string; truncate
   };
 }
 
-export function CompareView({ results, onExit, inputValue = '', interactive = true }: CompareViewProps) {
+export function CompareView({ results, onExit, interactive = true }: CompareViewProps) {
   const [viewMode, setViewMode] = useState<ViewMode>('side-by-side');
   const [expandedIndex, setExpandedIndex] = useState<number>(0);
   const [highlightedIndex, setHighlightedIndex] = useState<number>(0);
@@ -86,8 +85,12 @@ export function CompareView({ results, onExit, inputValue = '', interactive = tr
 
   // Only handle keyboard input for interactive views
   useInput((char, key) => {
-    // If user is typing, don't capture keys (except Escape)
-    if (inputValue.trim() && !key.escape) {
+    // Only handle specific keys - let all other input pass through to TextInput
+    const isNavigationKey = key.leftArrow || key.rightArrow || key.upArrow || key.downArrow;
+    const isControlKey = key.escape || key.return || key.tab;
+
+    // If not a key we handle, let it pass through
+    if (!isNavigationKey && !isControlKey) {
       return;
     }
 

@@ -17,11 +17,14 @@ export interface CollaborationStep {
 
 export type CollaborationType = 'correct' | 'debate' | 'consensus' | 'pipeline';
 
+export type PostAction = 'build' | 'reject' | 'continue';
+
 interface CollaborationViewProps {
   type: CollaborationType;
   steps: CollaborationStep[];
   onExit: () => void;
-  inputValue?: string;
+  onAction?: (action: PostAction, synthesis: string) => void;  // For post-completion actions
+  onReEnter?: () => void;  // For re-entering historical collaboration
   interactive?: boolean;
   pipelineName?: string;  // For pipeline type - workflow/autopilot name
 }
@@ -111,22 +114,101 @@ function getRoleDisplay(step: CollaborationStep): string {
   }
 }
 
-export function CollaborationView({ type, steps, onExit, inputValue = '', interactive = true, pipelineName }: CollaborationViewProps) {
+export function CollaborationView({ type, steps, onExit, onAction, onReEnter, interactive = true, pipelineName }: CollaborationViewProps) {
   const [viewMode, setViewMode] = useState<ViewMode>('side-by-side');
   const [expandedIndex, setExpandedIndex] = useState<number>(0);
   const [highlightedIndex, setHighlightedIndex] = useState<number>(0);
+  const [showActions, setShowActions] = useState(false);
+  const [selectedAction, setSelectedAction] = useState<number>(0);
 
   const anyLoading = steps.some(s => s.loading);
+  const isComplete = !anyLoading && steps.length > 0;
+
+  // Determine if mode has actionable output
+  const hasActionableOutput = (
+    (type === 'consensus' && steps.some(s => s.role === 'synthesis' && s.content)) ||
+    (type === 'debate' && steps.some(s => s.role === 'moderator' && s.content)) ||
+    (type === 'correct' && steps.some(s => s.role === 'fix' && s.content))
+  );
+
+  // Get the actionable content based on mode
+  const getActionableContent = (): string => {
+    if (type === 'consensus') return steps.find(s => s.role === 'synthesis')?.content || '';
+    if (type === 'debate') return steps.find(s => s.role === 'moderator')?.content || '';
+    if (type === 'correct') return steps.find(s => s.role === 'fix')?.content || '';
+    return '';
+  };
+  const actionableContent = getActionableContent();
+
+  // Legacy alias for backward compat
+  const hasSynthesis = type === 'consensus' && steps.some(s => s.role === 'synthesis' && s.content);
+
+  // Check if currently highlighted/expanded step is the actionable one
+  const isOnActionableStep = React.useMemo(() => {
+    const idx = viewMode === 'expanded' ? expandedIndex : highlightedIndex;
+    const step = steps[idx];
+    if (!step) return false;
+    if (type === 'consensus' && step.role === 'synthesis') return true;
+    if (type === 'debate' && step.role === 'moderator') return true;
+    if (type === 'correct' && step.role === 'fix') return true;
+    return false;
+  }, [viewMode, expandedIndex, highlightedIndex, steps, type]);
+
+  // Auto-show actions in 'all' view, or in 'expanded' view when on actionable step
+  React.useEffect(() => {
+    const showInAllView = viewMode === 'all' && isComplete && hasActionableOutput && onAction;
+    const showInExpandedView = viewMode === 'expanded' && isComplete && isOnActionableStep && onAction;
+
+    if (showInAllView || showInExpandedView) {
+      setShowActions(true);
+    } else {
+      setShowActions(false);
+    }
+  }, [viewMode, isComplete, hasActionableOutput, isOnActionableStep, onAction]);
 
   useInput((char, key) => {
-    // If user is typing, don't capture keys (except Escape)
-    if (inputValue.trim() && !key.escape) {
+    // Only handle specific keys - let all other input pass through to TextInput
+    const isNavigationKey = key.leftArrow || key.rightArrow || key.upArrow || key.downArrow;
+    const isControlKey = key.escape || key.return || key.tab;
+
+    // If not a key we handle, let it pass through
+    if (!isNavigationKey && !isControlKey) {
       return;
     }
 
     // Disable navigation while loading (except Escape)
     if (anyLoading && !key.escape) {
       return;
+    }
+
+    // Action menu handling - up/down for action selection (vertical layout)
+    // In expanded view, left/right still switches steps
+    if (showActions && hasActionableOutput && onAction) {
+      const actions: PostAction[] = ['build', 'continue', 'reject'];
+
+      // Up/down navigates actions
+      if (key.upArrow) {
+        setSelectedAction(i => Math.max(0, i - 1));
+        return;
+      }
+      if (key.downArrow) {
+        setSelectedAction(i => Math.min(actions.length - 1, i + 1));
+        return;
+      }
+      if (key.return) {
+        onAction(actions[selectedAction], actionableContent);
+        return;
+      }
+      // Escape goes back to side-by-side
+      if (key.escape) {
+        setShowActions(false);
+        setViewMode('side-by-side');
+        return;
+      }
+      // In 'all' view, block left/right; in 'expanded' view, let them fall through to switch steps
+      if (viewMode === 'all' && (key.leftArrow || key.rightArrow)) {
+        return;
+      }
     }
 
     // Arrow keys to navigate in side-by-side view
@@ -186,41 +268,72 @@ export function CollaborationView({ type, steps, onExit, inputValue = '', intera
     }
   }, { isActive: interactive });
 
-  // Non-interactive views always show "all" mode
+  // Non-interactive views show compact boxes (hide synthesis/conclusion/moderator/fix)
   if (!interactive) {
-    const termWidth = process.stdout.columns || 80;
-    const lineLength = Math.floor((termWidth - 2) * 0.8);
+    // Filter out actionable steps for historical view
+    const displaySteps = steps.filter(s =>
+      s.role !== 'synthesis' && s.role !== 'conclusion' && s.role !== 'moderator' && s.role !== 'fix'
+    );
+
+    // Boxes per row: debate = 2, consensus/pipeline = 3, correct = all
+    const maxPerRow = type === 'debate' ? 2 : (type === 'consensus' || type === 'pipeline') ? 3 : displaySteps.length;
+    const rows: CollaborationStep[][] = [];
+    for (let i = 0; i < displaySteps.length; i += maxPerRow) {
+      rows.push(displaySteps.slice(i, i + maxPerRow));
+    }
+
+    const renderCompactBox = (step: CollaborationStep, i: number, rowLength: number) => {
+      const { text, truncated, remaining } = truncateLines(
+        step.content || (step.error ? formatError(step.error) : 'No response'),
+        3  // Fewer lines for compact view
+      );
+      const isError = !!step.error;
+
+      return (
+        <Box
+          key={i}
+          flexDirection="column"
+          borderStyle="round"
+          borderColor={isError ? 'red' : 'gray'}
+          flexGrow={1}
+          flexBasis={0}
+          minWidth={25}
+          marginRight={i < rowLength - 1 ? 1 : 0}
+        >
+          {/* Header */}
+          <Box paddingX={1}>
+            <Text bold color={AGENT_COLOR}>{step.agent}</Text>
+            <Text color={AGENT_COLOR} dimColor> [{getRoleDisplay(step)}]</Text>
+            {isError && <Text color="red"> ✗</Text>}
+          </Box>
+
+          {/* Content */}
+          <Box paddingX={1} paddingY={1}>
+            <Text color={isError ? 'red' : 'gray'} wrap="wrap">
+              {text}
+            </Text>
+            {truncated && (
+              <Text dimColor> [+{remaining}]</Text>
+            )}
+          </Box>
+        </Box>
+      );
+    };
 
     return (
       <Box flexDirection="column" width="100%">
-        <Text bold color={BORDER_COLOR}>─── {getTitle(type, pipelineName).title} <Text color="yellow">[{getTitle(type, pipelineName).mode}]</Text> ───</Text>
+        <Text color={BORDER_COLOR}>─── <Text bold>{getTitle(type, pipelineName).title}</Text> <Text color="gray">[completed]</Text> ───</Text>
         <Box height={1} />
-        {steps.map((step, i) => {
-          const isError = !!step.error;
-          const borderColor = isError ? 'red' : BORDER_COLOR;
-          const durationText = step.duration ? (step.duration / 1000).toFixed(1) + 's' : '-';
-
-          return (
-            <Box key={i} flexDirection="column" marginBottom={i < steps.length - 1 ? 1 : 0}>
-              <Text color={borderColor}>
-                {'─'.repeat(2)} <Text bold color={AGENT_COLOR}>{step.agent}</Text>
-                <Text color={AGENT_COLOR}> [{getRoleDisplay(step)}]</Text>
-                {isError && <Text color="red"> [FAILED]</Text>}
-              </Text>
-              <Text color={borderColor}>{'─'.repeat(lineLength)}</Text>
-              <Box paddingY={1}>
-                <Text color={isError ? 'red' : undefined} wrap="wrap">
-                  {step.content || (step.error ? formatError(step.error) : 'No response')}
-                </Text>
-              </Box>
-              <Text color={borderColor}>
-                <Text color="green">●</Text>
-                <Text dimColor> {durationText}</Text>
-              </Text>
-              <Text color={borderColor}>{'─'.repeat(lineLength)}</Text>
-            </Box>
-          );
-        })}
+        {rows.map((row, rowIndex) => (
+          <Box key={rowIndex} flexDirection="row" width="100%" marginBottom={rowIndex < rows.length - 1 ? 1 : 0}>
+            {row.map((step, i) => renderCompactBox(step, i, row.length))}
+          </Box>
+        ))}
+        <Box marginTop={1}>
+          <Text dimColor>Press </Text>
+          <Text color="#fc8657">Ctrl+E</Text>
+          <Text dimColor> to expand this {type} result</Text>
+        </Box>
       </Box>
     );
   }
@@ -307,7 +420,9 @@ export function CollaborationView({ type, steps, onExit, inputValue = '', intera
         {/* Help bar */}
         {!anyLoading && (
           <Box marginTop={1}>
-            <Text dimColor>{type === 'correct' ? '←/→ navigate' : '←/→/↑/↓ navigate'} │ Enter = expand │ Tab = all │ Esc = exit</Text>
+            <Text dimColor>
+              {type === 'correct' ? '←/→ navigate' : '←/→/↑/↓ navigate'} │ Enter = expand │ Tab = all │ Esc = exit
+            </Text>
           </Box>
         )}
       </Box>
@@ -358,6 +473,17 @@ export function CollaborationView({ type, steps, onExit, inputValue = '', intera
           <Text dimColor> │ {expandedIndex + 1}/{steps.length} │ ←/→ switch │ Tab = all │ Esc = back</Text>
         </Text>
         <Text color={borderColor}>{'─'.repeat(Math.floor((termWidth - 2) * 0.8))}</Text>
+
+        {/* Action menu - only on synthesis/moderator/fix step */}
+        {showActions && hasActionableOutput && onAction && (
+          <Box marginTop={1} flexDirection="column">
+            {['Build', 'Continue', 'Reject'].map((action, i) => (
+              <Text key={action} color={selectedAction === i ? '#fc8657' : 'gray'} bold={selectedAction === i}>
+                {selectedAction === i ? '▶ ' : '  '}{action}
+              </Text>
+            ))}
+          </Box>
+        )}
       </Box>
     );
   }
@@ -408,10 +534,23 @@ export function CollaborationView({ type, steps, onExit, inputValue = '', intera
         );
       })}
 
+      {/* Action menu at bottom for all view */}
+      {showActions && hasActionableOutput && onAction && (
+        <Box marginTop={1} flexDirection="column">
+          {['Build', 'Continue', 'Reject'].map((action, i) => (
+            <Text key={action} color={selectedAction === i ? '#fc8657' : 'gray'} bold={selectedAction === i}>
+              {selectedAction === i ? '▶ ' : '  '}{action}
+            </Text>
+          ))}
+        </Box>
+      )}
+
       {/* Help bar */}
-      <Box marginTop={1}>
-        <Text dimColor>Esc = back to side-by-side</Text>
-      </Box>
+      {!showActions && (
+        <Box marginTop={1}>
+          <Text dimColor>Esc = back to side-by-side</Text>
+        </Box>
+      )}
     </Box>
   );
 }

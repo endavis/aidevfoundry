@@ -5,6 +5,10 @@ import { readFileSync } from 'fs';
 import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
 import { orchestrate } from '../orchestrator';
+import { chat as chatOrchestrator } from '../chat';
+import { compare as compareOrchestrator, recordComparePreference, hasPendingComparison } from '../chat/compare';
+import { debate as debateOrchestrator, recordDebateWinner, hasPendingDebate } from '../chat/debate';
+import { pipeline as pipelineOrchestrator } from '../chat/pipeline';
 import { Banner, WelcomeMessage } from './components/Banner';
 import { useHistory } from './hooks/useHistory';
 import { getCommandSuggestions } from './components/Autocomplete';
@@ -29,7 +33,7 @@ import { getConfig, saveConfig } from '../lib/config';
 import { getCLIDefaults } from '../lib/cliConfigs';
 import { getModelSuggestions } from '../lib/models';
 import { CompareView } from './components/CompareView';
-import { CollaborationView, type CollaborationStep, type CollaborationType } from './components/CollaborationView';
+import { CollaborationView, type CollaborationStep, type CollaborationType, type PostAction } from './components/CollaborationView';
 import { generatePlan } from '../executor/planner';
 import { isRouterAvailable } from '../router/router';
 import { adapters } from '../adapters';
@@ -57,6 +61,8 @@ import {
   logReviewDecision,
   completeObservation
 } from '../observation';
+import { addMemory } from '../memory/vector-store';
+import { buildInjectionForAgent } from '../memory/injector';
 import {
   indexCodebase,
   getIndexSummary,
@@ -81,6 +87,7 @@ interface Message {
   content: string;
   agent?: string;
   duration?: number;
+  tokens?: { input: number; output: number };
   compareResults?: CompareResult[];
   collaborationSteps?: CollaborationStep[];
   collaborationType?: CollaborationType;
@@ -90,7 +97,8 @@ interface Message {
 let messageId = 0;
 const nextId = () => String(++messageId);
 
-type AppMode = 'chat' | 'workflows' | 'sessions' | 'settings' | 'model' | 'compare' | 'collaboration' | 'agent' | 'review' | 'index';
+type AppMode = 'chat' | 'workflows' | 'sessions' | 'settings' | 'model' | 'compare' | 'collaboration' | 'agent' | 'review' | 'index' | 'plan';
+type AgenticSubMode = 'plan' | 'build';
 
 interface CompareResult {
   agent: string;
@@ -132,9 +140,44 @@ function App() {
   const [showUpdatePrompt, setShowUpdatePrompt] = useState(false);
   const [isUpdating, setIsUpdating] = useState(false);
   const [ctrlCPressed, setCtrlCPressed] = useState(false);
+  const [lastMode, setLastMode] = useState<'compare' | 'debate' | 'pipeline' | null>(null);
+  const [consensusContext, setConsensusContext] = useState<string | null>(null); // For follow-up context
+  const [isReEnteringCollaboration, setIsReEnteringCollaboration] = useState(false); // Track re-enter to avoid duplicate saves
+  const [agenticSubMode, setAgenticSubMode] = useState<AgenticSubMode>('plan'); // Plan vs Build mode
+  const [currentPlan, setCurrentPlan] = useState<string | null>(null); // Current plan content for Tab toggle
+  const [currentPlanTask, setCurrentPlanTask] = useState<string | null>(null); // Task that generated the plan
+  const [modeChangeNotice, setModeChangeNotice] = useState<string | null>(null); // Brief notification when mode changes
 
-  // Double Ctrl+C to exit
+  // AbortController for cancelling running operations
+  const abortControllerRef = useRef<AbortController | null>(null);
+
+  // Check if collaboration is currently loading
+  const isCollaborationLoading = mode === 'collaboration' && collaborationSteps.some(s => s.loading);
+
+  // Ctrl+C to cancel/exit, Escape to go back
   useInput((input, key) => {
+    // Only handle Ctrl+C or Escape - ignore all other keys
+    if (!(key.ctrl && input === 'c') && !key.escape) {
+      return;
+    }
+
+    // Escape while loading = go back to chat (keep results so far)
+    if (isCollaborationLoading && key.escape) {
+      saveCollaborationToHistory();
+      return;
+    }
+
+    // Ctrl+C while loading = cancel the operation
+    if (isCollaborationLoading && key.ctrl && input === 'c') {
+      if (abortControllerRef.current) {
+        abortControllerRef.current.abort();
+        abortControllerRef.current = null;
+        setNotification('Cancelling...');
+        return;
+      }
+    }
+
+    // Double Ctrl+C to exit app
     if (key.ctrl && input === 'c') {
       if (ctrlCPressed) {
         exit();
@@ -149,6 +192,23 @@ function App() {
       }
     }
   });
+
+  // Ctrl+E to re-enter last collaboration result
+  useInput((input, key) => {
+    if (key.ctrl && input === 'e' && mode === 'chat') {
+      // Find the last collaboration message
+      const lastCollabMsg = [...messages].reverse().find(m => m.role === 'collaboration' && m.collaborationSteps);
+      if (lastCollabMsg && lastCollabMsg.collaborationSteps) {
+        setCollaborationSteps(lastCollabMsg.collaborationSteps);
+        setCollaborationType(lastCollabMsg.collaborationType || 'correct');
+        setPipelineName(lastCollabMsg.pipelineName || '');
+        setCollaborationKey(k => k + 1);
+        setIsReEnteringCollaboration(true); // Don't save again on exit
+        setMode('collaboration');
+      }
+    }
+  });
+
 
   // Value options
   const [currentAgent, setCurrentAgent] = useState('auto');
@@ -403,8 +463,14 @@ function App() {
     setInputKey(k => k + 1);
   };
 
-  // Handle keyboard shortcuts
+  // Handle keyboard shortcuts - only for navigation keys, not regular typing
   useInput((char, key) => {
+    // Only handle specific navigation/control keys - let TextInput handle all other input
+    const isNavigationKey = key.upArrow || key.downArrow || key.tab || key.escape;
+    if (!isNavigationKey) {
+      return;
+    }
+
     // Don't handle input in review mode - let DiffReview handle it
     if (mode === 'review') return;
 
@@ -424,7 +490,6 @@ function App() {
         setInput('');
         return;
       }
-      // Don't intercept Enter - let TextInput handle submit
     }
 
     // Skip history navigation in collaboration/compare mode (let those views handle arrows)
@@ -458,23 +523,334 @@ function App() {
       }]);
       setMode('chat');
       setCompareResults([]);
+      // Reset input to fix cursor issues when returning to chat
+      setInput('');
+      setInputKey(k => k + 1);
     }
   };
 
   // Save current collaboration results to history and exit collaboration mode
   const saveCollaborationToHistory = () => {
     if (mode === 'collaboration' && collaborationSteps.length > 0 && !collaborationSteps.some(s => s.loading)) {
-      setMessages(prev => [...prev, {
-        id: nextId(),
-        role: 'collaboration',
-        content: '',
-        collaborationSteps: collaborationSteps,
-        collaborationType: collaborationType,
-        pipelineName: collaborationType === 'pipeline' ? pipelineName : undefined
-      }]);
+      // Don't save again if we're re-entering (already in history)
+      if (!isReEnteringCollaboration) {
+        setMessages(prev => [...prev, {
+          id: nextId(),
+          role: 'collaboration',
+          content: '',
+          collaborationSteps: collaborationSteps,
+          collaborationType: collaborationType,
+          pipelineName: collaborationType === 'pipeline' ? pipelineName : undefined
+        }]);
+      }
       setMode('chat');
       setCollaborationSteps([]);
+      setIsReEnteringCollaboration(false); // Reset flag
+      // Reset input to fix cursor issues when returning to chat
+      setInput('');
+      setInputKey(k => k + 1);
     }
+  };
+
+  // Helper to add system messages
+  const addSystemMessage = (content: string, agent?: string) => {
+    setMessages(prev => [...prev, { id: nextId(), role: 'assistant', content, agent: agent || 'system' }]);
+  };
+
+  // Handle post-collaboration actions (Build/Continue/Reject) for consensus, debate, correct
+  const handleCollaborationAction = async (action: PostAction, content: string) => {
+    const modeLabel = collaborationType === 'consensus' ? 'synthesis' :
+                      collaborationType === 'debate' ? 'conclusion' :
+                      collaborationType === 'correct' ? 'fix' : 'result';
+
+    // Build summary of all steps for context
+    const stepsSummary = collaborationSteps.map(s =>
+      `[${s.agent}/${s.role}${s.round !== undefined ? `/round${s.round}` : ''}]: ${(s.content || s.error || '').slice(0, 200)}`
+    ).join('\n');
+
+    // Track decision in memory for learning (with full context)
+    try {
+      await addMemory({
+        type: 'decision',
+        content: `${collaborationType} action: ${action}\n\n${modeLabel}:\n${content.slice(0, 1000)}\n\nAll steps:\n${stepsSummary.slice(0, 2000)}`,
+        metadata: {
+          mode: collaborationType,
+          action,
+          agents: [...new Set(collaborationSteps.map(s => s.agent))].join(','),
+          stepCount: String(collaborationSteps.length),
+          timestamp: String(Date.now())
+        }
+      });
+    } catch {
+      // Continue even if memory fails
+    }
+
+    // Also log to observation layer for DPO training
+    try {
+      const observationId = startObservation({
+        sessionId: session?.id,
+        prompt: `[${collaborationType}] User chose: ${action}`,
+        injectedContext: stepsSummary.slice(0, 3000),
+        agent: collaborationSteps.find(s => s.role === 'synthesis' || s.role === 'moderator' || s.role === 'fix')?.agent || 'multi'
+      });
+      logResponse(observationId, {
+        response: content,
+        explanation: `User action: ${action} on ${collaborationType} ${modeLabel}`
+      });
+      // Log the action as a "review decision" (repurposing the field)
+      logReviewDecision(observationId, {
+        acceptedFiles: action === 'build' ? ['[BUILD]'] : action === 'continue' ? ['[CONTINUE]'] : [],
+        rejectedFiles: action === 'reject' ? ['[REJECT]'] : []
+      });
+      await completeObservation(observationId);
+    } catch {
+      // Continue even if observation fails
+    }
+
+    // Save collaboration to history first
+    saveCollaborationToHistory();
+
+    // Reset input state when transitioning back to chat mode
+    const resetInputState = () => {
+      setInput('');
+      setInputKey(k => k + 1);
+    };
+
+    if (action === 'build') {
+      // Run agentic mode with the content as the task
+      const agentName = currentAgent === 'auto' ? 'claude' : currentAgent;
+      const adapter = adapters[agentName as keyof typeof adapters];
+
+      if (!adapter) {
+        addSystemMessage(`Unknown agent: ${agentName}`);
+        resetInputState();
+        return;
+      }
+
+      setMode('review');
+      setLoading(true);
+      setLoadingText(`building from ${modeLabel}...`);
+      setMessages(prev => [...prev, {
+        id: nextId(),
+        role: 'user',
+        content: `[Build from ${collaborationType}] ${content.slice(0, 200)}...`
+      }]);
+
+      try {
+        const result = await runAgentic(content, {
+          adapter,
+          projectRoot: process.cwd()
+        });
+        setCurrentAgenticResult(result);
+        setLoading(false);
+
+        if (!result.proposedEdits || result.proposedEdits.length === 0) {
+          addSystemMessage(`No file changes proposed from ${modeLabel}.`);
+          setMode('chat');
+          resetInputState();
+        } else {
+          // Show summary and switch to review mode
+          const editSummary = result.proposedEdits.map(e =>
+            `  ${e.operation}: ${e.filePath}${e.originalContent === null ? ' (new)' : ''}`
+          ).join('\n');
+          addSystemMessage(`Proposed ${result.proposedEdits.length} file edit(s) from ${modeLabel}:\n${editSummary}\n\nReview each edit below:`);
+          setProposedEdits(result.proposedEdits);
+        }
+      } catch (err) {
+        addSystemMessage(`Build failed: ${(err as Error).message}`);
+        setLoading(false);
+        setMode('chat');
+        resetInputState();
+      }
+
+    } else if (action === 'continue') {
+      // Preserve content context for follow-up chat
+      setConsensusContext(content);
+      setMode('chat');
+      resetInputState();
+      addSystemMessage(`Continuing with ${modeLabel} context. Your next message will have access to the ${collaborationType} result.`);
+
+    } else if (action === 'reject') {
+      // Still pass context so user can reference it if needed
+      setConsensusContext(content);
+      setMode('chat');
+      resetInputState();
+      addSystemMessage(`${collaborationType.charAt(0).toUpperCase() + collaborationType.slice(1)} rejected. Context still available for your next message.`);
+    }
+  };
+
+  // Plan Mode - Analyze task without making changes (Tab toggles to Build)
+  const runPlanMode = async (task: string) => {
+    const agentName = currentAgent === 'auto' ? 'claude' : currentAgent;
+    const adapter = adapters[agentName as keyof typeof adapters];
+    if (!adapter) {
+      setMessages(prev => [...prev, { id: nextId(), role: 'assistant', content: `Unknown agent: ${agentName}`, agent: 'system' }]);
+      return;
+    }
+
+    setCurrentPlanTask(task);
+    setAgenticSubMode('plan');
+    setMessages(prev => [...prev, { id: nextId(), role: 'user', content: task }]);
+    setLoading(true);
+    setLoadingText(`planning with ${agentName}...`);
+
+    try {
+      const MAX_FILE_SIZE = 10 * 1024;
+      const filePatterns = task.match(/[\w./\\-]+\.\w+/g) || [];
+      const files: Array<{ path: string; content: string }> = [];
+      for (const pattern of filePatterns) {
+        const filePath = resolve(process.cwd(), pattern);
+        if (existsSync(filePath)) {
+          try {
+            const content = readFileSync(filePath, 'utf-8');
+            if (content.length <= MAX_FILE_SIZE) {
+              files.push({ path: pattern, content });
+            } else {
+              files.push({ path: pattern, content: content.slice(0, MAX_FILE_SIZE) + '\n... (truncated)' });
+            }
+          } catch { /* Skip unreadable */ }
+        }
+      }
+
+      const planPrompt = `You are in PLAN MODE. Analyze this task and describe what you WOULD do, but DO NOT generate actual file contents.
+
+Task: ${task}
+${files.length > 0 ? `\nRelevant files:\n${files.map(f => `--- ${f.path} ---\n${f.content}`).join('\n\n')}` : ''}
+
+Provide:
+1. **Analysis**: What does this task require?
+2. **Approach**: How would you implement it?
+3. **Files**: Which files would you create/modify? (just names, no content)
+4. **Considerations**: Any potential issues or alternatives?
+
+Keep your response concise and focused on the plan, not the implementation.`;
+
+      const startTime = Date.now();
+      const response = await adapter.prompt(planPrompt);
+      const duration = Date.now() - startTime;
+
+      setCurrentPlan(response.content || '');
+      const planOutput = response.content || 'No plan generated.';
+      setMessages(prev => [...prev, {
+        id: nextId(),
+        role: 'assistant',
+        content: `${planOutput}\n\n───\n📋 Plan complete. Press Tab to Build.`,
+        agent: agentName,
+        duration
+      }]);
+      setMode('plan');
+    } catch (err) {
+      setMessages(prev => [...prev, { id: nextId(), role: 'assistant', content: 'Error: ' + (err as Error).message }]);
+    }
+    setLoading(false);
+  };
+
+  // Build Mode - Propose file edits for review (Tab toggles to Plan)
+  const runBuildMode = async (task: string) => {
+    const agentName = currentAgent === 'auto' ? 'claude' : currentAgent;
+    const adapter = adapters[agentName as keyof typeof adapters];
+    if (!adapter) {
+      setMessages(prev => [...prev, { id: nextId(), role: 'assistant', content: `Unknown agent: ${agentName}`, agent: 'system' }]);
+      return;
+    }
+
+    setCurrentPlanTask(task);
+    setAgenticSubMode('build');
+    setMessages(prev => [...prev, { id: nextId(), role: 'user', content: `[build] ${task}` }]);
+    setLoading(true);
+    setLoadingText(`building with ${agentName}...`);
+
+    try {
+      const MAX_FILE_SIZE = 10 * 1024;
+      const filePatterns = task.match(/[\w./\\-]+\.\w+/g) || [];
+      const files: Array<{ path: string; content: string }> = [];
+      for (const pattern of filePatterns) {
+        const filePath = resolve(process.cwd(), pattern);
+        if (existsSync(filePath)) {
+          try {
+            const content = readFileSync(filePath, 'utf-8');
+            if (content.length <= MAX_FILE_SIZE) {
+              files.push({ path: pattern, content });
+            } else {
+              files.push({ path: pattern, content: content.slice(0, MAX_FILE_SIZE) + '\n... (truncated)' });
+            }
+          } catch { /* Skip unreadable */ }
+        }
+      }
+
+      const fileContext = files.length > 0 ? files.map(f => `${f.path}:\n${f.content}`).join('\n\n') : undefined;
+      const observationId = startObservation({
+        sessionId: session?.id,
+        prompt: task,
+        injectedContext: fileContext,
+        agent: agentName
+      });
+
+      const startTime = Date.now();
+      const result = await runAgentic(task, {
+        adapter,
+        projectRoot: process.cwd(),
+        files: files.length > 0 ? files : undefined
+      });
+
+      logResponse(observationId, {
+        response: result.rawResponse?.content,
+        explanation: result.agenticResponse?.explanation,
+        proposedFiles: result.agenticResponse?.files?.map(f => ({
+          path: f.path,
+          operation: f.operation,
+          content: f.content
+        })),
+        durationMs: Date.now() - startTime,
+        tokensIn: result.rawResponse?.tokensIn,
+        tokensOut: result.rawResponse?.tokensOut
+      });
+
+      if (!result.success) {
+        completeObservation(observationId);
+        let errorMsg = `Agentic error: ${result.error}`;
+        if (result.rawResponse?.content) {
+          const preview = result.rawResponse.content.slice(0, 200);
+          errorMsg += `\n\nRaw response preview:\n${preview}${result.rawResponse.content.length > 200 ? '...' : ''}`;
+        }
+        setMessages(prev => [...prev, { id: nextId(), role: 'assistant', content: errorMsg, agent: agentName }]);
+        setLoading(false);
+        return;
+      }
+
+      if (!result.proposedEdits || result.proposedEdits.length === 0) {
+        completeObservation(observationId);
+        const explanation = result.agenticResponse?.explanation || result.rawResponse.content || 'No file edits proposed.';
+        let hint = '';
+        if (!result.agenticResponse) {
+          hint = '\n\n(LLM did not return JSON format - showing raw response)';
+        } else if (result.agenticResponse.files.length === 0) {
+          hint = '\n\n(LLM returned empty files array - no changes proposed)';
+        }
+        setMessages(prev => [...prev, { id: nextId(), role: 'assistant', content: explanation + hint, agent: agentName }]);
+        setLoading(false);
+        return;
+      }
+
+      const editSummary = result.proposedEdits.map(e =>
+        `  ${e.operation}: ${e.filePath}${e.originalContent === null ? ' (new)' : ''}`
+      ).join('\n');
+      const explanation = result.agenticResponse?.explanation || '';
+      setMessages(prev => [...prev, {
+        id: nextId(),
+        role: 'assistant',
+        content: `${explanation}\n\n${agentName} proposed ${result.proposedEdits.length} file edit(s):\n${editSummary}\n\nReview each edit below:`,
+        agent: agentName
+      }]);
+
+      setCurrentObservationId(observationId);
+      setCurrentAgenticResult(result);
+      setProposedEdits(result.proposedEdits);
+      setMode('review');
+    } catch (err) {
+      setMessages(prev => [...prev, { id: nextId(), role: 'assistant', content: 'Error: ' + (err as Error).message }]);
+    }
+    setLoading(false);
   };
 
   const handleSubmit = async (value: string) => {
@@ -523,11 +899,28 @@ function App() {
       return;
     }
 
+    // Default: Plan mode - analyze task (Tab toggles to Build)
+    setInput('');
+    await runPlanMode(value);
+  };
+
+  /* LEGACY DIRECT CHAT CODE - Commented out, now routing through /plan by default
+   * To restore direct chat mode, uncomment this and remove the /plan routing above
+   *
+  const handleDirectChat = async (value: string) => {
     // Add user message
     setMessages(prev => [...prev, { id: nextId(), role: 'user', content: value }]);
     setInput('');
     setLoading(true);
     setLoadingText('thinking...');
+
+    // Record preference from previous compare/debate (signal detection)
+    if (lastMode === 'compare' && hasPendingComparison()) {
+      recordComparePreference(value).catch(() => {});
+    } else if (lastMode === 'debate' && hasPendingDebate()) {
+      recordDebateWinner(value).catch(() => {});
+    }
+    setLastMode(null);
 
     // Capture session ID to avoid stale reference after async operations
     const sessionId = session?.id;
@@ -543,7 +936,33 @@ function App() {
     }
 
     try {
-      const result = await orchestrate(value, { agent: currentAgent });
+      // Inject consensus context if available
+      let promptWithContext = value;
+      if (consensusContext) {
+        promptWithContext = `<consensus_context>\n${consensusContext.slice(0, 4000)}\n</consensus_context>\n\nUser follow-up: ${value}`;
+        setConsensusContext(null); // Clear after use
+      }
+
+      // Retrieve cross-session memory and inject into prompt
+      let promptWithMemory = promptWithContext;
+      try {
+        const agentName = currentAgent === 'auto' ? 'claude' : currentAgent;
+        const injection = await buildInjectionForAgent(promptWithContext, agentName, {
+          maxTokens: 1500,
+          includeConversation: true,
+          includeCode: true,
+          includeDecisions: true,
+          includePatterns: true
+        });
+
+        if (injection.itemCount > 0) {
+          promptWithMemory = `${injection.content}\n\n${promptWithContext}`;
+        }
+      } catch {
+        // Continue without memory if retrieval fails
+      }
+
+      const result = await orchestrate(promptWithMemory, { agent: currentAgent });
       const responseContent = result.content || result.error || 'No response';
       // Track tokens
       if (result.tokens) {
@@ -556,7 +975,8 @@ function App() {
           role: 'assistant',
           content: responseContent,
           agent: result.model,
-          duration: result.duration
+          duration: result.duration,
+          tokens: result.tokens
         }
       ]);
       // Persist assistant message to session (re-fetch to avoid stale state)
@@ -565,6 +985,23 @@ function App() {
         if (currentSession) {
           const updated = await addSessionMessage(currentSession, 'assistant', responseContent);
           setSession(updated);
+        }
+      }
+
+      // Save conversation to vector store for cross-session memory
+      if (sessionId && responseContent && !result.error) {
+        try {
+          await addMemory({
+            type: 'conversation',
+            content: `User: ${value}\nAssistant: ${responseContent.slice(0, 2000)}`,
+            metadata: {
+              agent: result.model,
+              sessionId,
+              timestamp: new Date().toISOString()
+            }
+          });
+        } catch {
+          // Continue even if memory save fails
         }
       }
     } catch (err) {
@@ -585,6 +1022,7 @@ function App() {
 
     setLoading(false);
   };
+  END LEGACY DIRECT CHAT CODE */
 
   const handleSlashCommand = async (cmd: string) => {
     // Parse command - handle quoted strings
@@ -599,13 +1037,13 @@ function App() {
     switch (command) {
       // === UTILITY ===
       case 'help':
-        addMessage(`Commands:
+        addMessage(`Default: Type a task → Plan mode (/mode to toggle)
+
+Commands:
   /compare <agents> <task>  - Compare agents side-by-side
   /autopilot <task>         - AI-generated execution plan
   /workflow <name> <task>   - Run a saved workflow
   /workflows                - Manage workflows (interactive)
-  /agentic <task>           - [EXPERIMENTAL] Review file edits (any agent)
-  /review <task>            - Review file edits (Claude dry-run mode)
   /index                    - Codebase indexing options
   /index full               - Index with embeddings
   /index quick              - Index without embeddings
@@ -650,6 +1088,29 @@ Compare View:
   Tab        - Show all stacked
   Esc        - Back`);
         break;
+
+      case 'mode': {
+        // Toggle between Plan and Build modes
+        if (agenticSubMode === 'plan') {
+          setAgenticSubMode('build');
+          setModeChangeNotice('→ Switched to Build mode');
+          setTimeout(() => setModeChangeNotice(null), 2000);
+          addMessage('Switched to Build mode. Your next task will propose file edits.', 'system');
+          if (currentPlanTask) {
+            runBuildMode(currentPlanTask);
+          }
+        } else {
+          setAgenticSubMode('plan');
+          setModeChangeNotice('→ Switched to Plan mode');
+          setTimeout(() => setModeChangeNotice(null), 2000);
+          addMessage('Switched to Plan mode. Your next task will analyze without changes.', 'system');
+          if (currentPlanTask) {
+            setProposedEdits([]);
+            runPlanMode(currentPlanTask);
+          }
+        }
+        break;
+      }
 
       case 'clear':
         setMessages([]);
@@ -772,182 +1233,6 @@ Compare View:
           setLoading(false);
         } else {
           addMessage('Unknown subcommand: ' + subCmd + '\n\nUsage: /index [full|quick|search|context|config|graph]', 'system');
-        }
-        break;
-      }
-
-      case 'review': {
-        // Edit Review Mode - dry-run Claude to capture proposed edits
-        if (!rest) {
-          addMessage('Usage: /review <task>\nExample: /review "create a hello world script at /tmp/hello.sh"', 'system');
-          break;
-        }
-
-        const taskMatch = rest.match(/^(?:"([^"]+)"|(.+))$/);
-        if (!taskMatch) {
-          addMessage('Usage: /review <task>', 'system');
-          break;
-        }
-        const task = taskMatch[1] || taskMatch[2];
-
-        setMessages(prev => [...prev, { id: nextId(), role: 'user', content: '/review "' + task + '"' }]);
-        setLoading(true);
-        setLoadingText('running dry-run...');
-
-        try {
-          const result = await claudeAdapter.dryRun(task);
-
-          if (result.proposedEdits.length === 0) {
-            addMessage(result.response.content || 'No file edits proposed.', 'claude');
-            setLoading(false);
-            break;
-          }
-
-          // Show summary of proposed edits (NOT Claude's "permission denied" response)
-          const editSummary = result.proposedEdits.map(e =>
-            `  ${e.operation}: ${e.filePath}${e.originalContent === null ? ' (new)' : ''}`
-          ).join('\n');
-          addMessage(`Claude proposed ${result.proposedEdits.length} file edit(s):\n${editSummary}\n\nReview each edit below:`, 'claude');
-
-          // Switch to review mode
-          setProposedEdits(result.proposedEdits);
-          setMode('review');
-          setLoading(false);
-        } catch (err) {
-          addMessage('Error: ' + (err as Error).message);
-          setLoading(false);
-        }
-        break;
-      }
-
-      case 'agentic': {
-        // Agentic Mode - LLM proposes JSON, PuzldAI applies files
-        if (!rest) {
-          addMessage('Usage: /agentic <task>\nExample: /agentic "create a hello world script at /tmp/hello.sh"', 'system');
-          break;
-        }
-
-        const taskMatch = rest.match(/^(?:"([^"]+)"|(.+))$/);
-        if (!taskMatch) {
-          addMessage('Usage: /agentic <task>', 'system');
-          break;
-        }
-        const task = taskMatch[1] || taskMatch[2];
-
-        // Get the appropriate adapter based on current agent setting
-        const agentName = currentAgent === 'auto' ? 'claude' : currentAgent;
-        const adapter = adapters[agentName as keyof typeof adapters];
-        if (!adapter) {
-          addMessage(`Unknown agent: ${agentName}`, 'system');
-          break;
-        }
-
-        setMessages(prev => [...prev, { id: nextId(), role: 'user', content: '/agentic "' + task + '"' }]);
-        setLoading(true);
-        setLoadingText(`running agentic mode with ${agentName}...`);
-
-        try {
-          // Extract file paths mentioned in the task and inject their contents
-          // Limit to 10KB per file to avoid slow responses
-          const MAX_FILE_SIZE = 10 * 1024;
-          const filePatterns = task.match(/[\w./\\-]+\.\w+/g) || [];
-          const files: Array<{ path: string; content: string }> = [];
-          for (const pattern of filePatterns) {
-            const filePath = resolve(process.cwd(), pattern);
-            if (existsSync(filePath)) {
-              try {
-                const content = readFileSync(filePath, 'utf-8');
-                if (content.length <= MAX_FILE_SIZE) {
-                  files.push({ path: pattern, content });
-                } else {
-                  // Truncate large files
-                  files.push({ path: pattern, content: content.slice(0, MAX_FILE_SIZE) + '\n... (truncated)' });
-                }
-              } catch {
-                // Skip unreadable files
-              }
-            }
-          }
-
-          // Start observation logging
-          const fileContext = files.length > 0 ? files.map(f => `${f.path}:\n${f.content}`).join('\n\n') : undefined;
-          const observationId = startObservation({
-            sessionId: session?.id,
-            prompt: task,
-            injectedContext: fileContext,
-            agent: agentName
-          });
-
-          const startTime = Date.now();
-          const result = await runAgentic(task, {
-            adapter,
-            projectRoot: process.cwd(),
-            files: files.length > 0 ? files : undefined
-          });
-
-          // Log response to observation
-          logResponse(observationId, {
-            response: result.rawResponse?.content,
-            explanation: result.agenticResponse?.explanation,
-            proposedFiles: result.agenticResponse?.files?.map(f => ({
-              path: f.path,
-              operation: f.operation,
-              content: f.content
-            })),
-            durationMs: Date.now() - startTime,
-            tokensIn: result.rawResponse?.tokensIn,
-            tokensOut: result.rawResponse?.tokensOut
-          });
-
-          if (!result.success) {
-            // Complete observation (no review needed)
-            completeObservation(observationId);
-            // Show detailed error with raw response hint
-            let errorMsg = `Agentic error: ${result.error}`;
-            if (result.rawResponse?.content) {
-              const preview = result.rawResponse.content.slice(0, 200);
-              errorMsg += `\n\nRaw response preview:\n${preview}${result.rawResponse.content.length > 200 ? '...' : ''}`;
-            }
-            addMessage(errorMsg, agentName);
-            setLoading(false);
-            break;
-          }
-
-          if (!result.proposedEdits || result.proposedEdits.length === 0) {
-            // Complete observation (no review needed)
-            completeObservation(observationId);
-            // Show the explanation if no file edits
-            const explanation = result.agenticResponse?.explanation || result.rawResponse.content || 'No file edits proposed.';
-            // Add context about what happened
-            let hint = '';
-            if (!result.agenticResponse) {
-              hint = '\n\n(LLM did not return JSON format - showing raw response)';
-            } else if (result.agenticResponse.files.length === 0) {
-              hint = '\n\n(LLM returned empty files array - no changes proposed)';
-            }
-            addMessage(explanation + hint, agentName);
-            setLoading(false);
-            break;
-          }
-
-          // Show summary of proposed edits
-          const editSummary = result.proposedEdits.map(e =>
-            `  ${e.operation}: ${e.filePath}${e.originalContent === null ? ' (new)' : ''}`
-          ).join('\n');
-          const explanation = result.agenticResponse?.explanation || '';
-          addMessage(`${explanation}\n\n${agentName} proposed ${result.proposedEdits.length} file edit(s):\n${editSummary}\n\nReview each edit below:`, agentName);
-
-          // Store observation ID and result for review completion
-          setCurrentObservationId(observationId);
-          setCurrentAgenticResult(result);
-
-          // Switch to review mode
-          setProposedEdits(result.proposedEdits);
-          setMode('review');
-          setLoading(false);
-        } catch (err) {
-          addMessage('Error: ' + (err as Error).message);
-          setLoading(false);
         }
         break;
       }
@@ -1172,6 +1457,7 @@ Compare View:
           });
 
           setCompareResults(visualResults);
+          setLastMode('compare'); // Track for preference detection
           // Keep in compare mode - will be saved to history when user types something new
         } catch (err) {
           // Show error in compare view
@@ -1366,13 +1652,48 @@ Compare View:
         setMode('collaboration');
 
         try {
-          const plan = buildCorrectionPlan(task, {
+          // Inject memory context into task
+          let taskWithMemory = task;
+          try {
+            const injection = await buildInjectionForAgent(task, producer, {
+              maxTokens: 1000,
+              includeConversation: true,
+              includeDecisions: true,
+              includePatterns: true
+            });
+            if (injection.itemCount > 0) {
+              taskWithMemory = `${injection.content}\n\nTask: ${task}`;
+            }
+          } catch {
+            // Continue without memory
+          }
+
+          const plan = buildCorrectionPlan(taskWithMemory, {
             producer: producer as AgentName | 'auto',
             reviewer: reviewer as AgentName | 'auto',
             fixAfterReview: correctFix
           });
 
-          const result = await execute(plan);
+          // Create AbortController for cancellation
+          const controller = new AbortController();
+          abortControllerRef.current = controller;
+
+          const result = await execute(plan, { signal: controller.signal });
+          abortControllerRef.current = null;
+
+          // Check if cancelled
+          if (result.status === 'cancelled') {
+            const cancelledSteps = initialSteps.map(s => ({
+              ...s,
+              content: s.loading ? '' : s.content,
+              error: s.loading ? 'Cancelled by user' : undefined,
+              loading: false
+            }));
+            setCollaborationSteps(cancelledSteps);
+            setNotification(null);
+            addSystemMessage('Correction cancelled.');
+            return;
+          }
 
           // Build visual collaboration steps
           const steps: CollaborationStep[] = [
@@ -1471,13 +1792,48 @@ Compare View:
         setMode('collaboration');
 
         try {
-          const plan = buildDebatePlan(topic, {
+          // Inject memory context into topic
+          let topicWithMemory = topic;
+          try {
+            const injection = await buildInjectionForAgent(topic, agents[0], {
+              maxTokens: 1000,
+              includeConversation: true,
+              includeDecisions: true,
+              includePatterns: true
+            });
+            if (injection.itemCount > 0) {
+              topicWithMemory = `${injection.content}\n\nDebate topic: ${topic}`;
+            }
+          } catch {
+            // Continue without memory
+          }
+
+          const plan = buildDebatePlan(topicWithMemory, {
             agents: agents as AgentName[],
             rounds: debateRounds,
             moderator
           });
 
-          const result = await execute(plan);
+          // Create AbortController for cancellation
+          const controller = new AbortController();
+          abortControllerRef.current = controller;
+
+          const result = await execute(plan, { signal: controller.signal });
+          abortControllerRef.current = null;
+
+          // Check if cancelled
+          if (result.status === 'cancelled') {
+            const cancelledSteps = initialDebateSteps.map(s => ({
+              ...s,
+              content: s.loading ? '' : s.content,
+              error: s.loading ? 'Cancelled by user' : undefined,
+              loading: false
+            }));
+            setCollaborationSteps(cancelledSteps);
+            setNotification(null);
+            addSystemMessage('Debate cancelled.');
+            return;
+          }
 
           // Build visual collaboration steps
           const debateSteps: CollaborationStep[] = [];
@@ -1510,6 +1866,7 @@ Compare View:
           }
 
           setCollaborationSteps(debateSteps);
+          setLastMode('debate'); // Track for preference detection
         } catch (err) {
           // Show error in collaboration view
           const errorSteps = initialDebateSteps.map(s => ({
@@ -1586,13 +1943,48 @@ Compare View:
         setMode('collaboration');
 
         try {
-          const plan = buildConsensusPlan(task, {
+          // Inject memory context into task
+          let taskWithMemory = task;
+          try {
+            const injection = await buildInjectionForAgent(task, agents[0], {
+              maxTokens: 1000,
+              includeConversation: true,
+              includeDecisions: true,
+              includePatterns: true
+            });
+            if (injection.itemCount > 0) {
+              taskWithMemory = `${injection.content}\n\nTask: ${task}`;
+            }
+          } catch {
+            // Continue without memory
+          }
+
+          const plan = buildConsensusPlan(taskWithMemory, {
             agents: agents as AgentName[],
             maxRounds: consensusRounds,
             synthesizer: synth
           });
 
-          const result = await execute(plan);
+          // Create AbortController for cancellation
+          const controller = new AbortController();
+          abortControllerRef.current = controller;
+
+          const result = await execute(plan, { signal: controller.signal });
+          abortControllerRef.current = null;
+
+          // Check if cancelled
+          if (result.status === 'cancelled') {
+            const cancelledSteps = initialConsensusSteps.map(s => ({
+              ...s,
+              content: s.loading ? '' : s.content,
+              error: s.loading ? 'Cancelled by user' : undefined,
+              loading: false
+            }));
+            setCollaborationSteps(cancelledSteps);
+            setNotification(null);
+            addSystemMessage('Consensus cancelled.');
+            return;
+          }
 
           // Build visual collaboration steps from results
           const consensusSteps: CollaborationStep[] = [];
@@ -1770,7 +2162,7 @@ Compare View:
       {/* Index Mode */}
       {mode === 'index' && (
         <IndexPanel
-          onSelect={async (option) => {
+          onSelect={(option) => {
             setMode('chat');
             if (option === 'search') {
               setInput('/index search ');
@@ -1780,6 +2172,7 @@ Compare View:
               setInputKey(k => k + 1);
             } else if (option === 'config') {
               // Show config immediately
+              setMessages(prev => [...prev, { id: nextId(), role: 'user', content: '/index config' }]);
               try {
                 const config = detectProjectConfig(process.cwd());
                 if (config.configFiles.length === 0) {
@@ -1791,39 +2184,46 @@ Compare View:
                 setMessages(prev => [...prev, { id: nextId(), role: 'assistant', content: 'Config error: ' + (err as Error).message, agent: 'system' }]);
               }
             } else if (option === 'graph') {
-              // Build and show graph
+              // Build and show graph - defer to allow UI update
+              setMessages(prev => [...prev, { id: nextId(), role: 'user', content: '/index graph' }]);
               setLoading(true);
               setLoadingText('building dependency graph...');
-              try {
-                const rootDir = process.cwd();
-                const files = globSync('**/*.{ts,tsx,js,jsx}', {
-                  cwd: rootDir,
-                  absolute: true,
-                  ignore: ['**/node_modules/**', '**/dist/**', '**/build/**']
-                }).slice(0, 500);
-                const structures = parseFiles(files, rootDir);
-                const graph = buildDependencyGraph(structures, rootDir);
-                setMessages(prev => [...prev, { id: nextId(), role: 'assistant', content: 'Dependency Graph:\n' + getGraphSummary(graph), agent: 'system' }]);
-              } catch (err) {
-                setMessages(prev => [...prev, { id: nextId(), role: 'assistant', content: 'Graph error: ' + (err as Error).message, agent: 'system' }]);
-              }
-              setLoading(false);
-            } else {
-              // full or quick index
-              setLoading(true);
-              setLoadingText('indexing codebase...');
-              try {
-                const result = await indexCodebase(process.cwd(), { skipEmbedding: option === 'quick' });
-                const summary = getIndexSummary(result);
-                let msg = summary;
-                if (result.config.configFiles.length > 0) {
-                  msg += '\n\nProject Config:\n' + getConfigSummary(result.config);
+              setTimeout(async () => {
+                try {
+                  const rootDir = process.cwd();
+                  const files = globSync('**/*.{ts,tsx,js,jsx}', {
+                    cwd: rootDir,
+                    absolute: true,
+                    ignore: ['**/node_modules/**', '**/dist/**', '**/build/**']
+                  }).slice(0, 500);
+                  const structures = parseFiles(files, rootDir);
+                  const graph = buildDependencyGraph(structures, rootDir);
+                  setMessages(prev => [...prev, { id: nextId(), role: 'assistant', content: 'Dependency Graph:\n' + getGraphSummary(graph), agent: 'system' }]);
+                } catch (err) {
+                  setMessages(prev => [...prev, { id: nextId(), role: 'assistant', content: 'Graph error: ' + (err as Error).message, agent: 'system' }]);
                 }
-                setMessages(prev => [...prev, { id: nextId(), role: 'assistant', content: msg, agent: 'system' }]);
-              } catch (err) {
-                setMessages(prev => [...prev, { id: nextId(), role: 'assistant', content: 'Index error: ' + (err as Error).message, agent: 'system' }]);
-              }
-              setLoading(false);
+                setLoading(false);
+              }, 50);
+            } else {
+              // full or quick index - defer to allow UI update
+              const isQuick = option === 'quick';
+              setMessages(prev => [...prev, { id: nextId(), role: 'user', content: `/index ${isQuick ? 'quick' : 'full'}` }]);
+              setLoading(true);
+              setLoadingText(`indexing codebase${isQuick ? ' (quick)' : ' with embeddings'}...`);
+              setTimeout(async () => {
+                try {
+                  const result = await indexCodebase(process.cwd(), { skipEmbedding: isQuick });
+                  const summary = getIndexSummary(result);
+                  let msg = summary;
+                  if (result.config.configFiles.length > 0) {
+                    msg += '\n\nProject Config:\n' + getConfigSummary(result.config);
+                  }
+                  setMessages(prev => [...prev, { id: nextId(), role: 'assistant', content: msg, agent: 'system' }]);
+                } catch (err) {
+                  setMessages(prev => [...prev, { id: nextId(), role: 'assistant', content: 'Index error: ' + (err as Error).message, agent: 'system' }]);
+                }
+                setLoading(false);
+              }, 50);
             }
           }}
           onBack={() => setMode('chat')}
@@ -1875,6 +2275,9 @@ Compare View:
             }]);
             setProposedEdits([]);
             setMode('chat');
+            // Reset input to fix cursor issues when returning to chat
+            setInput('');
+            setInputKey(k => k + 1);
           }}
           onCancel={() => {
             // Log cancellation as full rejection
@@ -1896,6 +2299,9 @@ Compare View:
             }]);
             setProposedEdits([]);
             setMode('chat');
+            // Reset input to fix cursor issues when returning to chat
+            setInput('');
+            setInputKey(k => k + 1);
           }}
         />
       )}
@@ -1978,6 +2384,9 @@ Compare View:
                         <Box marginTop={1}>
                           <Text color="green">●</Text>
                           <Text dimColor> {msg.duration ? (msg.duration / 1000).toFixed(1) + 's' : '-'}</Text>
+                          {msg.tokens && (
+                            <Text dimColor> · {msg.tokens.input}↓ {msg.tokens.output}↑</Text>
+                          )}
                         </Box>
                       )}
                     </Box>
@@ -2000,7 +2409,6 @@ Compare View:
                 key={compareKey}
                 results={compareResults}
                 onExit={saveCompareToHistory}
-                inputValue={input}
               />
             </>
           )}
@@ -2018,7 +2426,7 @@ Compare View:
                 type={collaborationType}
                 steps={collaborationSteps}
                 onExit={saveCollaborationToHistory}
-                inputValue={input}
+                onAction={['consensus', 'debate', 'correct'].includes(collaborationType) ? handleCollaborationAction : undefined}
                 pipelineName={pipelineName}
               />
             </>
@@ -2031,21 +2439,33 @@ Compare View:
             </Box>
           )}
 
-          {/* Input */}
-          <Box borderStyle="round" borderColor="gray" paddingX={1}>
-            <Text color="green" bold>{'> '}</Text>
-            <TextInput
-              key={inputKey}
-              value={input}
-              onChange={setInput}
-              onSubmit={handleSubmit}
-              placeholder={mode === 'chat' ? "Type a message or /help" : "Type to exit view..."}
-              focus={!showUpdatePrompt}
-            />
-          </Box>
+          {/* Input - hidden when in collaboration or compare mode */}
+          {mode !== 'collaboration' && mode !== 'compare' && (
+            <Box flexDirection="column">
+              <Box borderStyle="round" borderColor="gray" paddingX={1}>
+                <Text color="green" bold>{'> '}</Text>
+                <TextInput
+                  key={inputKey}
+                  value={input}
+                  onChange={setInput}
+                  onSubmit={handleSubmit}
+                  placeholder="Describe a task or /help"
+                  focus={!showUpdatePrompt}
+                />
+              </Box>
+              {/* Mode indicator */}
+              <Box marginLeft={2} marginTop={0}>
+                <Text dimColor>
+                  Mode: <Text color={agenticSubMode === 'plan' ? 'cyan' : 'yellow'}>{agenticSubMode === 'plan' ? 'Plan' : 'Build'}</Text>
+                  <Text dimColor> · /mode to switch</Text>
+                </Text>
+                {modeChangeNotice && <Text color="green"> {modeChangeNotice}</Text>}
+              </Box>
+            </Box>
+          )}
 
           {/* Autocomplete suggestions - aligned with input text (border + padding + "> ") */}
-          {(mode === 'chat' || mode === 'compare' || mode === 'collaboration') && autocompleteItems.length > 0 && !loading && (
+          {mode === 'chat' && autocompleteItems.length > 0 && !loading && (
             <Box flexDirection="column" marginTop={1} marginLeft={4}>
               {autocompleteItems.map((item, i) => {
                 const isSelected = i === autocompleteIndex;
@@ -2067,8 +2487,10 @@ Compare View:
         </>
       )}
 
-      {/* Status Bar */}
-      <StatusBar agent={currentAgent} messageCount={messages.length} tokens={tokens} />
+      {/* Status Bar - hidden in collaboration/compare mode */}
+      {mode !== 'collaboration' && mode !== 'compare' && (
+        <StatusBar agent={currentAgent} messageCount={messages.length} tokens={tokens} />
+      )}
     </Box>
   );
 }

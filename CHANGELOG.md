@@ -6,6 +6,55 @@ All notable changes to PuzldAI will be documented in this file.
 
 ---
 
+## [0.2.80] - 2025-12-13
+
+### Added
+- **Phase 13: Chat Orchestrator** - Intelligent context assembly for all chat modes
+  - `src/chat/index.ts` - Main orchestrator with history, memory, code context injection
+  - `src/chat/compare.ts` - Compare mode with implicit preference tracking
+  - `src/chat/debate.ts` - Debate mode with winner detection from user continuations
+  - `src/chat/pipeline.ts` - Pipeline orchestrator for multi-step workflows
+  - Auto-summarization for long conversation histories
+  - Scaffolding support for very large contexts (>15k tokens)
+
+- **Plan/Build Mode System** - Two-mode workflow for task execution
+  - **Plan Mode** (default): Analyzes task, describes approach without file changes
+  - **Build Mode**: Proposes actual file edits with diff review
+  - `/mode` command to toggle between modes
+  - Mode indicator under input: `Mode: Plan · /mode to switch`
+  - Mode change notification with visual feedback
+  - `runPlanMode()` and `runBuildMode()` internal functions
+
+- **Implicit Preference Learning** - Learn from user behavior
+  - `src/memory/signals.ts` - Preference signal detection
+  - `recordComparePreference()` - Detect which agent user prefers after /compare
+  - `recordDebateWinner()` - Detect winning arguments after /debate
+  - Semantic similarity matching for implicit signals
+  - Explicit preference detection ("I prefer Claude's approach")
+
+- **Collaboration View Enhancements**
+  - Post-completion action menu: Build / Continue / Reject
+  - Vertical action menu layout with keyboard navigation
+  - Auto-show actions when viewing synthesis/conclusion
+  - Ctrl+E to re-enter last collaboration from chat history
+  - Historical collaboration results display as compact summary boxes
+
+### Changed
+- Default input now routes through Plan mode (not direct chat)
+- Removed `/plan`, `/build`, `/agentic`, `/review` commands (replaced by mode system)
+- Escape during collaboration loading = go back to chat (keep results)
+- Ctrl+C during collaboration loading = cancel operation
+- Simplified autocomplete with `/mode` at top of command list
+- Improved keyboard handling - navigation keys don't interfere with typing
+- Updated help text with Plan/Build workflow explanation
+
+### Fixed
+- Duplicate message issue when re-entering collaboration via Ctrl+E
+- Action menu no longer intercepts arrow keys when not shown
+- Cursor/input state properly reset when returning to chat from collaboration
+
+---
+
 ## [0.2.75] - 2025-12-12
 
 ### Added

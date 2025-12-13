@@ -9,12 +9,12 @@ interface Command {
 }
 
 const COMMANDS: Command[] = [
+  // Mode toggle
+  { label: '/mode', value: '/mode', description: 'Toggle Plan↔Build mode' },
   // Commands
   { label: '/compare', value: '/compare ', description: 'Compare agents side-by-side' },
   { label: '/autopilot', value: '/autopilot ', description: 'AI-generated execution plan' },
   { label: '/workflow', value: '/workflow ', description: 'Run a saved workflow' },
-  { label: '/agentic', value: '/agentic ', description: '[EXPERIMENTAL] Review file edits (any agent)' },
-  { label: '/review', value: '/review ', description: 'Review file edits (Claude dry-run)' },
   { label: '/index', value: '/index', description: 'Codebase indexing options' },
   // Multi-agent collaboration
   { label: '/correct', value: '/correct ', description: 'Cross-agent correction (fix: /settings)' },
