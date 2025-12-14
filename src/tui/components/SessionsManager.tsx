@@ -1,13 +1,13 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { Box, Text, useInput } from 'ink';
 import {
-  listSessions,
-  loadSession,
-  deleteSession,
-  clearSessionHistory,
-  getSessionStats,
-  AgentSession
-} from '../../memory';
+  listUnifiedSessions,
+  loadUnifiedSession,
+  deleteUnifiedSession,
+  clearUnifiedSessionMessages,
+  getUnifiedSessionStats,
+  type UnifiedSession,
+} from '../../context';
 
 const HIGHLIGHT_COLOR = '#8CA9FF';
 
@@ -15,7 +15,7 @@ type View = 'menu' | 'list' | 'session' | 'confirm-delete' | 'confirm-clear';
 
 interface SessionsManagerProps {
   onBack: () => void;
-  onLoadSession: (session: AgentSession) => void;
+  onLoadSession: (session: UnifiedSession) => void;
   currentAgent?: string;
 }
 
@@ -26,15 +26,19 @@ export function SessionsManager({ onBack, onLoadSession, currentAgent }: Session
   const [error, setError] = useState<string | null>(null);
 
   // Full session loaded when entering session view
-  const [fullSession, setFullSession] = useState<AgentSession | null>(null);
+  const [fullSession, setFullSession] = useState<UnifiedSession | null>(null);
 
   // Memoize sessions list to avoid calling every render
-  const sessions = useMemo(() => listSessions(filterAgent), [filterAgent, view]);
+  const sessions = useMemo(() => {
+    const all = listUnifiedSessions();
+    if (!filterAgent) return all;
+    return all.filter(s => s.agentsUsed.includes(filterAgent));
+  }, [filterAgent, view]);
 
   // Load full session when entering session view
   useEffect(() => {
     if (view === 'session' && selectedSessionId) {
-      const loaded = loadSession(selectedSessionId);
+      const loaded = loadUnifiedSession(selectedSessionId);
       if (loaded) {
         setFullSession(loaded);
         setError(null);
@@ -144,13 +148,13 @@ export function SessionsManager({ onBack, onLoadSession, currentAgent }: Session
       if (confirmIndex === 0) {
         // Yes
         if (view === 'confirm-delete' && selectedSessionId) {
-          deleteSession(selectedSessionId);
+          deleteUnifiedSession(selectedSessionId);
           setView('list');
           setSelectedSessionId(null);
           setListIndex(0);
         } else if (view === 'confirm-clear' && fullSession) {
-          clearSessionHistory(fullSession);
-          setFullSession(loadSession(fullSession.id));
+          clearUnifiedSessionMessages(fullSession);
+          setFullSession(loadUnifiedSession(fullSession.id));
           setView('session');
         }
       } else {
@@ -227,7 +231,7 @@ export function SessionsManager({ onBack, onLoadSession, currentAgent }: Session
                       <Box>
                         <Text color={HIGHLIGHT_COLOR}>{isSelected ? '>' : ' '} </Text>
                         <Text color={isSelected ? HIGHLIGHT_COLOR : undefined} bold={isSelected}>
-                          {idx + 1}. {session.agent}
+                          {idx + 1}. {session.agentsUsed.join(', ') || 'No agent'}
                         </Text>
                         <Text dimColor>  {session.messageCount} msgs | {session.totalTokens} tokens</Text>
                       </Box>
@@ -260,17 +264,17 @@ export function SessionsManager({ onBack, onLoadSession, currentAgent }: Session
           );
         }
 
-        const stats = getSessionStats(fullSession);
+        const stats = getUnifiedSessionStats(fullSession);
         return (
           <Box flexDirection="column">
             <Box borderStyle="round" borderColor="gray" flexDirection="column" paddingX={1}>
-              <Text bold>Session: {fullSession.agent}</Text>
+              <Text bold>Session: {fullSession.agentsUsed.join(', ') || 'No agent'}</Text>
               <Text dimColor>ID: {fullSession.id}</Text>
               <Text> </Text>
               <Box borderStyle="single" borderColor="gray" flexDirection="column" paddingX={1}>
                 <Text>Messages: {stats.messageCount}</Text>
-                <Text>Tokens: {stats.totalTokens} (recent: {stats.recentTokens}, summary: {stats.summaryTokens})</Text>
-                <Text>Compression: {stats.compressionRatio}%</Text>
+                <Text>Tokens: {stats.totalTokens} (avg: {stats.avgTokensPerMessage}/msg)</Text>
+                <Text>Agents: {Object.entries(stats.agentBreakdown).map(([a, c]) => `${a}: ${c}`).join(', ') || 'none'}</Text>
                 <Text>Created: {formatDate(fullSession.createdAt)}</Text>
                 <Text>Updated: {formatDate(fullSession.updatedAt)}</Text>
               </Box>

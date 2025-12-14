@@ -2,7 +2,7 @@
  * DiffReview Component (Phase 9.2)
  *
  * Displays proposed file edits with diffs for review.
- * User can Accept, Reject, or Skip each edit.
+ * User can Accept, Reject, or Skip each edit using vertical menu.
  */
 
 import React, { useState } from 'react';
@@ -16,11 +16,19 @@ import {
 } from '../../lib/edit-review';
 
 // Colors
-const BORDER_COLOR = '#fc8657';
-const ACCENT_COLOR = '#06ba9e';
 const ADD_COLOR = 'green';
 const REMOVE_COLOR = 'red';
 const HEADER_COLOR = 'cyan';
+const HIGHLIGHT_COLOR = '#8CA9FF';
+
+// Menu options
+const MENU_OPTIONS = [
+  { label: 'Accept', action: 'accept' as const },
+  { label: 'Reject', action: 'reject' as const },
+  { label: 'Skip', action: 'skip' as const },
+  { label: 'Yes to all', action: 'yes-all' as const },
+  { label: 'No to all', action: 'no-all' as const },
+];
 
 export interface DiffReviewProps {
   edits: ProposedEdit[];
@@ -30,8 +38,8 @@ export interface DiffReviewProps {
 
 export function DiffReview({ edits, onComplete, onCancel }: DiffReviewProps) {
   const [currentIndex, setCurrentIndex] = useState(0);
+  const [selectedOption, setSelectedOption] = useState(0);
   const [decisions, setDecisions] = useState<Map<string, 'accept' | 'reject' | 'skip'>>(new Map());
-  const [scrollOffset, setScrollOffset] = useState(0);
   const [notification, setNotification] = useState<string | null>(null);
 
   const currentEdit = edits[currentIndex];
@@ -40,46 +48,51 @@ export function DiffReview({ edits, onComplete, onCancel }: DiffReviewProps) {
   // Generate diff for current edit
   const diff = currentEdit ? generateDiff(currentEdit) : '';
   const diffSegments = currentEdit ? formatDiffForDisplay(diff) : [];
-  // Use most of terminal height for diff (leave room for header, footer, controls)
+  // Limit diff lines
   const terminalRows = process.stdout.rows || 40;
-  const maxLines = Math.max(20, terminalRows - 15);
-  const maxScrollOffset = Math.max(0, diffSegments.length - maxLines);
+  const maxLines = Math.max(15, terminalRows - 20);
 
   // Handle keyboard input
   useInput((input, key) => {
     // Clear notification on any key
     setNotification(null);
 
-    // Navigation between files
-    if (key.leftArrow) {
-      if (currentIndex > 0) {
-        setCurrentIndex(currentIndex - 1);
-        setScrollOffset(0);
-      }
-    }
-    if (key.rightArrow) {
-      if (currentIndex < totalEdits - 1) {
-        setCurrentIndex(currentIndex + 1);
-        setScrollOffset(0);
-      }
-    }
-
-    // Scroll diff (capped)
+    // Navigate menu with up/down
     if (key.upArrow) {
-      setScrollOffset(Math.max(0, scrollOffset - 1));
+      setSelectedOption(i => Math.max(0, i - 1));
     }
     if (key.downArrow) {
-      setScrollOffset(Math.min(maxScrollOffset, scrollOffset + 1));
+      setSelectedOption(i => Math.min(MENU_OPTIONS.length - 1, i + 1));
     }
 
-    // Actions
-    if (input === 'a' || input === 'A') {
-      // Accept current edit
+    // Navigate files with left/right
+    if (key.leftArrow && currentIndex > 0) {
+      setCurrentIndex(currentIndex - 1);
+      setSelectedOption(0);
+    }
+    if (key.rightArrow && currentIndex < totalEdits - 1) {
+      setCurrentIndex(currentIndex + 1);
+      setSelectedOption(0);
+    }
+
+    // Enter to confirm selection
+    if (key.return) {
+      const action = MENU_OPTIONS[selectedOption].action;
+      handleAction(action);
+    }
+
+    // Escape to cancel
+    if (key.escape) {
+      onCancel();
+    }
+  });
+
+  const handleAction = (action: 'accept' | 'reject' | 'skip' | 'yes-all' | 'no-all') => {
+    if (action === 'accept') {
       const newDecisions = new Map(decisions);
       newDecisions.set(currentEdit.filePath, 'accept');
       setDecisions(newDecisions);
 
-      // Apply immediately
       const result = applyEdit(currentEdit);
       if (result.success) {
         setNotification(`Applied: ${currentEdit.filePath}`);
@@ -87,17 +100,13 @@ export function DiffReview({ edits, onComplete, onCancel }: DiffReviewProps) {
         setNotification(`Failed: ${result.error}`);
       }
 
-      // Move to next or finish
       if (currentIndex < totalEdits - 1) {
         setCurrentIndex(currentIndex + 1);
-        setScrollOffset(0);
+        setSelectedOption(0);
       } else {
         finishReview(newDecisions);
       }
-    }
-
-    if (input === 'r' || input === 'R') {
-      // Reject current edit
+    } else if (action === 'reject') {
       const newDecisions = new Map(decisions);
       newDecisions.set(currentEdit.filePath, 'reject');
       setDecisions(newDecisions);
@@ -105,28 +114,22 @@ export function DiffReview({ edits, onComplete, onCancel }: DiffReviewProps) {
 
       if (currentIndex < totalEdits - 1) {
         setCurrentIndex(currentIndex + 1);
-        setScrollOffset(0);
+        setSelectedOption(0);
       } else {
         finishReview(newDecisions);
       }
-    }
-
-    if (input === 's' || input === 'S') {
-      // Skip current edit
+    } else if (action === 'skip') {
       const newDecisions = new Map(decisions);
       newDecisions.set(currentEdit.filePath, 'skip');
       setDecisions(newDecisions);
 
       if (currentIndex < totalEdits - 1) {
         setCurrentIndex(currentIndex + 1);
-        setScrollOffset(0);
+        setSelectedOption(0);
       } else {
         finishReview(newDecisions);
       }
-    }
-
-    // Accept all remaining
-    if (input === 'Y') {
+    } else if (action === 'yes-all') {
       const newDecisions = new Map(decisions);
       const failures: string[] = [];
 
@@ -142,18 +145,13 @@ export function DiffReview({ edits, onComplete, onCancel }: DiffReviewProps) {
       }
 
       setDecisions(newDecisions);
-
       if (failures.length > 0) {
         setNotification(`Applied ${totalEdits - currentIndex - failures.length} files, ${failures.length} failed`);
-        // Small delay to show notification before finishing
         setTimeout(() => finishReview(newDecisions), 500);
       } else {
         finishReview(newDecisions);
       }
-    }
-
-    // Reject all remaining
-    if (input === 'N') {
+    } else if (action === 'no-all') {
       const newDecisions = new Map(decisions);
       for (let i = currentIndex; i < totalEdits; i++) {
         const edit = edits[i];
@@ -164,12 +162,7 @@ export function DiffReview({ edits, onComplete, onCancel }: DiffReviewProps) {
       setDecisions(newDecisions);
       finishReview(newDecisions);
     }
-
-    // Cancel/Escape
-    if (key.escape || input === 'q') {
-      onCancel();
-    }
-  });
+  };
 
   const finishReview = (finalDecisions: Map<string, 'accept' | 'reject' | 'skip'>) => {
     const accepted: string[] = [];
@@ -194,70 +187,26 @@ export function DiffReview({ edits, onComplete, onCancel }: DiffReviewProps) {
   }
 
   const stats = getDiffStats(currentEdit);
+  const operationLabel = currentEdit.operation === 'Write' ? 'Create' :
+                         currentEdit.operation === 'Delete' ? 'Delete' : 'Edit';
 
   // Truncate diff for display
-  const displaySegments = diffSegments.slice(scrollOffset, scrollOffset + maxLines);
-  const hasMore = diffSegments.length > scrollOffset + maxLines;
-  const canScrollUp = scrollOffset > 0;
-
-  // Determine status badge
-  const decision = decisions.get(currentEdit.filePath);
-  let statusBadge = '';
-  let statusColor: string = 'gray';
-  if (decision === 'accept') {
-    statusBadge = ' [ACCEPTED]';
-    statusColor = 'green';
-  } else if (decision === 'reject') {
-    statusBadge = ' [REJECTED]';
-    statusColor = 'red';
-  } else if (decision === 'skip') {
-    statusBadge = ' [SKIPPED]';
-    statusColor = 'yellow';
-  }
+  const displaySegments = diffSegments.slice(0, maxLines);
+  const hasMore = diffSegments.length > maxLines;
 
   return (
-    <Box flexDirection="column" padding={1}>
+    <Box flexDirection="column">
       {/* Header */}
       <Box marginBottom={1}>
-        <Text color={BORDER_COLOR} bold>Edit Review</Text>
-        <Text color="gray"> - </Text>
-        <Text color={ACCENT_COLOR}>{currentIndex + 1}/{totalEdits}</Text>
-        <Text color={statusColor}>{statusBadge}</Text>
-      </Box>
-
-      {/* File info */}
-      <Box flexDirection="column" marginBottom={1}>
-        <Box>
-          <Text color="gray">File: </Text>
-          <Text color={HEADER_COLOR} bold>{currentEdit.filePath}</Text>
-        </Box>
-        <Box>
-          <Text color="gray">Operation: </Text>
-          <Text color="white">{currentEdit.operation}</Text>
-          <Text color="gray"> | </Text>
-          {stats.isNew ? (
-            <Text color={ADD_COLOR}>new file (+{stats.additions})</Text>
-          ) : (
-            <>
-              <Text color={ADD_COLOR}>+{stats.additions}</Text>
-              <Text color="gray"> </Text>
-              <Text color={REMOVE_COLOR}>-{stats.deletions}</Text>
-            </>
-          )}
-        </Box>
-      </Box>
-
-      {/* Diff display */}
-      <Box
-        flexDirection="column"
-        borderStyle="single"
-        borderColor="gray"
-        paddingX={1}
-        paddingY={0}
-      >
-        {canScrollUp && (
-          <Text color="gray" dimColor>... ({scrollOffset} lines above)</Text>
+        <Text bold color="yellow">{operationLabel} file </Text>
+        <Text bold>{currentEdit.filePath}</Text>
+        {totalEdits > 1 && (
+          <Text color="gray"> ({currentIndex + 1}/{totalEdits})</Text>
         )}
+      </Box>
+
+      {/* Diff content */}
+      <Box flexDirection="column" marginBottom={1}>
         {displaySegments.map((segment, i) => (
           <Text
             key={i}
@@ -265,48 +214,57 @@ export function DiffReview({ edits, onComplete, onCancel }: DiffReviewProps) {
               segment.color === 'green' ? ADD_COLOR :
               segment.color === 'red' ? REMOVE_COLOR :
               segment.color === 'cyan' ? HEADER_COLOR :
-              'gray'
+              undefined
             }
+            dimColor={!segment.color}
           >
             {segment.text}
           </Text>
         ))}
         {hasMore && (
-          <Text color="gray" dimColor>... ({diffSegments.length - scrollOffset - maxLines} more lines)</Text>
+          <Text dimColor>  ... ({diffSegments.length - maxLines} more lines)</Text>
         )}
+      </Box>
+
+      {/* Stats */}
+      <Box marginBottom={1}>
+        {stats.isNew ? (
+          <Text color={ADD_COLOR}>+{stats.additions} (new file)</Text>
+        ) : (
+          <>
+            <Text color={ADD_COLOR}>+{stats.additions} </Text>
+            <Text color={REMOVE_COLOR}>-{stats.deletions}</Text>
+          </>
+        )}
+      </Box>
+
+      {/* Question */}
+      <Box marginBottom={0}>
+        <Text>Do you want to apply this edit?</Text>
       </Box>
 
       {/* Notification */}
       {notification && (
-        <Box marginTop={1}>
+        <Box>
           <Text color="yellow">{notification}</Text>
         </Box>
       )}
 
-      {/* Controls */}
-      <Box marginTop={1} flexDirection="column">
-        <Box>
-          <Text color="gray">[</Text>
-          <Text color={ADD_COLOR}>A</Text>
-          <Text color="gray">]ccept  [</Text>
-          <Text color={REMOVE_COLOR}>R</Text>
-          <Text color="gray">]eject  [</Text>
-          <Text color="yellow">S</Text>
-          <Text color="gray">]kip  [</Text>
-          <Text color={ADD_COLOR}>Y</Text>
-          <Text color="gray">]es All  [</Text>
-          <Text color={REMOVE_COLOR}>N</Text>
-          <Text color="gray">]o All  [</Text>
-          <Text color="white">Q</Text>
-          <Text color="gray">]uit</Text>
+      {/* Vertical menu */}
+      {MENU_OPTIONS.map((option, i) => (
+        <Box key={i}>
+          <Text color={i === selectedOption ? HIGHLIGHT_COLOR : undefined} bold={i === selectedOption}>
+            {i === selectedOption ? '> ' : '  '}{i + 1}. {option.label}
+          </Text>
         </Box>
-        <Box>
-          <Text color="gray">Navigate: </Text>
-          <Text color="white">←/→</Text>
-          <Text color="gray"> files  </Text>
-          <Text color="white">↑/↓</Text>
-          <Text color="gray"> scroll</Text>
-        </Box>
+      ))}
+
+      {/* Hints */}
+      <Box marginTop={1}>
+        <Text dimColor>Esc to cancel</Text>
+        {totalEdits > 1 && (
+          <Text dimColor> | ←/→ navigate files</Text>
+        )}
       </Box>
     </Box>
   );

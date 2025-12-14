@@ -163,6 +163,7 @@ export interface ConsensusOptions {
   threshold?: number;        // Agreement threshold 0-1 (default: 0.7)
   maxRounds?: number;        // Max voting rounds (default: 3)
   synthesizer?: AgentName;   // Agent that creates final output
+  projectStructure?: string; // Optional project file listing for context
 }
 
 // --- Dynamic Memory Injection (Phase 7) ---

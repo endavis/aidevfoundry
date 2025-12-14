@@ -385,3 +385,93 @@ export function getUnifiedSessionStats(session: UnifiedSession): {
       : 0,
   };
 }
+
+// ============================================
+// TUI Adapter Functions
+// Bridge between TUI Message format and UnifiedMessage
+// ============================================
+
+/**
+ * TUI Message format (for display)
+ */
+export interface TUIMessage {
+  id: string;
+  role: 'user' | 'assistant' | 'compare' | 'collaboration';
+  content: string;
+  agent?: string;
+  duration?: number;
+  tokens?: { input: number; output: number };
+}
+
+/**
+ * Convert TUI Message to UnifiedMessage for storage
+ */
+export function tuiMessageToUnified(msg: TUIMessage, sessionId: string): Omit<UnifiedMessage, 'id' | 'sessionId'> {
+  return {
+    role: msg.role === 'compare' || msg.role === 'collaboration' ? 'assistant' : msg.role,
+    content: [{ type: 'text', content: msg.content }],
+    agent: msg.agent,
+    tokens: msg.tokens,
+    timestamp: Date.now(),
+  };
+}
+
+/**
+ * Convert UnifiedMessage to TUI Message for display
+ */
+export function unifiedMessageToTUI(msg: UnifiedMessage): TUIMessage {
+  // Extract text content from message parts
+  const textContent = msg.content
+    .filter(p => p.type === 'text')
+    .map(p => (p as { type: 'text'; content: string }).content)
+    .join('\n');
+
+  return {
+    id: msg.id?.toString() ?? `unified_${msg.timestamp}`,
+    role: msg.role as TUIMessage['role'],
+    content: textContent,
+    agent: msg.agent,
+    tokens: msg.tokens,
+  };
+}
+
+/**
+ * Convert TUI messages array to conversation history for agent loop
+ */
+export function tuiMessagesToHistory(messages: TUIMessage[]): Array<{ role: 'user' | 'assistant'; content: string; agent?: string }> {
+  return messages
+    .filter(m => m.role === 'user' || m.role === 'assistant')
+    .map(m => ({
+      role: m.role as 'user' | 'assistant',
+      content: m.content,
+      agent: m.agent,
+    }));
+}
+
+/**
+ * Legacy compatibility: Create session with agent name (wraps createUnifiedSession)
+ */
+export function createSessionCompat(agent: string): UnifiedSession {
+  const session = createUnifiedSession();
+  // Track initial agent
+  session.agentsUsed = [agent];
+  saveUnifiedSession(session);
+  return session;
+}
+
+/**
+ * Legacy compatibility: Add message to session (wraps addUnifiedMessage)
+ */
+export async function addMessageCompat(
+  session: UnifiedSession,
+  role: 'user' | 'assistant',
+  content: string,
+  agent?: string
+): Promise<UnifiedSession> {
+  return addUnifiedMessage(session, {
+    role,
+    content: [{ type: 'text', content }],
+    agent,
+    timestamp: Date.now(),
+  });
+}

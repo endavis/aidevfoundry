@@ -381,16 +381,22 @@ export function buildConsensusPlan(
   prompt: string,
   options: ConsensusOptions
 ): ExecutionPlan {
-  const { agents, maxRounds = 2, synthesizer } = options;
+  const { agents, maxRounds = 2, synthesizer, projectStructure } = options;
 
   if (agents.length < 2) {
     throw new Error('Consensus requires at least 2 agents');
   }
 
+  // Build initial context with project structure if provided
+  const context: Record<string, unknown> = {};
+  if (projectStructure) {
+    context.project_structure = projectStructure;
+  }
+
   const steps: PlanStep[] = [];
   let stepIndex = 0;
 
-  // Round 0: Initial proposals (parallel)
+  // Round 0: Initial proposals (parallel) - includes project context
   for (const agent of agents) {
     steps.push({
       id: generateStepId(stepIndex),
@@ -400,7 +406,10 @@ export function buildConsensusPlan(
 
 **Task:** {{prompt}}
 
-Provide a clear, actionable proposal.`,
+**Project Structure:**
+{{project_structure}}
+
+Based on the project structure above, provide a clear, actionable proposal that references specific files/directories where relevant.`,
       outputAs: `${agent}_proposal`
     });
     stepIndex++;
@@ -481,6 +490,7 @@ Format:
     mode: 'consensus',
     prompt,
     steps,
+    context: Object.keys(context).length > 0 ? context : undefined,
     createdAt: Date.now()
   };
 }

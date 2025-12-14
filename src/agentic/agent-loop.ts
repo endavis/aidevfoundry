@@ -4,13 +4,16 @@ import type { Adapter, ModelResponse, RunOptions } from '../lib/types';
 import { allTools, executeTools, executeTool, getTool } from './tools';
 import type { Tool, ToolCall, ToolResult, AgentMessage } from './tools/types';
 import { globSync } from 'glob';
+import { readFileSync, existsSync } from 'fs';
+import { resolve } from 'path';
 import {
   type PermissionRequest,
   type PermissionResult,
   type PermissionHandler,
   permissionTracker
 } from './tools/permissions';
-import { getContextLimit } from '../context/unified-message';
+import { getContextLimit, type UnifiedMessage, getTextContent } from '../context/unified-message';
+import { prepareContextForAgent } from '../context/context-manager';
 
 const MAX_ITERATIONS = 20;
 
@@ -23,12 +26,25 @@ const EXEC_TOOLS = ['bash'];
 
 // Tool name aliases - maps common LLM naming patterns to our tools
 const TOOL_ALIASES: Record<string, string> = {
+  // View/read aliases
   'read_file': 'view', 'read': 'view', 'cat': 'view', 'file_read': 'view',
+  'view_file': 'view', 'get_file': 'view', 'open_file': 'view',
+  // Glob aliases
   'find': 'glob', 'find_files': 'glob', 'list_files': 'glob', 'search_files': 'glob',
+  'list_directory': 'glob', 'ls': 'glob',
+  // Grep aliases
   'search': 'grep', 'search_content': 'grep', 'find_in_files': 'grep',
+  'grep_search': 'grep', 'search_code': 'grep',
+  // Bash aliases
   'shell': 'bash', 'run': 'bash', 'execute': 'bash', 'run_command': 'bash',
+  'terminal': 'bash', 'cmd': 'bash',
+  // Write aliases
   'write_file': 'write', 'create_file': 'write', 'file_write': 'write',
+  'create': 'write', 'save_file': 'write', 'overwrite': 'write',
+  // Edit aliases
   'update': 'edit', 'modify': 'edit', 'replace': 'edit', 'file_edit': 'edit',
+  'edit_file': 'edit', 'patch': 'edit', 'str_replace': 'edit',
+  'str_replace_editor': 'edit', 'text_editor': 'edit',
 };
 
 // Normalize tool name using aliases
@@ -53,8 +69,25 @@ export interface AgentLoopOptions extends RunOptions {
   onToolStart?: (call: ToolCall) => void;
   /** Callback when tool finishes */
   onToolEnd?: (call: ToolCall, result: ToolResult) => void;
-  /** Conversation history from previous messages (for multi-model context) */
+  /** Diff preview handler - called before write/edit execution (single file), return decision */
+  onDiffPreview?: (preview: {
+    filePath: string;
+    operation: 'create' | 'edit' | 'overwrite';
+    originalContent: string | null;
+    newContent: string;
+  }) => Promise<'yes' | 'yes-all' | 'no'>;
+  /** Batch diff preview handler - called when multiple write/edit operations in one response */
+  onBatchDiffPreview?: (previews: Array<{
+    toolCallId: string;
+    filePath: string;
+    operation: 'create' | 'edit' | 'overwrite';
+    originalContent: string | null;
+    newContent: string;
+  }>) => Promise<{ accepted: string[]; rejected: string[]; allowAll: boolean }>;
+  /** Conversation history from previous messages (for multi-model context) - legacy format */
   conversationHistory?: Array<{ role: 'user' | 'assistant'; content: string; agent?: string }>;
+  /** Unified message history - preferred format, enables proper context management */
+  unifiedHistory?: UnifiedMessage[];
 }
 
 export interface AgentLoopResult {
@@ -175,6 +208,31 @@ You can call multiple tools by including multiple \`\`\`tool blocks.
 }
 
 /**
+ * Get a tool usage reminder for context handoff between agents
+ * Helps models remember how to use tools when receiving conversation history
+ */
+function getToolReminder(adapterName: string): string {
+  if (adapterName === 'mistral') {
+    return `
+
+REMINDER: I have access to tools via \`\`\`tool code blocks. To read files, run commands, or make changes, I output:
+\`\`\`tool
+{"name": "view", "arguments": {"path": "filename"}}
+\`\`\`
+I will use these tools when needed.`;
+  }
+
+  if (adapterName === 'gemini') {
+    return `
+
+REMINDER: I can use tools via \`\`\`tool blocks to read files, run commands, and make changes.`;
+  }
+
+  // Claude, Codex, Ollama - native tool support, minimal reminder
+  return '';
+}
+
+/**
  * Run an agent loop with tool access
  *
  * The agent can call tools to explore the codebase, then respond.
@@ -193,6 +251,9 @@ export async function runAgentLoop(
   const allToolResults: ToolResult[] = [];
   const messages: AgentMessage[] = [];
 
+  // Track if user selected "allow all edits" to skip future diff previews
+  let allowAllEdits = false;
+
   // Get project structure overview (file listing - not contents)
   const projectFiles = getProjectStructure(cwd);
 
@@ -209,33 +270,27 @@ export async function runAgentLoop(
   const systemPrompt = buildSystemPrompt(adapter.name, projectFiles, toolDescriptions);
 
   // Add conversation history if provided (for multi-model context)
-  if (options.conversationHistory && options.conversationHistory.length > 0) {
-    // Get context limit for this agent and reserve space for system prompt, user message, and response
-    const contextLimit = getContextLimit(adapter.name, options.model);
-    // Reserve ~40% for system prompt + project files, ~20% for user message + response
-    const historyTokenBudget = Math.floor(contextLimit * 0.4);
+  // Prefer unified history format which enables proper context management
+  if (options.unifiedHistory && options.unifiedHistory.length > 0) {
+    // Use the context manager for proper compaction and formatting
+    const preparedContext = await prepareContextForAgent(options.unifiedHistory, {
+      agent: adapter.name,
+      model: options.model,
+      systemPrompt, // Account for system prompt in token calculations
+    });
 
-    // Format history for context
-    let historyContext = options.conversationHistory
+    // Format the prepared history as context
+    let historyContext = options.unifiedHistory
       .map(msg => {
         const agentLabel = msg.agent ? ` (${msg.agent})` : '';
-        return `${msg.role}${agentLabel}: ${msg.content}`;
+        const content = getTextContent(msg);
+        return `${msg.role}${agentLabel}: ${content}`;
       })
       .join('\n\n');
 
-    // Estimate tokens (rough: 4 chars per token)
-    const estimatedTokens = Math.ceil(historyContext.length / 4);
-
-    // Compact if history exceeds budget
-    if (estimatedTokens > historyTokenBudget) {
-      const targetChars = historyTokenBudget * 4;
-
-      // Keep most recent messages (they're most relevant)
-      // Find a point to cut from the beginning
-      if (historyContext.length > targetChars) {
-        // Take from the end (most recent) and add ellipsis
-        historyContext = '...(earlier context truncated)...\n\n' + historyContext.slice(-targetChars);
-      }
+    // If compaction happened, use the summary
+    if (preparedContext.wasCompacted && preparedContext.summary) {
+      historyContext = `<earlier_summary>\n${preparedContext.summary}\n</earlier_summary>\n\n${historyContext.slice(-8000)}`;
     }
 
     // Add as context before the current message
@@ -243,9 +298,44 @@ export async function runAgentLoop(
       role: 'user',
       content: `<conversation_history>\nPrevious conversation:\n${historyContext}\n</conversation_history>`
     });
+
+    // Add tool reminder for models that use text-based tool invocation
+    const toolReminder = getToolReminder(adapter.name);
     messages.push({
       role: 'assistant',
-      content: 'I understand the previous conversation context. I\'ll continue from where we left off.'
+      content: `I understand the previous conversation context. I'll continue from where we left off.${toolReminder}`
+    });
+  } else if (options.conversationHistory && options.conversationHistory.length > 0) {
+    // Legacy format - simple string-based handling
+    const contextLimit = getContextLimit(adapter.name, options.model);
+    const historyTokenBudget = Math.floor(contextLimit * 0.4);
+
+    let historyContext = options.conversationHistory
+      .map(msg => {
+        const agentLabel = msg.agent ? ` (${msg.agent})` : '';
+        return `${msg.role}${agentLabel}: ${msg.content}`;
+      })
+      .join('\n\n');
+
+    const estimatedTokens = Math.ceil(historyContext.length / 4);
+
+    if (estimatedTokens > historyTokenBudget) {
+      const targetChars = historyTokenBudget * 4;
+      if (historyContext.length > targetChars) {
+        historyContext = '...(earlier context truncated)...\n\n' + historyContext.slice(-targetChars);
+      }
+    }
+
+    messages.push({
+      role: 'user',
+      content: `<conversation_history>\nPrevious conversation:\n${historyContext}\n</conversation_history>`
+    });
+
+    // Add tool reminder for models that use text-based tool invocation
+    const toolReminder = getToolReminder(adapter.name);
+    messages.push({
+      role: 'assistant',
+      content: `I understand the previous conversation context. I'll continue from where we left off.${toolReminder}`
     });
   }
 
@@ -254,6 +344,7 @@ export async function runAgentLoop(
 
   let lastResponse: ModelResponse | null = null;
   let iterations = 0;
+  let totalTokens = { input: 0, output: 0 };
 
   while (iterations < MAX_ITERATIONS) {
     iterations++;
@@ -269,6 +360,12 @@ export async function runAgentLoop(
 
     lastResponse = response;
 
+    // Accumulate tokens from each iteration
+    if (response.tokens) {
+      totalTokens.input += response.tokens.input || 0;
+      totalTokens.output += response.tokens.output || 0;
+    }
+
     if (response.error) {
       return {
         content: response.error,
@@ -276,6 +373,7 @@ export async function runAgentLoop(
         iterations,
         toolCalls: allToolCalls,
         toolResults: allToolResults,
+        tokens: totalTokens.input > 0 || totalTokens.output > 0 ? totalTokens : undefined,
         duration: Date.now() - startTime,
       };
     }
@@ -293,7 +391,7 @@ export async function runAgentLoop(
         iterations,
         toolCalls: allToolCalls,
         toolResults: allToolResults,
-        tokens: response.tokens,
+        tokens: totalTokens.input > 0 || totalTokens.output > 0 ? totalTokens : undefined,
         duration: Date.now() - startTime,
       };
     }
@@ -308,44 +406,167 @@ export async function runAgentLoop(
     const results: ToolResult[] = [];
     let cancelled = false;
 
+    // Collect write/edit operations for batch preview
+    const writeEditCalls: Array<{
+      call: ToolCall;
+      normalizedName: string;
+      preview?: {
+        toolCallId: string;
+        filePath: string;
+        operation: 'create' | 'edit' | 'overwrite';
+        originalContent: string | null;
+        newContent: string;
+      };
+    }> = [];
+
+    // First pass: check permissions and collect write/edit previews
     for (const call of toolCalls) {
       options.onToolCall?.(call);
       allToolCalls.push(call);
 
-      // Check if permission is needed
-      const permissionResult = await checkAndRequestPermission(call, cwd, options.onPermissionRequest);
+      const normalizedName = normalizeToolName(call.name);
+      const isWriteEdit = normalizedName === 'write' || normalizedName === 'edit';
+      const hasDiffPreview = options.onDiffPreview || options.onBatchDiffPreview;
 
-      if (permissionResult.decision === 'cancel') {
-        cancelled = true;
-        results.push({
-          toolCallId: call.id,
-          content: 'Operation cancelled by user',
-          isError: true,
-        });
-        break;
+      // Skip permission check for write/edit if diff preview is enabled
+      // (diff preview serves as the approval mechanism)
+      if (!isWriteEdit || !hasDiffPreview || allowAllEdits) {
+        // Check if permission is needed for non-write/edit tools
+        const permissionResult = await checkAndRequestPermission(call, cwd, options.onPermissionRequest);
+
+        if (permissionResult.decision === 'cancel') {
+          cancelled = true;
+          results.push({
+            toolCallId: call.id,
+            content: 'Operation cancelled by user',
+            isError: true,
+          });
+          break;
+        }
+
+        if (permissionResult.decision === 'deny') {
+          results.push({
+            toolCallId: call.id,
+            content: 'Permission denied by user',
+            isError: true,
+          });
+          allToolResults.push(results[results.length - 1]);
+          continue;
+        }
       }
 
-      if (permissionResult.decision === 'deny') {
-        results.push({
-          toolCallId: call.id,
-          content: 'Permission denied by user',
-          isError: true,
-        });
-        allToolResults.push(results[results.length - 1]);
-        continue;
+      // Collect write/edit for diff preview
+      if (isWriteEdit && !allowAllEdits && hasDiffPreview) {
+        const preview = await prepareDiffPreview(call, cwd, normalizedName);
+        writeEditCalls.push({ call, normalizedName, preview: preview ? { toolCallId: call.id, ...preview } : undefined });
+      } else if (isWriteEdit && allowAllEdits) {
+        // Allow all edits - collect for execution without preview
+        writeEditCalls.push({ call, normalizedName, preview: undefined });
+      } else {
+        // Non-write/edit tools - execute immediately
+        options.onToolStart?.(call);
+        const result = await executeTool(call, cwd);
+        options.onToolEnd?.(call, result);
+        results.push(result);
+        options.onToolResult?.(result);
+        allToolResults.push(result);
+        await new Promise(resolve => setTimeout(resolve, 50));
       }
+    }
 
-      // Permission granted - execute tool
-      options.onToolStart?.(call);
-      const result = await executeTool(call, cwd);
-      options.onToolEnd?.(call, result);
+    // Handle write/edit operations (batch or single)
+    if (!cancelled && writeEditCalls.length > 0 && !allowAllEdits) {
+      const validPreviews = writeEditCalls.filter(w => w.preview).map(w => w.preview!);
 
-      results.push(result);
-      options.onToolResult?.(result);
-      allToolResults.push(result);
+      if (validPreviews.length > 1 && options.onBatchDiffPreview) {
+        // Batch review for multiple files
+        const batchResult = await options.onBatchDiffPreview(validPreviews);
 
-      // Small delay to ensure UI updates between tool calls
-      await new Promise(resolve => setTimeout(resolve, 50));
+        if (batchResult.allowAll) {
+          allowAllEdits = true;
+        }
+
+        // Execute accepted, reject others
+        for (const item of writeEditCalls) {
+          if (!item.preview) {
+            // No preview (error preparing) - execute anyway
+            options.onToolStart?.(item.call);
+            const result = await executeTool(item.call, cwd);
+            options.onToolEnd?.(item.call, result);
+            results.push(result);
+            options.onToolResult?.(result);
+            allToolResults.push(result);
+          } else if (batchResult.accepted.includes(item.call.id)) {
+            options.onToolStart?.(item.call);
+            const result = await executeTool(item.call, cwd);
+            options.onToolEnd?.(item.call, result);
+            results.push(result);
+            options.onToolResult?.(result);
+            allToolResults.push(result);
+          } else {
+            results.push({
+              toolCallId: item.call.id,
+              content: 'Edit rejected by user',
+              isError: true,
+            });
+            allToolResults.push(results[results.length - 1]);
+          }
+          await new Promise(resolve => setTimeout(resolve, 50));
+        }
+      } else {
+        // Single file preview (or no batch handler)
+        for (const item of writeEditCalls) {
+          if (allowAllEdits) {
+            // Skip preview, just execute
+            options.onToolStart?.(item.call);
+            const result = await executeTool(item.call, cwd);
+            options.onToolEnd?.(item.call, result);
+            results.push(result);
+            options.onToolResult?.(result);
+            allToolResults.push(result);
+          } else if (item.preview && options.onDiffPreview) {
+            const decision = await options.onDiffPreview(item.preview);
+            if (decision === 'no') {
+              results.push({
+                toolCallId: item.call.id,
+                content: 'Edit rejected by user',
+                isError: true,
+              });
+              allToolResults.push(results[results.length - 1]);
+            } else {
+              if (decision === 'yes-all') {
+                allowAllEdits = true;
+              }
+              options.onToolStart?.(item.call);
+              const result = await executeTool(item.call, cwd);
+              options.onToolEnd?.(item.call, result);
+              results.push(result);
+              options.onToolResult?.(result);
+              allToolResults.push(result);
+            }
+          } else {
+            // No preview available - execute anyway
+            options.onToolStart?.(item.call);
+            const result = await executeTool(item.call, cwd);
+            options.onToolEnd?.(item.call, result);
+            results.push(result);
+            options.onToolResult?.(result);
+            allToolResults.push(result);
+          }
+          await new Promise(resolve => setTimeout(resolve, 50));
+        }
+      }
+    } else if (!cancelled && writeEditCalls.length > 0 && allowAllEdits) {
+      // Allow all is active - execute without preview
+      for (const item of writeEditCalls) {
+        options.onToolStart?.(item.call);
+        const result = await executeTool(item.call, cwd);
+        options.onToolEnd?.(item.call, result);
+        results.push(result);
+        options.onToolResult?.(result);
+        allToolResults.push(result);
+        await new Promise(resolve => setTimeout(resolve, 50));
+      }
     }
 
     // If cancelled, return early
@@ -356,6 +577,7 @@ export async function runAgentLoop(
         iterations,
         toolCalls: allToolCalls,
         toolResults: allToolResults,
+        tokens: totalTokens.input > 0 || totalTokens.output > 0 ? totalTokens : undefined,
         duration: Date.now() - startTime,
       };
     }
@@ -375,6 +597,7 @@ export async function runAgentLoop(
     iterations,
     toolCalls: allToolCalls,
     toolResults: allToolResults,
+    tokens: totalTokens.input > 0 || totalTokens.output > 0 ? totalTokens : undefined,
     duration: Date.now() - startTime,
   };
 }
@@ -459,8 +682,9 @@ async function checkAndRequestPermission(
   } else if (EXEC_TOOLS.includes(toolName)) {
     action = 'execute';
   } else {
-    // Unknown tool type, allow by default
-    return { decision: 'allow' };
+    // Unknown tool type - default to 'write' permission to be safe
+    // This ensures we don't accidentally allow dangerous operations
+    action = 'write';
   }
 
   // Build full path (for file operations) or use pattern (for glob/grep)
@@ -539,10 +763,139 @@ function getPermissionDescription(toolName: string, args: Record<string, unknown
 }
 
 /**
+ * Prepare diff preview data for write/edit operations
+ * Returns preview data or null if preview can't be prepared
+ */
+async function prepareDiffPreview(
+  call: ToolCall,
+  cwd: string,
+  toolName: string
+): Promise<{
+  filePath: string;
+  operation: 'create' | 'edit' | 'overwrite';
+  originalContent: string | null;
+  newContent: string;
+} | null> {
+  const filePath = (call.arguments.path || call.arguments.file_path || call.arguments.file) as string;
+  if (!filePath) return null;
+
+  const fullPath = resolve(cwd, filePath);
+  let originalContent: string | null = null;
+  let newContent: string;
+  let operation: 'create' | 'edit' | 'overwrite';
+
+  try {
+    if (toolName === 'write') {
+      newContent = call.arguments.content as string || '';
+      if (existsSync(fullPath)) {
+        originalContent = readFileSync(fullPath, 'utf-8');
+        operation = 'overwrite';
+      } else {
+        operation = 'create';
+      }
+    } else if (toolName === 'edit') {
+      const search = call.arguments.search as string;
+      const replace = call.arguments.replace as string;
+
+      if (!existsSync(fullPath)) {
+        return null;
+      }
+
+      originalContent = readFileSync(fullPath, 'utf-8');
+
+      if (!originalContent.includes(search)) {
+        return null;
+      }
+
+      newContent = originalContent.replace(search, replace);
+      operation = 'edit';
+    } else {
+      return null;
+    }
+
+    return { filePath: fullPath, operation, originalContent, newContent };
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Show diff preview for write/edit operations (single file)
+ * Returns decision from user
+ */
+type DiffDecision = 'yes' | 'yes-all' | 'no';
+
+async function showDiffPreview(
+  call: ToolCall,
+  cwd: string,
+  toolName: string,
+  handler: (preview: {
+    filePath: string;
+    operation: 'create' | 'edit' | 'overwrite';
+    originalContent: string | null;
+    newContent: string;
+  }) => Promise<DiffDecision>
+): Promise<DiffDecision> {
+  const filePath = (call.arguments.path || call.arguments.file_path || call.arguments.file) as string;
+  if (!filePath) return 'yes'; // No path, can't show preview
+
+  const fullPath = resolve(cwd, filePath);
+  let originalContent: string | null = null;
+  let newContent: string;
+  let operation: 'create' | 'edit' | 'overwrite';
+
+  try {
+    if (toolName === 'write') {
+      // Write tool - check if file exists
+      newContent = call.arguments.content as string || '';
+      if (existsSync(fullPath)) {
+        originalContent = readFileSync(fullPath, 'utf-8');
+        operation = 'overwrite';
+      } else {
+        operation = 'create';
+      }
+    } else if (toolName === 'edit') {
+      // Edit tool - apply search/replace to get preview
+      const search = call.arguments.search as string;
+      const replace = call.arguments.replace as string;
+
+      if (!existsSync(fullPath)) {
+        return 'yes'; // File doesn't exist, let the tool handle the error
+      }
+
+      originalContent = readFileSync(fullPath, 'utf-8');
+
+      // Check if search text exists
+      if (!originalContent.includes(search)) {
+        return 'yes'; // Search not found, let the tool handle the error
+      }
+
+      // Apply the replacement to get new content
+      newContent = originalContent.replace(search, replace);
+      operation = 'edit';
+    } else {
+      return 'yes'; // Unknown tool, proceed
+    }
+
+    // Call the handler to show diff and get approval
+    return await handler({
+      filePath: fullPath,
+      operation,
+      originalContent,
+      newContent,
+    });
+  } catch {
+    // If we can't read the file or something goes wrong, proceed with execution
+    // The actual tool will handle errors appropriately
+    return 'yes';
+  }
+}
+
+/**
  * Get project structure (file listing) for context
  * Returns a tree-like listing of important files
  */
-function getProjectStructure(cwd: string): string {
+export function getProjectStructure(cwd: string): string {
   try {
     // Get key project files
     const patterns = [

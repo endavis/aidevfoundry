@@ -137,6 +137,7 @@ export {
 export {
   type UnifiedSession,
   type UnifiedSessionMeta,
+  type TUIMessage,
   initUnifiedMessagesTable,
   createUnifiedSession,
   loadUnifiedSession,
@@ -148,4 +149,10 @@ export {
   clearUnifiedSessionMessages,
   updateUnifiedSessionSummary,
   getUnifiedSessionStats,
+  // TUI Adapters
+  tuiMessageToUnified,
+  unifiedMessageToTUI,
+  tuiMessagesToHistory,
+  createSessionCompat,
+  addMessageCompat,
 } from './unified-session';

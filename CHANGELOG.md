@@ -6,6 +6,82 @@ All notable changes to PuzldAI will be documented in this file.
 
 ---
 
+## [0.2.86] - 2025-12-14
+
+### Added
+- **Backend Infrastructure Wiring**
+  - Unified Session Storage - SessionsManager now uses unified session functions
+  - Context Manager integration - agent-loop uses `prepareContextForAgent()` for proper context
+  - `/observe export [path]` CLI command - Export observations to JSON for training data
+
+- **Diff Preview System** - Claude Code-style file change review
+  - `SingleFileDiff` component with separator line, line numbers, colored diff
+  - "Yes, allow all edits during this session" option skips future previews
+  - `onDiffPreview` callback in agent-loop for write/edit operations
+  - Batch diff preview - uses `DiffReview` when multiple files in one LLM response
+  - `onBatchDiffPreview` callback for reviewing multiple edits at once
+
+- **Consensus Project Context** - Agents now see codebase structure
+  - Project structure (file listing) injected into proposal phase only
+  - Agents don't see other proposals during proposal phase (avoids bias)
+  - Only proposals get context, not voting rounds (saves tokens)
+  - `projectStructure` option added to `ConsensusOptions`
+  - `getProjectStructure()` exported from agentic module
+
+- **Tool Reminder for Context Handoff**
+  - Mistral gets detailed `\`\`\`tool` block format reminder
+  - Gemini gets brief tool block reminder
+  - Injected when conversation history passed between agents
+  - Prevents "I can't access tools" hallucinations after agent switch
+
+- **Tool Name Aliases Expanded**
+  - Added: `str_replace`, `str_replace_editor`, `file_editor`, `text_editor`
+  - Added: `create_file`, `write_file`, `save_file`, `file_write`
+  - Added: `edit_file`, `modify_file`, `update_file`, `patch_file`
+  - Unknown tools now require write permission (safer default)
+
+### Changed
+- **DiffReview Component Redesigned** - Vertical menu instead of key bindings
+  - Options: Accept, Reject, Skip, Yes to all, No to all
+  - Arrow keys (↑↓) to select, Enter to confirm, Esc to cancel
+  - Left/right arrows to navigate between files when multiple
+  - Removed box borders for cleaner, simpler look
+  - Matches SingleFileDiff format
+
+- **SingleFileDiff Format Updated**
+  - Returns `DiffDecision` type ('yes' | 'yes-all' | 'no') instead of boolean
+  - Line numbers displayed (e.g., `62 + const [selected...`)
+  - Separator line (`─────`) above diff view
+  - Stats row: `+N -M` with colored counts
+
+- **Permission System Streamlined**
+  - Write/edit tools skip permission prompt when diff preview enabled
+  - Diff preview serves as both preview AND permission approval
+  - Eliminates double-approval (permission then diff) flow
+  - Other tools (read, bash, grep, glob) still show permission prompt
+
+### Fixed
+- **Tool Activities Disappearing** - React stale closure bug
+  - Was: `toolActivity` array captured empty at function start
+  - Now: Uses `toolActivityRef` to track tool calls in a ref
+  - Tool calls properly saved to message history
+
+- **Token Counting Across Iterations** - Now accumulates correctly
+  - Was: Only counted tokens from final LLM response
+  - Now: Sums tokens from every iteration during tool loops
+  - Accurate token display for multi-iteration agent runs
+
+- **Consensus Build Mode Flash** - Fixed "No edits to review" appearing
+  - Was: Switched to review mode immediately, before runAgentic completed
+  - Now: Stays in chat mode with loading indicator until edits ready
+  - Only switches to review mode when there are actual edits
+
+- **Write Permission Not Showing** - Tool recognition improved
+  - Added comprehensive tool name aliases for all LLM variants
+  - Unknown/unrecognized tools now require write permission (was auto-allow)
+
+---
+
 ## [0.2.84] - 2025-12-13
 
 ### Changed

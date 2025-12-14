@@ -277,6 +277,7 @@ export {
 // Phase 13: Agent loop with tools
 export {
   runAgentLoop,
+  getProjectStructure,
   type AgentLoopOptions,
   type AgentLoopResult,
 } from './agent-loop';

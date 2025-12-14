@@ -27,6 +27,7 @@ import {
 import { listTemplates, loadTemplate } from '../executor/templates';
 import { WorkflowsManager } from './components/WorkflowsManager';
 import { SessionsManager } from './components/SessionsManager';
+import { SingleFileDiff, type DiffDecision } from './components/SingleFileDiff';
 import { SettingsPanel } from './components/SettingsPanel';
 import { ModelPanel } from './components/ModelPanel';
 import { getConfig, saveConfig } from '../lib/config';
@@ -38,13 +39,13 @@ import { generatePlan } from '../executor/planner';
 import { isRouterAvailable } from '../router/router';
 import { adapters } from '../adapters';
 import {
-  getLatestSession,
-  loadSession,
-  addMessage as addSessionMessage,
-  createSession,
-  clearSessionHistory,
-  type AgentSession
-} from '../memory';
+  createSessionCompat,
+  loadUnifiedSession,
+  addMessageCompat,
+  clearUnifiedSessionMessages,
+  listUnifiedSessions,
+  type UnifiedSession,
+} from '../context';
 import { checkForUpdate, markUpdated } from '../lib/updateCheck';
 import { UpdatePrompt } from './components/UpdatePrompt';
 import { AgentPanel } from './components/AgentPanel';
@@ -58,6 +59,7 @@ import {
   runAgentic,
   formatFileContext,
   runAgentLoop,
+  getProjectStructure,
   permissionTracker,
   type AgenticResult,
   type ToolCall,
@@ -150,7 +152,7 @@ function App() {
   const [currentObservationId, setCurrentObservationId] = useState<number | null>(null);
   const [currentAgenticResult, setCurrentAgenticResult] = useState<AgenticResult | null>(null);
   const [agentStatus, setAgentStatus] = useState<AgentStatus[]>([]);
-  const [session, setSession] = useState<AgentSession | null>(null);
+  const [session, setSession] = useState<UnifiedSession | null>(null);
   const [updateInfo, setUpdateInfo] = useState<{ current: string; latest: string } | null>(null);
   const [showUpdatePrompt, setShowUpdatePrompt] = useState(false);
   const [isUpdating, setIsUpdating] = useState(false);
@@ -165,6 +167,7 @@ function App() {
 
   // Tool activity state (for background display like Claude Code)
   const [toolActivity, setToolActivity] = useState<ToolCallInfo[]>([]);
+  const toolActivityRef = React.useRef<ToolCallInfo[]>([]); // Ref to avoid stale closure
   const [toolIteration, setToolIteration] = useState(0);
   const [toolsExpanded, setToolsExpanded] = useState(false);
   const [loadingStartTime, setLoadingStartTime] = useState<number | undefined>();
@@ -174,6 +177,27 @@ function App() {
   const [pendingPermission, setPendingPermission] = useState<{
     request: PermissionRequest;
     resolve: (result: PermissionResult) => void;
+  } | null>(null);
+
+  // Diff preview state for write/edit operations (single file)
+  const [pendingDiffPreview, setPendingDiffPreview] = useState<{
+    filePath: string;
+    operation: 'create' | 'edit' | 'overwrite';
+    originalContent: string | null;
+    newContent: string;
+    resolve: (decision: DiffDecision) => void;
+  } | null>(null);
+
+  // Batch diff preview state (multiple files)
+  const [pendingBatchPreview, setPendingBatchPreview] = useState<{
+    previews: Array<{
+      toolCallId: string;
+      filePath: string;
+      operation: 'create' | 'edit' | 'overwrite';
+      originalContent: string | null;
+      newContent: string;
+    }>;
+    resolve: (result: { accepted: string[]; rejected: string[]; allowAll: boolean }) => void;
   } | null>(null);
 
   // AbortController for cancelling running operations
@@ -383,14 +407,22 @@ function App() {
     checkAgents();
   }, []);
 
-  // Helper to restore messages from session
-  const restoreFromSession = (sess: AgentSession) => {
+  // Helper to restore messages from unified session
+  const restoreFromSession = (sess: UnifiedSession) => {
     if (sess.messages.length > 0) {
-      const restored: Message[] = sess.messages.map((m, i) => ({
-        id: String(i),
-        role: m.role === 'system' ? 'assistant' : m.role,
-        content: m.content
-      }));
+      const restored: Message[] = sess.messages.map((m, i) => {
+        // Extract text content from UnifiedMessage parts
+        const textContent = m.content
+          .filter(p => p.type === 'text')
+          .map(p => (p as { type: 'text'; content: string }).content)
+          .join('\n');
+        return {
+          id: String(i),
+          role: m.role === 'system' ? 'assistant' : m.role as Message['role'],
+          content: textContent,
+          agent: m.agent,
+        };
+      });
       setMessages(restored);
       messageId = restored.length;
     } else {
@@ -400,7 +432,7 @@ function App() {
   };
 
   // Handle session load from SessionsManager
-  const handleLoadSession = (sess: AgentSession) => {
+  const handleLoadSession = (sess: UnifiedSession) => {
     setSession(sess);
     restoreFromSession(sess);
     setMode('chat');
@@ -414,7 +446,7 @@ function App() {
   const hasInitialized = useRef(false);
   useEffect(() => {
     if (!hasInitialized.current) {
-      const sess = createSession(currentAgent);
+      const sess = createSessionCompat(currentAgent);
       setSession(sess);
       hasInitialized.current = true;
 
@@ -674,7 +706,7 @@ function App() {
         return;
       }
 
-      setMode('review');
+      // Stay in chat mode while building (don't switch to review yet)
       setLoading(true);
       setLoadingText(`building from ${modeLabel}...`);
       setMessages(prev => [...prev, {
@@ -696,12 +728,13 @@ function App() {
           setMode('chat');
           resetInputState();
         } else {
-          // Show summary and switch to review mode
+          // Show summary and switch to review mode AFTER we have edits
           const editSummary = result.proposedEdits.map(e =>
             `  ${e.operation}: ${e.filePath}${e.originalContent === null ? ' (new)' : ''}`
           ).join('\n');
           addSystemMessage(`Proposed ${result.proposedEdits.length} file edit(s) from ${modeLabel}:\n${editSummary}\n\nReview each edit below:`);
           setProposedEdits(result.proposedEdits);
+          setMode('review'); // Only switch to review when we have edits
         }
       } catch (err) {
         addSystemMessage(`Build failed: ${(err as Error).message}`);
@@ -984,6 +1017,7 @@ Keep your response concise and focused on the plan, not the implementation.`;
 
     // Reset tool activity
     setToolActivity([]);
+    toolActivityRef.current = [];
     setToolIteration(0);
     permissionTracker.reset();
 
@@ -1003,16 +1037,16 @@ Keep your response concise and focused on the plan, not the implementation.`;
           const args = Object.entries(call.arguments)
             .map(([k, v]) => `${k}=${typeof v === 'string' ? (v as string).slice(0, 30) : v}`)
             .join(', ');
-          setToolActivity(prev => [...prev, {
-            id: call.id,
-            name: call.name,
-            args,
-            status: 'pending'
-          }]);
+          const newCall = { id: call.id, name: call.name, args, status: 'pending' as const };
+          toolActivityRef.current = [...toolActivityRef.current, newCall];
+          setToolActivity(prev => [...prev, newCall]);
         },
 
         // Tool started executing (after permission granted)
         onToolStart: (call: ToolCall) => {
+          toolActivityRef.current = toolActivityRef.current.map(t =>
+            t.id === call.id ? { ...t, status: 'running' as const } : t
+          );
           setToolActivity(prev => prev.map(t =>
             t.id === call.id ? { ...t, status: 'running' as const } : t
           ));
@@ -1021,13 +1055,13 @@ Keep your response concise and focused on the plan, not the implementation.`;
 
         // Tool finished
         onToolEnd: (call: ToolCall, result: ToolResult) => {
-          setToolActivity(prev => prev.map(t =>
-            t.id === call.id ? {
-              ...t,
-              status: result.isError ? 'error' as const : 'done' as const,
-              result: result.content.slice(0, 100)
-            } : t
-          ));
+          const updateFn = (t: ToolCallInfo) => t.id === call.id ? {
+            ...t,
+            status: result.isError ? 'error' as const : 'done' as const,
+            result: result.content.slice(0, 100)
+          } : t;
+          toolActivityRef.current = toolActivityRef.current.map(updateFn);
+          setToolActivity(prev => prev.map(updateFn));
         },
 
         // Iteration callback
@@ -1036,7 +1070,23 @@ Keep your response concise and focused on the plan, not the implementation.`;
           setLoadingText(`${agentName} exploring (${iteration})...`);
         },
 
-        // Pass conversation history for multi-model context
+        // Diff preview handler for write/edit operations (single file)
+        onDiffPreview: async (preview) => {
+          return new Promise((resolve) => {
+            setPendingDiffPreview({ ...preview, resolve });
+          });
+        },
+
+        // Batch diff preview handler (multiple files)
+        onBatchDiffPreview: async (previews) => {
+          return new Promise((resolve) => {
+            setPendingBatchPreview({ previews, resolve });
+          });
+        },
+
+        // Pass unified message history for proper context management
+        unifiedHistory: session?.messages,
+        // Legacy format fallback
         conversationHistory: messages
           .filter(m => m.role === 'user' || m.role === 'assistant')
           .map(m => ({
@@ -1085,8 +1135,8 @@ Keep your response concise and focused on the plan, not the implementation.`;
         } catch { /* Not valid JSON, treat as normal response */ }
       }
 
-      // Normal response - include tool calls from exploration
-      const currentToolCalls = [...toolActivity];
+      // Normal response - include tool calls from exploration (use ref to avoid stale closure)
+      const currentToolCalls = [...toolActivityRef.current];
       setMessages(prev => [...prev, {
         id: nextId(),
         role: 'assistant',
@@ -1104,8 +1154,8 @@ Keep your response concise and focused on the plan, not the implementation.`;
       setMode('chat');
       setToolsExpanded(false); // Reset expanded state
     } catch (err) {
-      // Save error message with tool calls so history is preserved
-      const currentToolCalls = [...toolActivity];
+      // Save error message with tool calls so history is preserved (use ref to avoid stale closure)
+      const currentToolCalls = [...toolActivityRef.current];
       setMessages(prev => [...prev, {
         id: nextId(),
         role: 'assistant',
@@ -1140,13 +1190,14 @@ Keep your response concise and focused on the plan, not the implementation.`;
 
     // Capture session ID to avoid stale reference after async operations
     const sessionId = session?.id;
-    const sessionAgent = session?.agent;
+    // UnifiedSession uses agentsUsed array; get first or current agent
+    const sessionAgent = session?.agentsUsed?.[0] ?? currentAgent;
 
     // Persist user message to session
     if (sessionId) {
-      const currentSession = loadSession(sessionId);
+      const currentSession = loadUnifiedSession(sessionId);
       if (currentSession) {
-        const updated = await addSessionMessage(currentSession, 'user', value);
+        const updated = await addMessageCompat(currentSession, 'user', value);
         setSession(updated);
       }
     }
@@ -1197,9 +1248,9 @@ Keep your response concise and focused on the plan, not the implementation.`;
       ]);
       // Persist assistant message to session (re-fetch to avoid stale state)
       if (sessionId && sessionAgent === currentAgent) {
-        const currentSession = loadSession(sessionId);
+        const currentSession = loadUnifiedSession(sessionId);
         if (currentSession) {
-          const updated = await addSessionMessage(currentSession, 'assistant', responseContent);
+          const updated = await addMessageCompat(currentSession, 'assistant', responseContent);
           setSession(updated);
         }
       }
@@ -1228,9 +1279,9 @@ Keep your response concise and focused on the plan, not the implementation.`;
       ]);
       // Persist error to session (re-fetch to avoid stale state)
       if (sessionId && sessionAgent === currentAgent) {
-        const currentSession = loadSession(sessionId);
+        const currentSession = loadUnifiedSession(sessionId);
         if (currentSession) {
-          const updated = await addSessionMessage(currentSession, 'assistant', errorMsg);
+          const updated = await addMessageCompat(currentSession, 'assistant', errorMsg);
           setSession(updated);
         }
       }
@@ -1308,7 +1359,7 @@ Compare View:
       case 'clear':
         setMessages([]);
         if (session) {
-          const cleared = clearSessionHistory(session);
+          const cleared = clearUnifiedSessionMessages(session);
           setSession(cleared);
         }
         messageId = 0;
@@ -1476,7 +1527,7 @@ Compare View:
         break;
 
       case 'session': {
-        const freshSession = createSession(currentAgent);
+        const freshSession = createSessionCompat(currentAgent);
         setSession(freshSession);
         setMessages([]);
         messageId = 0;
@@ -2152,10 +2203,14 @@ Compare View:
             // Continue without memory
           }
 
+          // Get project structure for proposal context
+          const projectStructure = getProjectStructure(process.cwd());
+
           const plan = buildConsensusPlan(taskWithMemory, {
             agents: agents as AgentName[],
             maxRounds: consensusRounds,
-            synthesizer: synth
+            synthesizer: synth,
+            projectStructure
           });
 
           // Create AbortController for cancellation
@@ -2634,8 +2689,58 @@ Compare View:
             />
           )}
 
+          {/* Diff Preview - Single file (shows for write/edit operations) */}
+          {pendingDiffPreview && !pendingBatchPreview && (
+            <SingleFileDiff
+              filePath={pendingDiffPreview.filePath}
+              operation={pendingDiffPreview.operation}
+              originalContent={pendingDiffPreview.originalContent}
+              newContent={pendingDiffPreview.newContent}
+              onDecision={(decision) => {
+                pendingDiffPreview.resolve(decision);
+                setPendingDiffPreview(null);
+              }}
+            />
+          )}
+
+          {/* Diff Preview - Batch (multiple files) */}
+          {pendingBatchPreview && (
+            <DiffReview
+              edits={pendingBatchPreview.previews.map(p => ({
+                filePath: p.filePath,
+                operation: p.operation === 'create' ? 'Write' as const :
+                           p.operation === 'overwrite' ? 'Write' as const : 'Edit' as const,
+                proposedContent: p.newContent,
+                originalContent: p.originalContent,
+                // Store toolCallId in filePath for tracking (we'll use filePath as ID)
+              }))}
+              onComplete={(result) => {
+                // Map accepted filePaths back to toolCallIds
+                const acceptedIds = pendingBatchPreview.previews
+                  .filter(p => result.accepted.includes(p.filePath))
+                  .map(p => p.toolCallId);
+                const rejectedIds = pendingBatchPreview.previews
+                  .filter(p => result.rejected.includes(p.filePath) || result.skipped.includes(p.filePath))
+                  .map(p => p.toolCallId);
+
+                // Check if "Yes to all" was selected (all accepted)
+                const allowAll = result.accepted.length === pendingBatchPreview.previews.length &&
+                                 result.rejected.length === 0 && result.skipped.length === 0;
+
+                pendingBatchPreview.resolve({ accepted: acceptedIds, rejected: rejectedIds, allowAll });
+                setPendingBatchPreview(null);
+              }}
+              onCancel={() => {
+                // Reject all on cancel
+                const allIds = pendingBatchPreview.previews.map(p => p.toolCallId);
+                pendingBatchPreview.resolve({ accepted: [], rejected: allIds, allowAll: false });
+                setPendingBatchPreview(null);
+              }}
+            />
+          )}
+
           {/* Agent Status Line (shows at bottom with timer) */}
-          {loading && !pendingPermission && (
+          {loading && !pendingPermission && !pendingDiffPreview && !pendingBatchPreview && (
             <AgentStatus
               agentName={loadingAgent || 'Agent'}
               isLoading={loading}

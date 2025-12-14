@@ -32,6 +32,11 @@ import {
   modelClearCommand
 } from './commands/model';
 import { indexCommand } from './commands/indexing';
+import {
+  observeSummaryCommand,
+  observeListCommand,
+  observeExportCommand
+} from './commands/observe';
 import { startTUI } from '../tui';
 import { readFileSync } from 'fs';
 import { join, dirname } from 'path';
@@ -217,6 +222,43 @@ sessionCmd
   .command('clear <id>')
   .description('Clear session history (keep session, remove messages)')
   .action(sessionClearCommand);
+
+// Observe subcommands
+const observeCmd = program
+  .command('observe')
+  .description('Manage and export observations for training');
+
+observeCmd
+  .command('summary')
+  .description('Show observation summary')
+  .option('-a, --agent <agent>', 'Filter by agent')
+  .action((opts) => observeSummaryCommand(opts.agent));
+
+observeCmd
+  .command('list')
+  .description('List recent observations')
+  .option('-a, --agent <agent>', 'Filter by agent')
+  .option('-n, --limit <n>', 'Number of observations to show', '10')
+  .action((opts) => observeListCommand({
+    agent: opts.agent,
+    limit: opts.limit ? parseInt(opts.limit, 10) : 10
+  }));
+
+observeCmd
+  .command('export <output>')
+  .description('Export observations to file')
+  .option('-f, --format <format>', 'Output format (jsonl, json, csv)', 'jsonl')
+  .option('-a, --agent <agent>', 'Filter by agent')
+  .option('-n, --limit <n>', 'Maximum records to export', '10000')
+  .option('-t, --type <type>', 'Export type (observations, preferences)', 'observations')
+  .option('--no-content', 'Exclude content (metadata only)')
+  .action((output, opts) => observeExportCommand(output, {
+    format: opts.format as 'jsonl' | 'json' | 'csv',
+    agent: opts.agent,
+    limit: opts.limit ? parseInt(opts.limit, 10) : 10000,
+    type: opts.type as 'observations' | 'preferences',
+    noContent: !opts.content
+  }));
 
 // Multi-agent collaboration commands
 program
