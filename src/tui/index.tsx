@@ -11,6 +11,7 @@ import { debate as debateOrchestrator, recordDebateWinner, hasPendingDebate } fr
 import { pipeline as pipelineOrchestrator } from '../chat/pipeline';
 import { Banner, WelcomeMessage } from './components/Banner';
 import { TrustPrompt } from './components/TrustPrompt';
+import { ApprovalModePanel, type ApprovalMode } from './components/ApprovalModePanel';
 import { isDirectoryTrusted, trustDirectory, getParentDirectory, getTrustedDirectories, untrustDirectory } from '../trust';
 import { useHistory } from './hooks/useHistory';
 import { getCommandSuggestions } from './components/Autocomplete';
@@ -121,7 +122,7 @@ interface Message {
 let messageId = 0;
 const nextId = () => String(++messageId);
 
-type AppMode = 'chat' | 'workflows' | 'sessions' | 'settings' | 'model' | 'compare' | 'collaboration' | 'agent' | 'review' | 'index' | 'observe' | 'plan' | 'trust';
+type AppMode = 'chat' | 'workflows' | 'sessions' | 'settings' | 'model' | 'compare' | 'collaboration' | 'agent' | 'review' | 'index' | 'observe' | 'plan' | 'trust' | 'approval-mode';
 type AgenticSubMode = 'plan' | 'build';
 
 interface CompareResult {
@@ -173,6 +174,7 @@ function App() {
   const [currentPlanTask, setCurrentPlanTask] = useState<string | null>(null); // Task that generated the plan
   const [modeChangeNotice, setModeChangeNotice] = useState<string | null>(null); // Brief notification when mode changes
   const [isTrusted, setIsTrusted] = useState<boolean | null>(null); // null = checking, true/false = result
+  const [approvalMode, setApprovalMode] = useState<ApprovalMode>('default');
 
   // Tool activity state (for background display like Claude Code)
   const [toolActivity, setToolActivity] = useState<ToolCallInfo[]>([]);
@@ -1178,8 +1180,9 @@ Keep your response concise and focused on the plan, not the implementation.`;
       return;
     }
 
-    // Capture session ID to avoid stale reference
+    // Capture session ID and approval mode to avoid stale reference
     const sessionId = session?.id;
+    const currentApprovalMode = approvalMode;
 
     setMessages(prev => [...prev, { id: nextId(), role: 'user', content: userMessage }]);
 
@@ -1209,6 +1212,10 @@ Keep your response concise and focused on the plan, not the implementation.`;
 
         // Permission handler - shows prompt and waits for user decision
         onPermissionRequest: async (request: PermissionRequest): Promise<PermissionResult> => {
+          // YOLO mode: auto-approve all permissions
+          if (currentApprovalMode === 'yolo') {
+            return { decision: 'allow' };
+          }
           return new Promise((resolve) => {
             setPendingPermission({ request, resolve });
           });
@@ -1254,6 +1261,14 @@ Keep your response concise and focused on the plan, not the implementation.`;
 
         // Diff preview handler for write/edit operations (single file)
         onDiffPreview: async (preview) => {
+          // Accept/YOLO mode: auto-accept edits
+          if (currentApprovalMode === 'accept' || currentApprovalMode === 'yolo') {
+            return currentApprovalMode === 'yolo' ? 'yes-all' : 'yes';
+          }
+          // Plan mode: reject edits (show plan only)
+          if (currentApprovalMode === 'plan') {
+            return 'no';
+          }
           return new Promise((resolve) => {
             setPendingDiffPreview({ ...preview, resolve });
           });
@@ -1261,6 +1276,14 @@ Keep your response concise and focused on the plan, not the implementation.`;
 
         // Batch diff preview handler (multiple files)
         onBatchDiffPreview: async (previews) => {
+          // Accept/YOLO mode: auto-accept all edits
+          if (currentApprovalMode === 'accept' || currentApprovalMode === 'yolo') {
+            return { accepted: previews.map(p => p.toolCallId), rejected: [], allowAll: currentApprovalMode === 'yolo' };
+          }
+          // Plan mode: reject all edits (show plan only)
+          if (currentApprovalMode === 'plan') {
+            return { accepted: [], rejected: previews.map(p => p.toolCallId), allowAll: false };
+          }
           return new Promise((resolve) => {
             setPendingBatchPreview({ previews, resolve });
           });
@@ -1544,6 +1567,7 @@ Multi-Agent Collaboration:
 
 Options:
   /agent [name]     - Show/set agent (claude, gemini, codex, ollama, mistral, auto)
+  /approval-mode    - Set approval mode (default/plan/accept/yolo)
   /model [agent] [model] - Show/set model (or open model panel)
   /router [name]    - Show/set routing agent
   /planner [name]   - Show/set autopilot planner agent
@@ -1961,6 +1985,27 @@ Compare View:
           setTimeout(() => setNotification(null), 2000);
         } else {
           setMode('agent');
+        }
+        break;
+
+      case 'approval-mode':
+        if (rest) {
+          const validModes: ApprovalMode[] = ['default', 'plan', 'accept', 'yolo'];
+          if (validModes.includes(rest as ApprovalMode)) {
+            setApprovalMode(rest as ApprovalMode);
+            const modeNames: Record<ApprovalMode, string> = {
+              default: 'Default',
+              plan: 'Plan (no execution)',
+              accept: 'Accept Edits (auto-apply)',
+              yolo: 'YOLO (full auto)'
+            };
+            setNotification('Approval mode: ' + modeNames[rest as ApprovalMode]);
+            setTimeout(() => setNotification(null), 2000);
+          } else {
+            addMessage('Invalid mode. Use: default, plan, accept, yolo');
+          }
+        } else {
+          setMode('approval-mode');
         }
         break;
 
@@ -2766,6 +2811,26 @@ Compare View:
             setCurrentAgent(agent);
             setMode('chat');
             setNotification('Agent set to: ' + agent);
+            setTimeout(() => setNotification(null), 2000);
+          }}
+          onBack={() => setMode('chat')}
+        />
+      )}
+
+      {/* Approval Mode Selection */}
+      {mode === 'approval-mode' && (
+        <ApprovalModePanel
+          currentMode={approvalMode}
+          onSelect={(selectedMode) => {
+            setApprovalMode(selectedMode);
+            setMode('chat');
+            const modeNames: Record<ApprovalMode, string> = {
+              default: 'Default',
+              plan: 'Plan (no execution)',
+              accept: 'Accept Edits (auto-apply)',
+              yolo: 'YOLO (full auto)'
+            };
+            setNotification('Approval mode: ' + modeNames[selectedMode]);
             setTimeout(() => setNotification(null), 2000);
           }}
           onBack={() => setMode('chat')}

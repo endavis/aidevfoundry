@@ -1,6 +1,6 @@
 {
   "name": "puzldai",
-  "version": "0.2.89",
+  "version": "0.2.90",
   "description": "Multi-LLM orchestration framework with agentic execution, memory/RAG, and training data generation",
   "type": "module",
   "bin": {

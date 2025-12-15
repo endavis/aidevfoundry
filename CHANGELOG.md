@@ -6,6 +6,26 @@ All notable changes to PuzldAI will be documented in this file.
 
 ---
 
+## [0.2.90] - 2025-12-15
+
+### Added
+- **Approval Mode System** - Control how permissions and file edits are handled
+  - `/approval-mode` command opens interactive panel (like `/agent` and `/index`)
+  - Four modes with different behaviors:
+    - **Default** - Normal development: ask for each permission, diff review for edits
+    - **Plan** - Planning/reviewing: ask for each permission, show plan only (no edits applied)
+    - **Accept Edits** - Faster iteration: ask for each permission, auto-apply file edits
+    - **YOLO** - Full trust: auto-approve all permissions, auto-apply all edits
+  - Visual panel with arrow key navigation and detailed mode descriptions
+  - Current mode indicator and YOLO warning icon
+
+### Fixed
+- **Approval Mode Handler** - Fixed stale closure capturing approval mode state
+  - `currentApprovalMode` now captured at function start to avoid stale references
+  - `onDiffPreview` now correctly returns string values ('yes'/'no'/'yes-all')
+
+---
+
 ## [0.2.89] - 2025-12-15
 
 ### Added

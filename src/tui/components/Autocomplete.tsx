@@ -20,6 +20,7 @@ const COMMANDS: Command[] = [
   { label: '/consensus', value: '/consensus ', description: 'Build consensus (rounds: /settings)' },
   // Options - Values
   { label: '/agent', value: '/agent ', description: 'Show/set agent' },
+  { label: '/approval-mode', value: '/approval-mode', description: 'Set approval mode (default/plan/accept/yolo)' },
   { label: '/model', value: '/model ', description: 'Show/set model for agents' },
   { label: '/router', value: '/router ', description: 'Show/set routing agent' },
   { label: '/planner', value: '/planner ', description: 'Show/set autopilot planner agent' },
