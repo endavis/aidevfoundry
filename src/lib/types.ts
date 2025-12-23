@@ -29,7 +29,7 @@ export interface Adapter {
 }
 
 export interface RouteResult {
-  agent: 'claude' | 'gemini' | 'codex' | 'ollama' | 'factory-ai-droid' | 'charm-crush';
+  agent: 'claude' | 'gemini' | 'codex' | 'ollama' | 'factory-ai-droid' | 'charm-crush' | 'factory' | 'crush' | 'mistral';
   confidence: number;
   reasoning?: string;
   taskType?: string;

@@ -8,6 +8,8 @@ import { ollamaAdapter } from './ollama';
 import { mistralAdapter } from './mistral';
 import { factoryAiDroidAdapter } from './factory-ai-droid';
 import { charmCrushAdapter } from './charm-crush';
+import { factoryAdapter } from './factory';
+import { crushAdapter } from './crush';
 
 export const adapters: Record<string, Adapter> = {
   claude: claudeAdapter,
@@ -16,7 +18,9 @@ export const adapters: Record<string, Adapter> = {
   ollama: ollamaAdapter,
   mistral: mistralAdapter,
   'factory-ai-droid': factoryAiDroidAdapter,
-  'charm-crush': charmCrushAdapter
+  'charm-crush': charmCrushAdapter,
+  factory: factoryAdapter,
+  crush: crushAdapter
 };
 
 export async function getAvailableAdapters(): Promise<Adapter[]> {
@@ -29,4 +33,4 @@ export async function getAvailableAdapters(): Promise<Adapter[]> {
   return available;
 }
 
-export { claudeAdapter, geminiAdapter, geminiSafeAdapter, codexAdapter, codexSafeAdapter, ollamaAdapter, mistralAdapter, factoryAiDroidAdapter, charmCrushAdapter };
+export { claudeAdapter, geminiAdapter, geminiSafeAdapter, codexAdapter, codexSafeAdapter, ollamaAdapter, mistralAdapter, factoryAiDroidAdapter, charmCrushAdapter, factoryAdapter, crushAdapter };
