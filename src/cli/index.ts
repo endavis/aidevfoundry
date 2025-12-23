@@ -42,6 +42,7 @@ import {
   logoutCommand,
   whoamiCommand
 } from './commands/login';
+import { gameCommand } from './commands/game';
 import { startTUI } from '../tui';
 import { readFileSync } from 'fs';
 import { join, dirname } from 'path';
@@ -319,6 +320,20 @@ program
   .option('-r, --rounds <n>', 'Number of voting rounds', '2')
   .option('-s, --synthesizer <agent>', 'Agent to synthesize final result')
   .action(consensusCommand);
+
+// Game commands
+program
+  .command('game [name] [prompt]')
+  .description('Play puzzle games (factory-ai-droid, charm-crush)')
+  .option('-n, --new', 'Start a new game session')
+  .option('-d, --difficulty <level>', 'Difficulty level (easy, medium, hard)', 'medium')
+  .option('-s, --session <id>', 'Resume specific session by ID')
+  .option('-l, --list', 'List all game sessions')
+  .option('--stats', 'Show game session statistics')
+  .option('--end', 'End the active game session')
+  .option('--delete <id>', 'Delete a specific session')
+  .option('--cleanup <days>', 'Clean up sessions older than N days')
+  .action((name, prompt, opts) => gameCommand(name, prompt, opts));
 
 // If no arguments, launch TUI; otherwise parse commands
 if (process.argv.length <= 2) {

@@ -7,6 +7,8 @@ export interface ModelResponse {
   };
   duration?: number;
   error?: string;
+  /** Game state for game adapters (resumable gameplay) */
+  state?: unknown;
 }
 
 export interface RunOptions {
@@ -16,6 +18,8 @@ export interface RunOptions {
   model?: string;
   /** Disable native tools (for agentic mode - LLM returns JSON, we apply files) */
   disableTools?: boolean;
+  /** Game state for game adapters (resumable gameplay) */
+  state?: unknown;
 }
 
 export interface Adapter {
@@ -25,7 +29,7 @@ export interface Adapter {
 }
 
 export interface RouteResult {
-  agent: 'claude' | 'gemini' | 'codex' | 'ollama';
+  agent: 'claude' | 'gemini' | 'codex' | 'ollama' | 'factory-ai-droid' | 'charm-crush';
   confidence: number;
   reasoning?: string;
   taskType?: string;

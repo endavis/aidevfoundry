@@ -5,7 +5,7 @@
  */
 
 // Agent types
-export type AgentName = 'claude' | 'gemini' | 'codex' | 'ollama';
+export type AgentName = 'claude' | 'gemini' | 'codex' | 'ollama' | 'factory-ai-droid' | 'charm-crush';
 
 // Step action types
 export type StepAction =
