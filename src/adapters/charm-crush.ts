@@ -505,9 +505,9 @@ EXAMPLE:
         state.data.board[r2][c2] = temp;
 
         // Check for matches
-        const matches = this.detectMatches(state.data.board);
+        const matchGroups = this.detectMatches(state.data.board);
 
-        if (matches.length === 0) {
+        if (matchGroups.length === 0) {
           // No match, undo swap
           state.data.board[r2][c2] = state.data.board[r1][c1];
           state.data.board[r1][c1] = temp;
