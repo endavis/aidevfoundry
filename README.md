@@ -14,7 +14,7 @@
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/npm/v/puzldai?color=blue" alt="npm">
+  <img src="https://img.shields.io/npm/v/pk-puzldai?color=blue" alt="npm">
   <img src="https://img.shields.io/badge/license-AGPL--3.0-green" alt="license">
   <img src="https://img.shields.io/badge/agents-Claude%20%7C%20Gemini%20%7C%20Codex%20%7C%20Ollama%20%7C%20Mistral-purple" alt="agents">
   <img src="https://img.shields.io/badge/models-sonnet%20%7C%20opus%20%7C%20gemini--pro%20%7C%20devstral-orange" alt="models">
@@ -80,19 +80,19 @@ PuzldAI is a terminal-native framework for orchestrating multiple AI agents. Rou
 ## Install
 
 ```bash
-npm install -g puzldai
+npm install -g pk-puzldai
 ```
 
 Or try without installing:
 
 ```bash
-npx puzldai
+npx pk-puzldai
 ```
 
 **Update:**
 
 ```bash
-npm update -g puzldai
+npm update -g pk-puzldai
 ```
 
 ---
@@ -101,27 +101,27 @@ npm update -g puzldai
 
 ```bash
 # Interactive TUI
-puzldai
+pk-puzldai
 
 # Single task
-puzldai run "explain recursion"
+pk-puzldai run "explain recursion"
 
 # Compare agents
-puzldai compare claude,gemini "best error handling practices"
+pk-puzldai compare claude,gemini "best error handling practices"
 
 # Pipeline: analyze → code → review
-puzldai run "build a logger" -P "gemini:analyze,claude:code,gemini:review"
+pk-puzldai run "build a logger" -P "gemini:analyze,claude:code,gemini:review"
 
 # Multi-agent collaboration
-puzldai correct "write a sort function" --producer claude --reviewer gemini
-puzldai debate "microservices vs monolith" -a claude,gemini
-puzldai consensus "best database choice" -a claude,gemini,ollama
+pk-puzldai correct "write a sort function" --producer claude --reviewer gemini
+pk-puzldai debate "microservices vs monolith" -a claude,gemini
+pk-puzldai consensus "best database choice" -a claude,gemini,ollama
 
 # Check what's available
-puzldai check
+pk-puzldai check
 ```
 
-> `puzld` also works as a shorter alias.
+> `pk-puzldai` is the CLI entrypoint.
 
 ---
 
@@ -187,15 +187,15 @@ Pick specific models for each agent. Aliases like `sonnet`, `opus`, `haiku` alwa
 /model                            # Open model selection panel
 
 # CLI
-puzldai model show                # Show current models for all agents
-puzldai model list                # List all available models
-puzldai model list claude         # List models for specific agent
-puzldai model set claude opus     # Set model for an agent
-puzldai model clear claude        # Reset to CLI default
+pk-puzldai model show                # Show current models for all agents
+pk-puzldai model list                # List all available models
+pk-puzldai model list claude         # List models for specific agent
+pk-puzldai model set claude opus     # Set model for an agent
+pk-puzldai model clear claude        # Reset to CLI default
 
 # Per-task override
-puzldai run "task" -m opus        # Override model for this run
-puzldai agent -a claude -m haiku  # Interactive mode with specific model
+pk-puzldai run "task" -m opus        # Override model for this run
+pk-puzldai agent -a claude -m haiku  # Interactive mode with specific model
 ```
 
 <p align="center">
@@ -221,10 +221,10 @@ Three views: **side-by-side**, **expanded**, or **stacked**.
 /pick                          # Toggle: select best response
 
 # CLI
-puzldai compare "task"                          # Default: claude,gemini
-puzldai compare "task" -a claude,gemini,codex   # Specify agents
-puzldai compare "task" -s                       # Sequential mode
-puzldai compare "task" -p                       # Pick best response
+pk-puzldai compare "task"                          # Default: claude,gemini
+pk-puzldai compare "task" -a claude,gemini,codex   # Specify agents
+pk-puzldai compare "task" -s                       # Sequential mode
+pk-puzldai compare "task" -p                       # Pick best response
 ```
 
 <p align="center">
@@ -242,8 +242,8 @@ puzldai compare "task" -p                       # Pick best response
 Chain multiple agents together for complex tasks. Each agent handles a specific step.
 
 ```bash
-puzldai run "build a REST API" -P "gemini:analyze,claude:code,gemini:review"
-puzldai run "task" -P "claude:plan,codex:code" -i   # Interactive: pause between steps
+pk-puzldai run "build a REST API" -P "gemini:analyze,claude:code,gemini:review"
+pk-puzldai run "task" -P "claude:plan,codex:code" -i   # Interactive: pause between steps
 ```
 
 <p align="center">
@@ -265,12 +265,12 @@ Three views: **side-by-side**, **expanded**, or **stacked**.
 /interactive                   # Toggle: pause between steps
 
 # CLI
-puzldai run "task" -T code-review
-puzldai run "task" -T code-review -i   # Interactive mode
-puzldai template list            # List all templates
-puzldai template show my-flow    # Show template details
-puzldai template create my-flow -P "claude:plan,codex:code"
-puzldai template delete my-flow  # Delete template
+pk-puzldai run "task" -T code-review
+pk-puzldai run "task" -T code-review -i   # Interactive mode
+pk-puzldai template list            # List all templates
+pk-puzldai template show my-flow    # Show template details
+pk-puzldai template create my-flow -P "claude:plan,codex:code"
+pk-puzldai template delete my-flow  # Delete template
 ```
 
 <p align="center">
@@ -300,9 +300,9 @@ With `/execute` enabled, results display in **3 view modes**: side-by-side, expa
 /execute                       # Toggle auto-execution on/off
 
 # CLI
-puzldai autopilot "task"              # Generate plan only
-puzldai autopilot "task" -x           # Generate and execute
-puzldai autopilot "task" -p claude    # Use specific agent as planner
+pk-puzldai autopilot "task"              # Generate plan only
+pk-puzldai autopilot "task" -x           # Generate and execute
+pk-puzldai autopilot "task" -p claude    # Use specific agent as planner
 ```
 
 <p align="center">
@@ -324,8 +324,8 @@ One agent produces, another reviews. Optionally fix based on feedback.
 /correct claude gemini "write a sorting algorithm"
 
 # CLI
-puzldai correct "task" --producer claude --reviewer gemini
-puzldai correct "task" --producer claude --reviewer gemini --fix
+pk-puzldai correct "task" --producer claude --reviewer gemini
+pk-puzldai correct "task" --producer claude --reviewer gemini --fix
 ```
 
 <p align="center">
@@ -341,8 +341,8 @@ Agents debate a topic across multiple rounds. Optional moderator summarizes.
 /debate claude,gemini "Is functional programming better than OOP?"
 
 # CLI
-puzldai debate "topic" -a claude,gemini
-puzldai debate "topic" -a claude,gemini -r 3 -m ollama   # 3 rounds + moderator
+pk-puzldai debate "topic" -a claude,gemini
+pk-puzldai debate "topic" -a claude,gemini -r 3 -m ollama   # 3 rounds + moderator
 ```
 
 <p align="center">
@@ -358,8 +358,8 @@ Agents propose solutions, vote on them, and synthesize a final answer.
 /consensus claude,gemini,ollama "best database for this use case"
 
 # CLI
-puzldai consensus "task" -a claude,gemini,ollama
-puzldai consensus "task" -a claude,gemini -r 3 -s claude   # 3 rounds + synthesizer
+pk-puzldai consensus "task" -a claude,gemini,ollama
+pk-puzldai consensus "task" -a claude,gemini -r 3 -s claude   # 3 rounds + synthesizer
 ```
 
 <p align="center">
@@ -462,7 +462,7 @@ All `/agentic` interactions are logged for training data generation:
 **Export for fine-tuning:**
 
 ```typescript
-import { exportObservations, exportPreferencePairs } from 'puzldai/observation';
+import { exportObservations, exportPreferencePairs } from 'pk-puzldai/observation';
 
 // Export all observations as JSONL
 exportObservations({ outputPath: 'observations.jsonl', format: 'jsonl' });
@@ -488,12 +488,12 @@ Index your codebase for semantic search and automatic context injection.
 /index search "auth"      # Search indexed code
 
 # CLI
-puzld index               # Index current directory
-puzld index --quick       # Skip embeddings (faster)
-puzld index --search "handleLogin"
-puzld index --context "fix auth bug"
-puzld index --config      # Show detected config files
-puzld index --graph       # Show dependency graph
+pk-puzldai index               # Index current directory
+pk-puzldai index --quick       # Skip embeddings (faster)
+pk-puzldai index --search "handleLogin"
+pk-puzldai index --context "fix auth bug"
+pk-puzldai index --config      # Show detected config files
+pk-puzldai index --graph       # Show dependency graph
 ```
 
 **What gets indexed:**
@@ -552,47 +552,47 @@ When you run `/agentic`, project instructions are automatically injected into th
 ### CLI Mode
 
 ```bash
-puzldai                           # Launch TUI
-puzldai run "task"                # Single task
-puzldai run "task" -a claude      # Force agent
-puzldai run "task" -m opus        # Override model
-puzldai run "task" -P "..."       # Pipeline
-puzldai run "task" -T template    # Use template
-puzldai run "task" -i             # Interactive: pause between steps
-puzldai compare "task"            # Compare (default: claude,gemini)
-puzldai compare "task" -a a,b,c   # Specify agents
-puzldai compare "task" -s         # Sequential mode
-puzldai compare "task" -p         # Pick best response
-puzldai autopilot "task"          # Generate plan
-puzldai autopilot "task" -x       # Plan + execute
-puzldai autopilot "task" -p claude # Use specific planner
-puzldai correct "task" --producer claude --reviewer gemini
-puzldai correct "task" --producer claude --reviewer gemini --fix
-puzldai debate "topic" -a claude,gemini -r 3 -m ollama
-puzldai consensus "task" -a claude,gemini -r 3 -s claude
-puzldai session list              # List sessions
-puzldai session new               # Create new session
-puzldai check                     # Agent status
-puzldai agent                     # Interactive agent mode
-puzldai agent -a claude           # Force specific agent
-puzldai agent -m sonnet           # With specific model
-puzldai model show                # Show current models
-puzldai model list                # List available models
-puzldai model set claude opus     # Set model for agent
-puzldai model clear claude        # Reset to CLI default
-puzldai serve                     # API server
-puzldai serve -p 8080             # Custom port
-puzldai serve -w                  # With web terminal
-puzldai template list             # List templates
-puzldai template show <name>      # Show template details
-puzldai template create <name> -P "..." -d "desc"
-puzldai template edit <name>      # Edit template
-puzldai template delete <name>    # Delete template
-puzldai index                     # Index codebase
-puzldai index --quick             # Skip embeddings
-puzldai index --search "query"    # Search indexed code
-puzldai index --context "task"    # Get relevant context
-puzldai index --config            # Show project config
+pk-puzldai                           # Launch TUI
+pk-puzldai run "task"                # Single task
+pk-puzldai run "task" -a claude      # Force agent
+pk-puzldai run "task" -m opus        # Override model
+pk-puzldai run "task" -P "..."       # Pipeline
+pk-puzldai run "task" -T template    # Use template
+pk-puzldai run "task" -i             # Interactive: pause between steps
+pk-puzldai compare "task"            # Compare (default: claude,gemini)
+pk-puzldai compare "task" -a a,b,c   # Specify agents
+pk-puzldai compare "task" -s         # Sequential mode
+pk-puzldai compare "task" -p         # Pick best response
+pk-puzldai autopilot "task"          # Generate plan
+pk-puzldai autopilot "task" -x       # Plan + execute
+pk-puzldai autopilot "task" -p claude # Use specific planner
+pk-puzldai correct "task" --producer claude --reviewer gemini
+pk-puzldai correct "task" --producer claude --reviewer gemini --fix
+pk-puzldai debate "topic" -a claude,gemini -r 3 -m ollama
+pk-puzldai consensus "task" -a claude,gemini -r 3 -s claude
+pk-puzldai session list              # List sessions
+pk-puzldai session new               # Create new session
+pk-puzldai check                     # Agent status
+pk-puzldai agent                     # Interactive agent mode
+pk-puzldai agent -a claude           # Force specific agent
+pk-puzldai agent -m sonnet           # With specific model
+pk-puzldai model show                # Show current models
+pk-puzldai model list                # List available models
+pk-puzldai model set claude opus     # Set model for agent
+pk-puzldai model clear claude        # Reset to CLI default
+pk-puzldai serve                     # API server
+pk-puzldai serve -p 8080             # Custom port
+pk-puzldai serve -w                  # With web terminal
+pk-puzldai template list             # List templates
+pk-puzldai template show <name>      # Show template details
+pk-puzldai template create <name> -P "..." -d "desc"
+pk-puzldai template edit <name>      # Edit template
+pk-puzldai template delete <name>    # Delete template
+pk-puzldai index                     # Index codebase
+pk-puzldai index --quick             # Skip embeddings
+pk-puzldai index --search "query"    # Search indexed code
+pk-puzldai index --context "task"    # Get relevant context
+pk-puzldai index --config            # Show project config
 ```
 
 ---
@@ -687,12 +687,12 @@ Some tools bypass official CLIs to call APIs directly using piggybacked credenti
 ## Development
 
 ```bash
-git clone https://github.com/MedChaouch/Puzld.ai.git
+git clone https://github.com/kingkillery/Puzld.ai.git
 cd Puzld.ai
 bun install
 bun run build
 npm link
-puzldai
+pk-puzldai
 ```
 
 ---
