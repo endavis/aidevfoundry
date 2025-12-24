@@ -25,6 +25,7 @@ import {
   debateCommand,
   consensusCommand
 } from './commands/collaboration';
+import { pickbuildCommand } from './commands/pickbuild';
 import {
   modelShowCommand,
   modelListCommand,
@@ -320,6 +321,30 @@ program
   .option('-r, --rounds <n>', 'Number of voting rounds', '2')
   .option('-s, --synthesizer <agent>', 'Agent to synthesize final result')
   .action(consensusCommand);
+
+// Compare→Pick→Build workflow (Mode C)
+program
+  .command('pickbuild')
+  .description('Compare plans from multiple agents, pick best, then implement')
+  .argument('<task>', 'The task to implement')
+  .option('-a, --agents <agents>', 'Comma-separated agents to propose plans', 'claude,gemini')
+  .option('--picker <agent|human>', 'Who selects the winning plan', 'human')
+  .option('--build-agent <agent>', 'Agent to implement the selected plan', 'claude')
+  .option('--reviewer <agent>', 'Optional review agent')
+  .option('--sequential', 'Run proposers sequentially instead of parallel')
+  .option('-i, --interactive', 'Confirm plan selection and risky operations')
+  .option('--format <json|md>', 'Plan output format for proposers', 'json')
+  .option('--no-review', 'Skip review step')
+  .action((task, opts) => pickbuildCommand(task, {
+    agents: opts.agents,
+    picker: opts.picker,
+    buildAgent: opts.buildAgent,
+    reviewer: opts.reviewer,
+    sequential: opts.sequential,
+    interactive: opts.interactive,
+    format: opts.format,
+    noReview: !opts.review
+  }));
 
 // Game commands
 program

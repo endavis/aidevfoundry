@@ -65,15 +65,15 @@ PuzldAI is a terminal-native framework for orchestrating multiple AI agents. Rou
 
 ## Supported Agents
 
-| Agent | Source | Requirement | Agentic Mode |
-|-------|--------|-------------|--------------|
-| Claude | Anthropic | [Claude CLI](https://docs.anthropic.com) | ✅ Full support |
-| Gemini | Google | [Gemini CLI](https://ai.google.dev) | ⚠️ Auto-reads files |
-| Codex | OpenAI | [Codex CLI](https://openai.com) | ⚠️ Auto-reads files |
-| Ollama | Local | [Ollama](https://ollama.ai) running | ✅ Full support |
-| Mistral | Mistral AI | [Vibe CLI](https://github.com/mistralai/vibe) | ⚠️ Inconsistent |
+| Agent | Source | Requirement | Agentic Mode | Safety |
+|-------|--------|-------------|--------------|--------|
+| Claude | Anthropic | [Claude CLI](https://docs.anthropic.com) | ✅ Full support | SAFE |
+| Ollama | Local | [Ollama](https://ollama.ai) running | ✅ Full support | SAFE |
+| Mistral | Mistral AI | [Vibe CLI](https://github.com/mistralai/vibe) | ✅ Full support | SAFE |
+| Gemini | Google | [Gemini CLI](https://ai.google.dev) | ⚠️ Auto-reads files | Use `gemini-safe` |
+| Codex | OpenAI | [Codex CLI](https://openai.com) | ⚠️ Auto-reads files | Use `codex-safe` |
 
-> **Note:** Some CLIs (Gemini, Codex) have built-in file reading that bypasses permission prompts. Claude and Ollama respect the permission system fully.
+> **Safety Note:** Claude, Ollama, and Mistral respect our permission system fully. Gemini and Codex auto-read files - use their `-safe` wrapper adapters for production. See [PROVIDER_SUPPORT_MATRIX.md](PROVIDER_SUPPORT_MATRIX.md) for details.
 
 ---
 
@@ -117,6 +117,9 @@ pk-puzldai correct "write a sort function" --producer claude --reviewer gemini
 pk-puzldai debate "microservices vs monolith" -a claude,gemini
 pk-puzldai consensus "best database choice" -a claude,gemini,ollama
 
+# Compare→Pick→Build: propose plans, select best, implement
+pk-puzldai pickbuild "add user authentication" -a claude,gemini -i
+
 # Check what's available
 pk-puzldai check
 ```
@@ -145,6 +148,7 @@ pk-puzldai check
 | **Correct** | Producer → Reviewer → Fix | Quality assurance, code review | Collaboration |
 | **Debate** | Agents argue in rounds, optional moderator | Find flaws in reasoning | Collaboration |
 | **Consensus** | Propose → Vote → Synthesize | High-confidence answers | Collaboration |
+| **PickBuild** | Propose plans → Pick best → Implement with tools | Strategic planning + safe execution | Orchestration |
 | **Agentic** | LLM explores → Tools → Permission prompts → Apply | Codebase exploration + file edits | Execution |
 | **Plan** | LLM analyzes task → Describes approach | Planning before implementation | Execution |
 | **Build** | LLM explores + edits with full tool access | Direct implementation with tools | Execution |
@@ -173,6 +177,13 @@ pk-puzldai check
 | Consensus | `agents` | AgentName[] | — | Participating agents (min 2) |
 | | `maxRounds` | number | `2` | Voting rounds |
 | | `synthesizer` | AgentName | `auto` | Creates final output |
+| PickBuild | `agents` | AgentName[] | `claude,gemini` | Agents to propose plans |
+| | `picker` | AgentName\|`human` | `human` | Who selects the winning plan |
+| | `buildAgent` | AgentName | `claude` | Agent to implement selected plan |
+| | `reviewer` | AgentName | — | Optional review agent |
+| | `sequential` | boolean | `false` | Run proposers sequentially |
+| | `format` | `json`\|`md` | `json` | Plan output format |
+| | `interactive` | boolean | `false` | Confirm plan pick + risky ops |
 | Agentic | `agent` | AgentName | `claude` | Agent to use for exploration |
 | | `tools` | string[] | all | Available tools (view, glob, grep, bash, write, edit) |
 | Plan | `agent` | AgentName | `claude` | Agent to analyze task |

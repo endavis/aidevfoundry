@@ -13,7 +13,8 @@ import type {
   PipelineStep,
   CorrectionOptions,
   DebateOptions,
-  ConsensusOptions
+  ConsensusOptions,
+  PickBuildOptions
 } from './types';
 
 function generatePlanId(): string {
@@ -518,4 +519,318 @@ Format:
     context: Object.keys(context).length > 0 ? context : undefined,
     createdAt: Date.now()
   };
+}
+
+// --- Mode C: Compare→Pick→Build (pickbuild) ---
+
+/**
+ * JSON schema for PlanArtifact that agents must produce
+ */
+const PLAN_ARTIFACT_SCHEMA = `{
+  "title": "string - short plan name",
+  "summary": ["string - 3-6 bullet points summarizing the approach"],
+  "assumptions": ["string - assumptions made about requirements or context"],
+  "steps": [
+    {
+      "id": "string - unique step identifier (e.g., 'step_1')",
+      "goal": "string - what this step accomplishes",
+      "filesLikelyTouched": ["string - file paths that will likely be modified"],
+      "approach": "string - how to accomplish this step",
+      "verification": "string - how to verify this step succeeded"
+    }
+  ],
+  "risks": [
+    {
+      "risk": "string - potential issue or concern",
+      "mitigation": "string - how to address or mitigate this risk"
+    }
+  ],
+  "acceptanceCriteria": ["string - definition of done criteria"]
+}`;
+
+/**
+ * Build a Compare→Pick→Build plan
+ *
+ * Workflow:
+ * 1. Multiple agents propose PLANs (not code) in parallel/sequential
+ * 2. A picker (human or LLM) selects the best plan
+ * 3. A build agent implements the selected plan with agentic tools
+ * 4. Optional reviewer validates the implementation
+ *
+ * Usage: pk-puzldai pickbuild "task" --agents claude,gemini --build-agent claude
+ */
+export function buildPickBuildPlan(
+  prompt: string,
+  options: PickBuildOptions
+): ExecutionPlan {
+  const {
+    agents,
+    picker = 'human',
+    buildAgent = 'claude',
+    reviewer,
+    sequential = false,
+    format = 'json',
+    skipReview = false,
+    projectStructure
+  } = options;
+
+  if (agents.length < 1) {
+    throw new Error('PickBuild requires at least 1 proposer agent');
+  }
+
+  const steps: PlanStep[] = [];
+  let stepIndex = 0;
+
+  // Build context with project structure if provided
+  const context: Record<string, unknown> = {};
+  if (projectStructure) {
+    context.project_structure = projectStructure;
+  }
+
+  // --- Phase 1: Propose Plans (parallel or sequential) ---
+  const proposalPrompt = format === 'json'
+    ? buildJsonPlanProposalPrompt(projectStructure)
+    : buildMarkdownPlanProposalPrompt(projectStructure);
+
+  for (let i = 0; i < agents.length; i++) {
+    const agent = agents[i];
+    steps.push({
+      id: generateStepId(stepIndex),
+      agent,
+      action: 'prompt',
+      prompt: proposalPrompt,
+      // Sequential mode: each proposer depends on previous
+      dependsOn: sequential && i > 0 ? [generateStepId(stepIndex - 1)] : undefined,
+      outputAs: `plan_${agent}`
+    });
+    stepIndex++;
+  }
+
+  // --- Phase 2: Pick Plan ---
+  // Human picker is handled at runtime via interactive mode
+  // LLM picker uses a dedicated step
+  const pickerStepId = generateStepId(stepIndex);
+  const pickerAgent = picker === 'human' ? buildAgent : picker; // Human picker uses build agent for formatting
+
+  steps.push({
+    id: pickerStepId,
+    agent: pickerAgent,
+    action: 'combine',
+    prompt: buildPickerPrompt(agents, format),
+    dependsOn: agents.map((_, i) => generateStepId(i)),
+    outputAs: 'picked_plan'
+  });
+  stepIndex++;
+
+  // --- Phase 3: Build from Plan (Agentic) ---
+  steps.push({
+    id: generateStepId(stepIndex),
+    agent: buildAgent,
+    action: 'prompt',
+    role: 'code', // Enable agentic tools for implementation
+    prompt: buildBuildFromPlanPrompt(),
+    dependsOn: [pickerStepId],
+    outputAs: 'implementation'
+  });
+  stepIndex++;
+
+  // --- Phase 4: Review (Optional) ---
+  if (!skipReview && reviewer) {
+    steps.push({
+      id: generateStepId(stepIndex),
+      agent: reviewer,
+      action: 'prompt',
+      role: 'review',
+      prompt: buildReviewPrompt(),
+      dependsOn: [generateStepId(stepIndex - 1)],
+      outputAs: 'review'
+    });
+    stepIndex++;
+  }
+
+  return {
+    id: generatePlanId(),
+    mode: 'pickbuild',
+    prompt,
+    steps,
+    context: Object.keys(context).length > 0 ? context : undefined,
+    createdAt: Date.now()
+  };
+}
+
+/**
+ * Build prompt for JSON plan proposals
+ */
+function buildJsonPlanProposalPrompt(projectStructure?: string): string {
+  const projectContext = projectStructure
+    ? `\n\n**Project Structure:**\n{{project_structure}}\n\nCRITICAL: Reference specific files/directories from the project structure above.`
+    : '';
+
+  return `You are proposing an implementation PLAN for a task. Do NOT write code. Produce a structured plan.
+
+**Task:** {{prompt}}${projectContext}
+
+IMPORTANT:
+- This is a PLANNING phase, not implementation
+- Analyze the task requirements thoroughly
+- Consider edge cases and potential issues
+- Be specific about which files will need to be modified
+- Include verification steps for each phase
+
+Output your plan as valid JSON matching this schema:
+${PLAN_ARTIFACT_SCHEMA}
+
+Respond with ONLY the JSON object. No markdown code fences, no explanation, just the JSON.`;
+}
+
+/**
+ * Build prompt for Markdown plan proposals
+ */
+function buildMarkdownPlanProposalPrompt(projectStructure?: string): string {
+  const projectContext = projectStructure
+    ? `\n\n**Project Structure:**\n{{project_structure}}\n\nCRITICAL: Reference specific files/directories from the project structure above.`
+    : '';
+
+  return `You are proposing an implementation PLAN for a task. Do NOT write code. Produce a structured plan.
+
+**Task:** {{prompt}}${projectContext}
+
+IMPORTANT:
+- This is a PLANNING phase, not implementation
+- Analyze the task requirements thoroughly
+- Consider edge cases and potential issues
+- Be specific about which files will need to be modified
+- Include verification steps for each phase
+
+Format your plan using this structure:
+
+# Plan Title
+
+## Summary
+- Bullet point 1
+- Bullet point 2
+(3-6 bullet points)
+
+## Assumptions
+- Assumption 1
+- Assumption 2
+
+## Steps
+
+### Step 1: [Goal]
+**Files:** file1.ts, file2.ts
+**Approach:** Description of approach
+**Verification:** How to verify success
+
+### Step 2: [Goal]
+...
+
+## Risks
+| Risk | Mitigation |
+|------|------------|
+| Risk 1 | Mitigation 1 |
+
+## Acceptance Criteria
+- [ ] Criterion 1
+- [ ] Criterion 2`;
+}
+
+/**
+ * Build prompt for plan selection (LLM picker)
+ */
+function buildPickerPrompt(agents: AgentName[], _format: 'json' | 'md'): string {
+  const planRefs = agents.map(a => `**${a}'s Plan:**\n{{plan_${a}}}`).join('\n\n---\n\n');
+
+  return `You are selecting the BEST implementation plan from multiple proposals.
+
+**Original Task:** {{prompt}}
+
+**Proposed Plans:**
+
+${planRefs}
+
+EVALUATION CRITERIA:
+1. Completeness - Does the plan cover all requirements?
+2. Specificity - Are the steps concrete and actionable?
+3. Risk awareness - Does it identify and mitigate potential issues?
+4. Verification - Does it include ways to validate success?
+5. Feasibility - Is the approach realistic and well-scoped?
+
+INSTRUCTIONS:
+1. Analyze each plan against the criteria
+2. Select the BEST plan
+3. Output your decision in this format:
+
+**Selected:** [agent name]
+**Reasoning:** [2-3 sentences explaining why this plan is best]
+
+**Chosen Plan:**
+[Copy the full selected plan here verbatim]`;
+}
+
+/**
+ * Build prompt for agentic implementation from plan
+ */
+function buildBuildFromPlanPrompt(): string {
+  return `You are implementing a task based on a selected plan.
+
+**Original Task:** {{prompt}}
+
+**Selected Plan:**
+{{picked_plan}}
+
+IMPLEMENTATION INSTRUCTIONS:
+1. Follow the plan steps in order
+2. Use tools to explore the codebase as needed (view, glob, grep)
+3. Make targeted edits using the edit tool (NOT bash/sed)
+4. Create new files using the write tool when needed
+5. After each significant change, verify it works
+
+SAFETY RULES:
+- NEVER use bash for file modifications (use edit/write tools)
+- Read files with 'view' before editing them
+- Make one edit at a time and wait for confirmation
+- If unsure about a change, explain your reasoning before proceeding
+
+Begin implementing the plan now.`;
+}
+
+/**
+ * Build prompt for implementation review
+ */
+function buildReviewPrompt(): string {
+  return `You are reviewing an implementation against its original plan.
+
+**Original Task:** {{prompt}}
+
+**Plan That Was Followed:**
+{{picked_plan}}
+
+**Implementation Result:**
+{{implementation}}
+
+REVIEW CHECKLIST:
+1. Does the implementation satisfy all acceptance criteria from the plan?
+2. Are there any steps from the plan that were not completed?
+3. Were there any deviations from the plan? If so, were they justified?
+4. Are there any obvious bugs, security issues, or edge cases not handled?
+5. Is the code quality acceptable (readable, maintainable)?
+
+Provide your review in this format:
+
+## Summary
+[1-2 sentence overall assessment]
+
+## Checklist Results
+- [ ] All acceptance criteria met
+- [ ] All plan steps completed
+- [ ] No unjustified deviations
+- [ ] No obvious bugs or security issues
+- [ ] Code quality acceptable
+
+## Issues Found
+[List any issues, or "None" if implementation is solid]
+
+## Suggested Fixes
+[If issues found, specific suggestions for fixes]`;
 }

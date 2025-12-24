@@ -82,7 +82,8 @@ export type PlanMode =
   | 'auto'        // LLM-generated plan
   | 'debate'      // Multi-round agent debate with moderator
   | 'consensus'   // Propose → vote → iterate until agreement
-  | 'correction'; // Producer → reviewer → optional fix
+  | 'correction'  // Producer → reviewer → optional fix
+  | 'pickbuild';  // Compare→Pick→Build: propose plans, pick best, implement with agentic tools
 
 // Execution timeline event for UI/logging
 export interface TimelineEvent {
@@ -169,6 +170,58 @@ export interface ConsensusOptions {
   maxRounds?: number;        // Max voting rounds (default: 3)
   synthesizer?: AgentName;   // Agent that creates final output
   projectStructure?: string; // Optional project file listing for context
+}
+
+// --- Mode C: Compare→Pick→Build (pickbuild) ---
+
+/**
+ * PlanArtifact - structured plan proposal from an agent
+ * Used in pickbuild mode for plan-level comparison
+ */
+export interface PlanArtifact {
+  title: string;                     // Short plan name
+  summary: string[];                 // 3-6 bullet points
+  assumptions: string[];             // Assumptions made
+  steps: PlanArtifactStep[];         // Ordered implementation steps
+  risks: PlanRisk[];                 // Identified risks with mitigations
+  acceptanceCriteria: string[];      // Definition of done
+}
+
+export interface PlanArtifactStep {
+  id: string;
+  goal: string;
+  filesLikelyTouched?: string[];     // Files that will likely be modified
+  approach: string;                  // How to accomplish this step
+  verification: string;              // How to verify success
+}
+
+export interface PlanRisk {
+  risk: string;
+  mitigation: string;
+}
+
+/**
+ * PickedPlanDecision - result of plan selection
+ */
+export interface PickedPlanDecision {
+  winnerAgent: AgentName | 'auto';   // Which agent's plan was selected
+  plan: PlanArtifact;                // The chosen plan
+  why: string;                       // Concise rationale for selection
+}
+
+/**
+ * PickBuildOptions - options for Compare→Pick→Build workflow
+ */
+export interface PickBuildOptions {
+  agents: AgentName[];               // Proposer agents (default: ['claude', 'gemini'])
+  picker?: AgentName | 'human';      // Who selects the winning plan (default: 'human' interactive, 'claude' non-interactive)
+  buildAgent?: AgentName;            // Agentic implementer (default: 'claude')
+  reviewer?: AgentName;              // Optional review agent
+  sequential?: boolean;              // Run proposers sequentially (default: parallel)
+  interactive?: boolean;             // Confirm plan pick + risky operations
+  format?: 'json' | 'md';            // Plan output format (default: 'json')
+  skipReview?: boolean;              // Skip review step
+  projectStructure?: string;         // Project file listing for context
 }
 
 // --- Dynamic Memory Injection (Phase 7) ---

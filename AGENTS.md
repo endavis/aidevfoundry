@@ -175,16 +175,17 @@ npm link              # Link CLI globally
 
 | Mode | Description | Command |
 |------|-------------|---------|
-| **Single** | One agent processes task | `puzldai run "task"` |
-| **Compare** | Multiple agents in parallel | `puzldai compare "task"` |
-| **Pipeline** | Chain agents: `gemini:analyze,claude:code` | `puzldai run "task" -P "..."` |
-| **Workflow** | Saved reusable pipeline | `puzldai run "task" -T name` |
-| **Autopilot** | LLM generates and executes plan | `puzldai autopilot "task"` |
-| **Correct** | Producer → Reviewer → Fix | `puzldai correct "task"` |
-| **Debate** | Agents argue in rounds | `puzldai debate "topic"` |
-| **Consensus** | Propose → Vote → Synthesize | `puzldai consensus "task"` |
-| **Plan** | Analyze without execution | `puzldai plan "task"` |
-| **Build** | Full tool access for implementation | `puzldai build "task"` |
+| **Single** | One agent processes task | `pk-puzldai run "task"` |
+| **Compare** | Multiple agents in parallel | `pk-puzldai compare "task"` |
+| **Pipeline** | Chain agents: `gemini:analyze,claude:code` | `pk-puzldai run "task" -P "..."` |
+| **Workflow** | Saved reusable pipeline | `pk-puzldai run "task" -T name` |
+| **Autopilot** | LLM generates and executes plan | `pk-puzldai autopilot "task"` |
+| **Correct** | Producer → Reviewer → Fix | `pk-puzldai correct "task"` |
+| **Debate** | Agents argue in rounds | `pk-puzldai debate "topic"` |
+| **Consensus** | Propose → Vote → Synthesize | `pk-puzldai consensus "task"` |
+| **PickBuild** | Propose plans → Pick best → Implement | `pk-puzldai pickbuild "task"` |
+| **Plan** | Analyze without execution | `pk-puzldai autopilot "task"` (no -x) |
+| **Build** | Full tool access for implementation | `pk-puzldai agent -a claude` |
 
 ---
 
@@ -216,10 +217,16 @@ LLMs may use various tool names (`read_file`, `file_read`, etc.). The system nor
 
 ## Testing
 
-No test files exist in the current codebase. When adding tests:
-- Use Bun test framework (`bun test`)
-- Place tests in `tests/` directory (currently empty)
+Tests use Bun test framework (`bun test`).
+
+**Test Files:**
+- `src/agentic/agent-loop.test.ts` - Tool name normalization, parsing, permission categories
+- `src/lib/stream-parser.test.ts` - Stream parsing tests
+
+**Adding Tests:**
+- Co-locate with source files (e.g., `foo.ts` → `foo.test.ts`)
 - Mock adapters to avoid external API calls
+- Run with `bun test` or `npm run test`
 
 ---
 
@@ -237,8 +244,24 @@ Triggered by GitHub release event (`.github/workflows/npm-publish.yml`):
 
 | Issue | Solution |
 |-------|----------|
-| Adapter unavailable | Run `puzldai check` to verify CLI installation |
+| Adapter unavailable | Run `pk-puzldai check` to verify CLI installation |
 | Router fails | Ensure Ollama is running and `routerModel` is available |
 | Token limits | Use context compaction, reduce history, or simplify prompts |
 | Tool not found | Check `normalizeToolName()` aliases in `agent-loop.ts` |
 | Permission loops | Check `permissionTracker` auto-approval state |
+
+---
+
+## Provider Safety
+
+For agentic mode, some providers are safer than others. See [PROVIDER_SUPPORT_MATRIX.md](PROVIDER_SUPPORT_MATRIX.md) for details:
+
+| Provider | Agentic Safety | Notes |
+|----------|----------------|-------|
+| Claude | SAFE | Full permission system support |
+| Ollama | SAFE | Local, no native file access |
+| Mistral | SAFE | `disableTools: true` by default |
+| Gemini | UNSAFE | Auto-reads files, use `gemini-safe` |
+| Codex | UNSAFE | No approval layer, use `codex-safe` |
+| Factory | CONDITIONAL | Depends on `autonomy` and `skipPermissions` config |
+| Crush | CONDITIONAL | Depends on `autoAccept` config |

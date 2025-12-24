@@ -1473,6 +1473,15 @@ Phase 7 (Docs) can run independently after Phase 2
 
 ## 🔄 Change Log
 
+### 2025-12-24
+- Documentation consolidation completed:
+  - Aligned CLI command names (`pk-puzldai` across all docs)
+  - Updated test file references to include `agent-loop.test.ts`
+  - Added Provider Safety sections referencing PROVIDER_SUPPORT_MATRIX.md
+  - Added PickBuild mode to all relevant sections
+  - Fixed repository URLs to use consistent format
+  - Added Factory/Crush safety notes to CLAUDE.md
+
 ### 2025-12-23
 - Initial plan created
 - All 13 tasks identified

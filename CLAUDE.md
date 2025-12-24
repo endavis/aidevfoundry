@@ -73,11 +73,13 @@ interface Adapter {
   - `ollama.ts` - Local Ollama integration
   - `mistral.ts` - Mistral AI integration
 - **External CLI Tool Adapters:**
-  - `factory.ts` - Factory AI (droid) CLI integration
-  - `crush.ts` - Charm Crush CLI integration
+  - `factory.ts` - Factory AI (droid) CLI with configurable autonomy levels
+  - `crush.ts` - Charm Crush CLI with auto-accept mode
 - **Easter Egg Game Adapters** (demonstrating adapter pattern):
   - `factory-ai-droid.ts` - Resource management puzzle game
   - `charm-crush.ts` - Match-3 puzzle game
+
+**Safety Note:** Factory and Crush adapters have configuration options that can bypass permission prompts. See [PROVIDER_SUPPORT_MATRIX.md](PROVIDER_SUPPORT_MATRIX.md) for safe configurations.
 
 **Pattern for new adapters:**
 1. Implement `Adapter` interface
@@ -100,7 +102,7 @@ interface Adapter {
 ```typescript
 interface ExecutionPlan {
   id: string;
-  mode: PlanMode; // 'single' | 'compare' | 'pipeline' | 'debate' | 'consensus'
+  mode: PlanMode; // 'single' | 'compare' | 'pipeline' | 'debate' | 'consensus' | 'pickbuild'
   prompt: string;
   steps: PlanStep[];
   context?: Record<string, unknown>;
@@ -385,37 +387,40 @@ To extend config with new features, update `src/lib/config.ts`
 
 ```bash
 # Single task
-puzldai run <task>
+pk-puzldai run <task>
 
 # Compare agents
-puzldai compare <prompt>
+pk-puzldai compare <prompt>
 
 # AI-planned workflow
-puzldai autopilot <task>
+pk-puzldai autopilot <task>
+
+# Compare→Pick→Build workflow
+pk-puzldai pickbuild <task> -a claude,gemini -i
 
 # Correction mode
-puzldai correct <task> --producer X --reviewer Y
+pk-puzldai correct <task> --producer X --reviewer Y
 
 # Multi-agent debate
-puzldai debate <topic> -a X,Y -r N
+pk-puzldai debate <topic> -a X,Y -r N
 
 # Consensus building
-puzldai consensus <task> -a X,Y,Z
+pk-puzldai consensus <task> -a X,Y,Z
 
 # Template management
-puzldai template {list,show,create,edit,delete}
+pk-puzldai template {list,show,create,edit,delete}
 
 # Session management
-puzldai session {list,new,info,delete,clear}
+pk-puzldai session {list,new,info,delete,clear}
 
 # Codebase indexing
-puzldai index [path]
+pk-puzldai index [path]
 
 # Model configuration
-puzldai model {show,list,set,clear}
+pk-puzldai model {show,list,set,clear}
 
 # API server
-puzldai serve [-p PORT] [-w]
+pk-puzldai serve [-p PORT] [-w]
 ```
 
 To add new commands, create file in `src/cli/commands/` and register in `src/cli/index.ts`
@@ -485,11 +490,14 @@ Steps have `dependsOn` fields - executor respects dependencies and enables paral
 
 Run tests with:
 ```bash
+bun test
+# or
 npm run test
 ```
 
-Test files should be co-located with source:
-- `src/lib/stream-parser.test.ts` - Example test file
+Test files are co-located with source:
+- `src/agentic/agent-loop.test.ts` - Tool name normalization, parsing, permission categories
+- `src/lib/stream-parser.test.ts` - Stream parsing tests
 
 ---
 
@@ -567,6 +575,21 @@ const plan: ExecutionPlan = {
 }
 ```
 
+### PickBuild Workflow (Compare→Pick→Build)
+```typescript
+import { buildPickBuildPlan } from './plan-builders';
+
+const plan = buildPickBuildPlan('Add user authentication', {
+  agents: ['claude', 'gemini'],      // Agents to propose plans
+  picker: 'human',                    // Who picks: 'human' | AgentName
+  buildAgent: 'claude',               // Agent to implement chosen plan
+  reviewer: 'gemini',                 // Optional review step
+  interactive: true,                  // Confirm risky operations
+  format: 'json'                      // Plan output format
+});
+// Phases: propose → pick → build → review
+```
+
 ---
 
 ## Future Extension Points
@@ -591,6 +614,22 @@ PuzldAI's architecture naturally supports game integration:
 
 ---
 
+## Provider Safety
+
+For agentic mode, some providers have different safety profiles. See [PROVIDER_SUPPORT_MATRIX.md](PROVIDER_SUPPORT_MATRIX.md) for full details:
+
+| Provider | Agentic Safety | Notes |
+|----------|----------------|-------|
+| Claude | SAFE | Full permission system support |
+| Ollama | SAFE | Local, no native file access |
+| Mistral | SAFE | `disableTools: true` by default |
+| Gemini | UNSAFE | Auto-reads files, use `gemini-safe` |
+| Codex | UNSAFE | No approval layer, use `codex-safe` |
+| Factory | CONDITIONAL | Depends on `autonomy` and `skipPermissions` config |
+| Crush | CONDITIONAL | Depends on `autoAccept` config |
+
+---
+
 ## License
 
 AGPL-3.0-only
@@ -599,4 +638,4 @@ AGPL-3.0-only
 
 ## Repository
 
-https://github.com/MedChaouch/Puzld.ai
+https://github.com/kingkillery/Puzld.ai
