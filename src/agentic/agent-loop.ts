@@ -1,7 +1,7 @@
 // Agent loop - runs LLM with tools until completion
 
 import type { Adapter, ModelResponse, RunOptions } from '../lib/types';
-import { allTools, executeTools, executeTool, getTool } from './tools';
+import { allTools, executeTools, executeTool } from './tools';
 import type { Tool, ToolCall, ToolResult, AgentMessage } from './tools/types';
 import { globSync } from 'glob';
 import { readFileSync, existsSync } from 'fs';
@@ -885,84 +885,6 @@ async function prepareDiffPreview(
     return { filePath: fullPath, operation, originalContent, newContent };
   } catch {
     return null;
-  }
-}
-
-/**
- * Show diff preview for write/edit operations (single file)
- * Returns decision from user
- */
-type DiffDecision = 'yes' | 'yes-all' | 'no';
-
-async function showDiffPreview(
-  call: ToolCall,
-  cwd: string,
-  toolName: string,
-  handler: (preview: {
-    filePath: string;
-    operation: 'create' | 'edit' | 'overwrite';
-    originalContent: string | null;
-    newContent: string;
-  }) => Promise<DiffDecision>
-): Promise<DiffDecision> {
-  const filePath = (call.arguments.path || call.arguments.file_path || call.arguments.file) as string;
-  if (!filePath) return 'yes'; // No path, can't show preview
-
-  const fullPath = resolve(cwd, filePath);
-  let originalContent: string | null = null;
-  let newContent: string;
-  let operation: 'create' | 'edit' | 'overwrite';
-
-  try {
-    if (toolName === 'write') {
-      // Write tool - check if file exists
-      // Normalize content argument (Gemini may use different names)
-      newContent = (call.arguments.content || call.arguments.file_content ||
-                    call.arguments.text || call.arguments.body ||
-                    call.arguments.data || '') as string;
-      if (existsSync(fullPath)) {
-        originalContent = readFileSync(fullPath, 'utf-8');
-        operation = 'overwrite';
-      } else {
-        operation = 'create';
-      }
-    } else if (toolName === 'edit') {
-      // Edit tool - apply search/replace to get preview
-      // Normalize search/replace arguments
-      const search = (call.arguments.search || call.arguments.old_text ||
-                      call.arguments.find || call.arguments.pattern) as string;
-      const replace = (call.arguments.replace || call.arguments.new_text ||
-                       call.arguments.replacement || call.arguments.with) as string;
-
-      if (!existsSync(fullPath)) {
-        return 'yes'; // File doesn't exist, let the tool handle the error
-      }
-
-      originalContent = readFileSync(fullPath, 'utf-8');
-
-      // Check if search text exists
-      if (!originalContent.includes(search)) {
-        return 'yes'; // Search not found, let the tool handle the error
-      }
-
-      // Apply the replacement to get new content
-      newContent = originalContent.replace(search, replace);
-      operation = 'edit';
-    } else {
-      return 'yes'; // Unknown tool, proceed
-    }
-
-    // Call the handler to show diff and get approval
-    return await handler({
-      filePath: fullPath,
-      operation,
-      originalContent,
-      newContent,
-    });
-  } catch {
-    // If we can't read the file or something goes wrong, proceed with execution
-    // The actual tool will handle errors appropriately
-    return 'yes';
   }
 }
 

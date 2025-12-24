@@ -34,6 +34,7 @@ async function getCapabilities(): Promise<CoreCapabilities> {
   const available: string[] = [];
   const models: Record<string, string> = {};
   const availableModels: Record<string, string[]> = {};
+  const config = getConfig();
 
   for (const [name, adapter] of Object.entries(adapters)) {
     try {
@@ -44,6 +45,11 @@ async function getCapabilities(): Promise<CoreCapabilities> {
         if (agentModels.length > 0) {
           availableModels[name] = agentModels;
         }
+        // Get configured model from config
+        const adapterConfig = config.adapters[name as keyof typeof config.adapters];
+        if (adapterConfig && 'model' in adapterConfig && adapterConfig.model) {
+          models[name] = adapterConfig.model;
+        }
       }
     } catch {
       // Skip unavailable adapters
@@ -53,7 +59,7 @@ async function getCapabilities(): Promise<CoreCapabilities> {
   return {
     agents: available,
     modes: ['run', 'compare', 'pipeline', 'debate', 'consensus', 'correct'],
-    models: {},  // Configured models - can be populated from config if needed
+    models,
     availableModels,
     version: process.env.npm_package_version || '0.2.91'
   };
@@ -225,8 +231,8 @@ export async function startBridge(options: {
 
   const app = createBridgeApp();
 
-  // Start server
-  const server = serve({
+  // Start server (server reference kept for potential future graceful shutdown)
+  void serve({
     fetch: app.fetch,
     port,
     hostname: host

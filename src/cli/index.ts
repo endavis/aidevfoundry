@@ -43,6 +43,7 @@ import {
   logoutCommand,
   whoamiCommand
 } from './commands/login';
+import { tasksCommand } from './commands/tasks';
 import { startTUI } from '../tui';
 import { readFileSync } from 'fs';
 import { join, dirname } from 'path';
@@ -343,6 +344,21 @@ program
     interactive: opts.interactive,
     format: opts.format,
     noReview: !opts.review
+  }));
+
+// Task management commands
+program
+  .command('tasks [action] [target]')
+  .description('Manage background tasks (list, show, output, kill, delete, clear)')
+  .option('-s, --status <status>', 'Filter by status (running, completed, failed, cancelled)')
+  .option('-t, --type <type>', 'Filter by type (agent, shell, plan)')
+  .option('-l, --limit <number>', 'Limit number of results', '20')
+  .option('-w, --wait', 'Wait for task completion (for output command)')
+  .action((action, target, opts) => tasksCommand(action, target, {
+    status: opts.status,
+    type: opts.type,
+    limit: parseInt(opts.limit, 10),
+    wait: opts.wait
   }));
 
 // If no arguments, launch TUI; otherwise parse commands
