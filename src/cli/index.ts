@@ -36,6 +36,7 @@ import {
   featureCommand
 } from './commands/factory-modes';
 import { rememberCommand } from './commands/remember';
+import { interactiveCommand } from './commands/interactive';
 import {
   modelShowCommand,
   modelListCommand,
@@ -480,6 +481,26 @@ program
   .action((memory, opts) => rememberCommand(memory, {
     scope: opts.scope as 'personal' | 'project',
     list: opts.list
+  }));
+
+// Interactive mode command
+program
+  .command('interact')
+  .description('Run a CLI tool in interactive mode (pk-puzldai responds to prompts)')
+  .argument('<prompt>', 'Initial prompt/task for the interactive session')
+  .option('-a, --agent <agent>', 'CLI agent to run interactively', 'gemini')
+  .option('-r, --responder <agent>', 'Agent for generating responses', 'ollama')
+  .option('-n, --max-interactions <n>', 'Max number of interactions', '50')
+  .option('-t, --timeout <seconds>', 'Session timeout in seconds', '300')
+  .option('-m, --model <model>', 'Model to use for the CLI agent')
+  .option('-v, --verbose', 'Show detailed output and interactions')
+  .action((prompt, opts) => interactiveCommand(prompt, {
+    agent: opts.agent,
+    responder: opts.responder,
+    maxInteractions: opts.maxInteractions,
+    timeout: opts.timeout,
+    model: opts.model,
+    verbose: opts.verbose
   }));
 
 // Task management commands

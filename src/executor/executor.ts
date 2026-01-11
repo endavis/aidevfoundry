@@ -433,6 +433,18 @@ async function executeStepOnce(
     }
   }
 
+  // Check for interactive mode
+  if (step.interactive) {
+    const result = await runInteractiveStep(agent, prompt, step, config);
+    return {
+      stepId: step.id,
+      status: result.error ? 'failed' : 'completed',
+      content: result.content,
+      error: result.error,
+      model: result.model
+    };
+  }
+
   const result = await runAdapter(agent, prompt, config, step.id, step.model);
 
   return {
@@ -442,6 +454,55 @@ async function executeStepOnce(
     error: result.error,
     model: result.model
   };
+}
+
+/**
+ * Run a step in interactive mode
+ *
+ * pk-puzldai acts as the "user" responding to prompts from the CLI tool
+ */
+async function runInteractiveStep(
+  agent: AgentName,
+  prompt: string,
+  step: PlanStep,
+  config: ExecutorConfig
+): Promise<{ content: string; model: string; error?: string }> {
+  const adapter = adapters[agent];
+
+  if (!adapter) {
+    return { content: '', model: agent, error: `Unknown agent: ${agent}` };
+  }
+
+  if (!(await adapter.isAvailable())) {
+    return { content: '', model: agent, error: `Agent ${agent} not available` };
+  }
+
+  const timeout = step.timeout ?? config.defaultTimeout ?? DEFAULT_TIMEOUT;
+
+  try {
+    const result = await runInteractive(agent, prompt, {
+      planContext: step.planContext || prompt,
+      responderAgent: step.responderAgent || 'ollama',
+      maxInteractions: step.maxInteractions || 50,
+      sessionTimeout: timeout,
+      model: step.model,
+      onOutput: config.onChunk
+        ? (chunk: string) => config.onChunk?.(step.id, chunk)
+        : undefined,
+    });
+
+    return {
+      content: result.content,
+      model: result.model,
+      error: result.error
+    };
+  } catch (err) {
+    return {
+      content: '',
+      model: `${agent}/interactive`,
+      error: (err as Error).message
+    };
+  }
 }
 
 /**
