@@ -1,8 +1,8 @@
 # PuzldAI - Game System Implementation Plan
 
-**Last Updated:** 2025-12-23
+**Last Updated:** 2026-01-10
 **Status:** In Progress
-**Completion:** 3/13 tasks (Phase 1 complete, Phase 2A complete, Phase 2B complete)
+**Completion:** 3/13 tasks (Phase 1 complete, Phase 2A complete, Phase 2B complete) + Task Persistence Feature (Complete)
 
 ---
 
@@ -1646,6 +1646,44 @@ To work on a task from this plan:
 - [GAME_INTEGRATION.md](./GAME_INTEGRATION.md) - Game system overview
 - [CLAUDE.md](./CLAUDE.md) - Complete project guide
 - [README.md](./README.md) - Getting started
+
+---
+
+## 📝 Change Log
+
+### 2026-01-10: Task Persistence Feature Completed
+
+**Implemented API Server Task Persistence Layer**
+
+**Files Created:**
+- `src/api/task-persistence.ts` (242 lines) - SQLite-backed task storage with prepared statements
+
+**Files Modified:**
+- `src/memory/database.ts` - Added Migration 5: api_tasks table with indexes
+- `src/api/server.ts` - Integrated persistence with cache-aside pattern
+- `src/adapters/codex-safe.ts` - Fixed 'const content' to 'let content' bug
+
+**Features Implemented:**
+- ✅ Tasks survive server restarts
+- ✅ Queue position returned in API response
+- ✅ Running tasks marked failed on restart (can't resume mid-execution)
+- ✅ Queued tasks automatically restored and reprocessed
+- ✅ Cache-aside pattern for performance (hot cache + database fallback)
+- ✅ Prepared statements for optimal database performance
+- ✅ Automatic cleanup of tasks older than 1 hour
+- ✅ Queue metrics (pending, active, completed) in task status responses
+
+**Technical Details:**
+- Database: SQLite with better-sqlite3
+- Schema: api_tasks table with status CHECK constraint
+- Indexes: status, started_at (DESC), updated_at (DESC)
+- Concurrency: TaskQueue with max 5 concurrent tasks
+- Startup behavior: Restores queued tasks, marks running tasks as failed
+
+**Testing:**
+- Verified task creation, updates, and retrieval
+- Tested server restart recovery
+- Confirmed automatic cleanup works
 
 ---
 
