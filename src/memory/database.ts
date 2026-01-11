@@ -301,6 +301,20 @@ function runMigrations(database: Database.Database): void {
       CREATE INDEX IF NOT EXISTS idx_api_tasks_queue_position ON api_tasks(queue_position);
     `);
 
+    // Fix #1: Set proper queue positions for existing queued tasks
+    database.exec(`
+      -- Update queue_position for existing queued tasks based on start time
+      UPDATE api_tasks
+      SET queue_position = (
+        SELECT COUNT(*) + 1
+        FROM api_tasks AS t2
+        WHERE t2.status = 'queued'
+          AND t2.started_at <= api_tasks.started_at
+          AND t2.id != api_tasks.id
+      )
+      WHERE status = 'queued' AND queue_position = 0;
+    `);
+
     database.prepare("UPDATE metadata SET value = '6' WHERE key = 'schema_version'").run();
   }
 }

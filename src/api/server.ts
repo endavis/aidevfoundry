@@ -73,13 +73,89 @@ export async function startServer(options: ServerOptions): Promise<void> {
     const taskId = task.startedAt.toString(); // Use startedAt as ID since we need the original
     if (task.status === 'queued') {
       syncTaskToCache(taskId, task);
+
+      // Fix #3: Re-enqueue the task so it actually executes
+      taskQueue.enqueue(taskId, async () => {
+        const taskForRun = tasks.get(taskId);
+        if (taskForRun) {
+          taskForRun.status = 'running';
+          try {
+            persistence.updateTask(taskId, { status: 'running' });
+          } catch (dbError) {
+            console.error(`[server] Failed to update task status in DB:`, dbError);
+          }
+        }
+
+        try {
+          // Fix #10: Wrap orchestrate in try-catch to handle unexpected errors
+          const result = await orchestrate(task.prompt, { agent: task.agent });
+
+          const currentTask = tasks.get(taskId);
+          if (currentTask) {
+            if (result.error) {
+              currentTask.status = 'failed';
+              currentTask.error = result.error;
+              try {
+                persistence.updateTask(taskId, { status: 'failed', error: result.error, completedAt: Date.now() });
+              } catch (dbError) {
+                console.error(`[server] Failed to persist task failure:`, dbError);
+              }
+            } else {
+              currentTask.status = 'completed';
+              currentTask.result = result.content;
+              currentTask.model = result.model;
+              try {
+                persistence.updateTask(taskId, { status: 'completed', result: result.content, model: result.model, completedAt: Date.now() });
+              } catch (dbError) {
+                console.error(`[server] Failed to persist task completion:`, dbError);
+              }
+            }
+
+            // Fix #4: Evict completed/failed tasks from cache
+            evictFromCache(taskId);
+          }
+          return result;
+        } catch (orchestrateError) {
+          // Fix #10: Handle unexpected errors from orchestrate
+          const errorMessage = orchestrateError instanceof Error
+            ? orchestrateError.message
+            : 'Unknown orchestrate error';
+
+          console.error(`[server] Orchestrate error for task ${taskId}:`, errorMessage);
+
+          const currentTask = tasks.get(taskId);
+          if (currentTask) {
+            currentTask.status = 'failed';
+            currentTask.error = errorMessage;
+            try {
+              persistence.updateTask(taskId, {
+                status: 'failed',
+                error: errorMessage,
+                completedAt: Date.now()
+              });
+            } catch (dbError) {
+              console.error(`[server] Failed to persist orchestrate error:`, dbError);
+            }
+
+            // Fix #4: Evict failed tasks from cache
+            evictFromCache(taskId);
+          }
+
+          throw orchestrateError; // Re-throw for task queue error handling
+        }
+      });
+
       restoredCount++;
     } else if (task.status === 'running') {
-      persistence.updateTask(taskId, {
-        status: 'failed',
-        error: 'Server restarted during task execution',
-        completedAt: Date.now(),
-      });
+      try {
+        persistence.updateTask(taskId, {
+          status: 'failed',
+          error: 'Server restarted during task execution',
+          completedAt: Date.now(),
+        });
+      } catch (dbError) {
+        console.error(`[server] Failed to mark running task as failed:`, dbError);
+      }
       failedCount++;
     }
   }
@@ -138,7 +214,12 @@ export async function startServer(options: ServerOptions): Promise<void> {
       const taskForRun = tasks.get(id);
       if (taskForRun) {
         taskForRun.status = 'running';
-        persistence.updateTask(id, { status: 'running' });
+        // Fix #6: Add error handling for DB update
+        try {
+          persistence.updateTask(id, { status: 'running' });
+        } catch (dbError) {
+          console.error(`[server] Failed to update task status in DB:`, dbError);
+        }
       }
 
       try {
@@ -150,16 +231,27 @@ export async function startServer(options: ServerOptions): Promise<void> {
           if (result.error) {
             currentTask.status = 'failed';
             currentTask.error = result.error;
-            persistence.updateTask(id, { status: 'failed', error: result.error, completedAt: Date.now() });
+            // Fix #2 & #6: Wrap DB update in try-catch, only evict on success
+            try {
+              persistence.updateTask(id, { status: 'failed', error: result.error, completedAt: Date.now() });
+              evictFromCache(id); // ✅ Only evict after successful DB update
+            } catch (dbError) {
+              console.error(`[server] Failed to persist task failure:`, dbError);
+              // Keep in cache so user can still see it
+            }
           } else {
             currentTask.status = 'completed';
             currentTask.result = result.content;
-            persistence.updateTask(id, { status: 'completed', result: result.content, model: result.model, completedAt: Date.now() });
+            currentTask.model = result.model;
+            // Fix #2 & #6: Wrap DB update in try-catch, only evict on success
+            try {
+              persistence.updateTask(id, { status: 'completed', result: result.content, model: result.model, completedAt: Date.now() });
+              evictFromCache(id); // ✅ Only evict after successful DB update
+            } catch (dbError) {
+              console.error(`[server] Failed to persist task completion:`, dbError);
+              // Keep in cache so user can still see it
+            }
           }
-          currentTask.model = result.model;
-
-          // Fix #4: Evict completed/failed tasks from cache
-          evictFromCache(id);
         }
         return result;
       } catch (orchestrateError) {
@@ -174,14 +266,18 @@ export async function startServer(options: ServerOptions): Promise<void> {
         if (currentTask) {
           currentTask.status = 'failed';
           currentTask.error = errorMessage;
-          persistence.updateTask(id, {
-            status: 'failed',
-            error: errorMessage,
-            completedAt: Date.now()
-          });
-
-          // Fix #4: Evict failed tasks from cache
-          evictFromCache(id);
+          // Fix #2 & #6: Wrap DB update in try-catch, only evict on success
+          try {
+            persistence.updateTask(id, {
+              status: 'failed',
+              error: errorMessage,
+              completedAt: Date.now()
+            });
+            evictFromCache(id); // ✅ Only evict after successful DB update
+          } catch (dbError) {
+            console.error(`[server] Failed to persist orchestrate error:`, dbError);
+            // Keep in cache so user can still see it
+          }
         }
 
         throw orchestrateError; // Re-throw for task queue error handling

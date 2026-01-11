@@ -79,6 +79,11 @@ export function saveTask(id: string, entry: TaskEntry, queuePosition?: number): 
   const db = getDatabase();
   const now = Date.now();
 
+  // Fix #5: Validate queue position
+  const validatedQueuePosition = (queuePosition !== undefined && queuePosition >= 0)
+    ? queuePosition
+    : 0;
+
   try {
     saveTaskStmt!.run({
       id,
@@ -91,7 +96,7 @@ export function saveTask(id: string, entry: TaskEntry, queuePosition?: number): 
       startedAt: entry.startedAt,
       completedAt: entry.completedAt || null,
       updatedAt: now,
-      queuePosition: queuePosition || 0,
+      queuePosition: validatedQueuePosition,
     });
   } catch (error) {
     console.error(`[task-persistence] Failed to save task ${id}:`, error);
