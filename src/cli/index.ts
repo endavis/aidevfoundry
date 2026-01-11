@@ -46,6 +46,7 @@ import {
 } from './commands/login';
 import { tasksCommand } from './commands/tasks';
 import { gameCommand } from './commands/game';
+import { orchestrateCommand } from './commands/orchestrate';
 import { startTUI } from '../tui';
 import { readFileSync } from 'fs';
 import { join, dirname } from 'path';
@@ -70,6 +71,7 @@ program
   .option('-P, --pipeline <steps>', 'Run as pipeline (e.g., "gemini:analyze,claude:code")')
   .option('-T, --template <name>', 'Use a saved pipeline template')
   .option('-i, --interactive', 'Prompt before each step in pipeline/template mode')
+  .option('-x, --agentic', 'Enable agentic mode with tool access (read/write files)')
   .action(runCommand);
 
 program
@@ -80,6 +82,19 @@ program
   .option('-s, --sequential', 'Run agents sequentially instead of parallel')
   .option('-p, --pick', 'Have an LLM pick the best response')
   .action(compareCommand);
+
+program
+  .command('orchestrate')
+  .description('Intelligently orchestrate multi-agent workflows')
+  .argument('<task>', 'The task to orchestrate')
+  .option('-m, --mode <mode>', 'Orchestration mode: delegate|coordinate|supervise', 'delegate')
+  .option('-a, --agents <agents>', 'Comma-separated agents to use', 'claude,gemini')
+  .option('-A, --agent <agent>', 'Primary agent (overrides agents)', 'auto')
+  .action((task, opts) => orchestrateCommand(task, {
+    mode: opts.mode as 'delegate' | 'coordinate' | 'supervise',
+    agents: opts.agents,
+    agent: opts.agent
+  }));
 
 program
   .command('autopilot')

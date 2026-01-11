@@ -1,6 +1,9 @@
 import pc from 'picocolors';
 import * as readline from 'readline';
 import { orchestrate } from '../../orchestrator';
+import { runAgentLoop } from '../../agentic/agent-loop';
+import { adapters } from '../../adapters';
+import { getConfig } from '../../lib/config';
 import {
   buildPipelinePlan,
   parsePipelineString,
@@ -17,6 +20,7 @@ interface RunCommandOptions {
   pipeline?: string;
   template?: string;
   interactive?: boolean;
+  agentic?: boolean;
 }
 
 export async function runCommand(task: string, options: RunCommandOptions): Promise<void> {
@@ -48,6 +52,13 @@ async function runSingleAgent(task: string, options: RunCommandOptions): Promise
     console.log(pc.dim('Routing task...'));
   }
 
+  // Agentic mode: use agent loop with tool access
+  if (options.agentic) {
+    await runAgenticMode(task, options);
+    return;
+  }
+
+  // Standard mode: orchestrate without tools
   let streamed = false;
   const result = await orchestrate(task, {
     agent: options.agent,
@@ -72,6 +83,72 @@ async function runSingleAgent(task: string, options: RunCommandOptions): Promise
   console.log(pc.dim(`Model: ${result.model} | Time: ${(duration / 1000).toFixed(1)}s`));
   if (result.tokens) {
     console.log(pc.dim(`Tokens: ${result.tokens.input} in / ${result.tokens.output} out`));
+  }
+}
+
+async function runAgenticMode(task: string, options: RunCommandOptions): Promise<void> {
+  const config = getConfig();
+  const startTime = Date.now();
+  const agentName = options.agent && options.agent !== 'auto' ? options.agent : 'claude';
+
+  console.log(pc.cyan(`\n🤖 Agentic mode enabled - agent can use tools to read/write files\n`));
+
+  const adapter = adapters[agentName];
+  if (!adapter) {
+    console.error(pc.red(`Error: Unknown agent: ${agentName}`));
+    process.exit(1);
+  }
+
+  if (!(await adapter.isAvailable())) {
+    console.error(pc.red(`Error: Agent ${agentName} is not available. Run 'pk-puzldai check' for details.`));
+    process.exit(1);
+  }
+
+  let streamedContent = '';
+  let toolCallsCount = 0;
+
+  try {
+    const result = await runAgentLoop(adapter, task, {
+      cwd: process.cwd(),
+      disableTools: true, // We handle tools ourselves
+      onIteration: (iteration: number, response: string) => {
+        console.log(pc.dim(`\n--- Iteration ${iteration} ---`));
+      },
+      onToolCall: (call) => {
+        toolCallsCount++;
+        const args = Object.entries(call.arguments)
+          .map(([k, v]) => `${k}=${typeof v === 'string' ? v.slice(0, 50) : v}`)
+          .join(', ');
+        console.log(pc.cyan(`  🔧 ${call.name}(${args})`));
+      },
+      onToolEnd: (call, result) => {
+        const status = result.isError ? pc.red('✗') : pc.green('✓');
+        const preview = result.content.slice(0, 100).replace(/\n/g, ' ');
+        console.log(`  ${status} ${call.name}: ${preview}${result.content.length > 100 ? '...' : ''}`);
+      },
+      onDiffPreview: async (preview) => {
+        console.log(pc.yellow(`\n  📝 File change: ${preview.filePath}`));
+        console.log(pc.dim(`     ${preview.operation} (${preview.newContent.length} bytes)`));
+        return 'yes'; // Auto-approve in CLI mode
+      }
+    });
+
+    console.log(pc.dim(`\n--- Agent Result ---`));
+    console.log(result.content || '(no content)');
+
+    const duration = Date.now() - startTime;
+    console.log(pc.dim(`\n---`));
+    console.log(pc.dim(`Model: ${result.model} | Time: ${(duration / 1000).toFixed(1)}s`));
+    console.log(pc.dim(`Iterations: ${result.iterations} | Tool calls: ${toolCallsCount}`));
+    if (result.tokens) {
+      console.log(pc.dim(`Tokens: ${result.tokens.input} in / ${result.tokens.output} out`));
+    }
+
+  } catch (err) {
+    const duration = Date.now() - startTime;
+    console.error(pc.red(`\nAgent loop error: ${(err as Error).message}`));
+    console.log(pc.dim(`Time: ${(duration / 1000).toFixed(1)}s`));
+    process.exit(1);
   }
 }
 

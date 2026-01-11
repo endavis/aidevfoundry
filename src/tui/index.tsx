@@ -402,6 +402,7 @@ function App() {
   const [codexModel, setCodexModel] = useState(config.adapters.codex.model || cliDefaults.codex || '');
   const [ollamaModel, setOllamaModel] = useState(config.adapters.ollama.model || cliDefaults.ollama || '');
   const [mistralModel, setMistralModel] = useState(config.adapters.mistral?.model || '');
+  const [factoryModel, setFactoryModel] = useState(config.adapters.factory?.model || '');
 
   // Model setters that persist to config (returns warning if unknown model)
   const handleSetClaudeModel = (model: string): string | undefined => {
@@ -454,6 +455,21 @@ function App() {
     cfg.adapters.mistral.model = model;
     saveConfig(cfg);
     const known = getModelSuggestions('mistral');
+    if (known.length > 0 && !known.includes(model)) {
+      return `Warning: "${model}" not in known models. It may still work.`;
+    }
+    return undefined;
+  };
+
+  const handleSetFactoryModel = (model: string): string | undefined => {
+    setFactoryModel(model);
+    const cfg = getConfig();
+    if (!cfg.adapters.factory) {
+      cfg.adapters.factory = { enabled: true, path: 'droid', autonomy: 'low', reasoningEffort: 'medium' };
+    }
+    cfg.adapters.factory.model = model;
+    saveConfig(cfg);
+    const known = getModelSuggestions('factory');
     if (known.length > 0 && !known.includes(model)) {
       return `Warning: "${model}" not in known models. It may still work.`;
     }
@@ -556,17 +572,18 @@ function App() {
     setShowUpdatePrompt(false);
   };
 
+  const refreshAgentStatus = async () => {
+    const status: AgentStatus[] = [];
+    for (const [name, adapter] of Object.entries(adapters)) {
+      const ready = await adapter.isAvailable();
+      status.push({ name, ready });
+    }
+    setAgentStatus(status);
+  };
+
   // Check agent availability on startup
   useEffect(() => {
-    const checkAgents = async () => {
-      const status: AgentStatus[] = [];
-      for (const [name, adapter] of Object.entries(adapters)) {
-        const ready = await adapter.isAvailable();
-        status.push({ name, ready });
-      }
-      setAgentStatus(status);
-    };
-    checkAgents();
+    refreshAgentStatus();
   }, []);
 
   // Helper to restore messages from unified session
@@ -1692,6 +1709,66 @@ Keep your response concise and focused on the plan, not the implementation.`;
       setMessages(prev => [...prev, { id: nextId(), role: 'assistant', content, agent }]);
     };
 
+    const setAdapterEnabled = async (agentIdRaw: string, enabled: boolean) => {
+      const agentId = agentIdRaw.trim();
+      if (!agentId) {
+        addMessage('Usage: /enable <claude|gemini|codex|ollama|mistral|factory|crush> (or /disable <agent>)');
+        return;
+      }
+
+      const cfg = getConfig();
+      switch (agentId) {
+        case 'claude':
+          cfg.adapters.claude.enabled = enabled;
+          break;
+        case 'gemini':
+          cfg.adapters.gemini.enabled = enabled;
+          break;
+        case 'codex':
+          cfg.adapters.codex.enabled = enabled;
+          break;
+        case 'ollama':
+          cfg.adapters.ollama.enabled = enabled;
+          break;
+        case 'mistral': {
+          if (!cfg.adapters.mistral) {
+            cfg.adapters.mistral = { enabled, path: 'vibe' };
+          } else {
+            cfg.adapters.mistral.enabled = enabled;
+          }
+          break;
+        }
+        case 'factory': {
+          if (!cfg.adapters.factory) {
+            cfg.adapters.factory = { enabled, path: 'droid', autonomy: 'low', reasoningEffort: 'medium' };
+          } else {
+            cfg.adapters.factory.enabled = enabled;
+          }
+          break;
+        }
+        case 'crush': {
+          if (!cfg.adapters.crush) {
+            cfg.adapters.crush = { enabled, path: 'crush', autoAccept: false, debug: false };
+          } else {
+            cfg.adapters.crush.enabled = enabled;
+          }
+          break;
+        }
+        default:
+          addMessage(`Unknown agent: ${agentId}`);
+          return;
+      }
+
+      saveConfig(cfg);
+      await refreshAgentStatus();
+
+      if (!enabled && currentAgent === agentId) {
+        setCurrentAgent('auto');
+      }
+
+      addMessage(`${enabled ? 'Enabled' : 'Disabled'} ${agentId}.`);
+    };
+
     switch (command) {
       // === UTILITY ===
       case 'help':
@@ -1723,7 +1800,9 @@ Multi-Agent Collaboration:
   /consensus <agents> <task>    - Build consensus (rounds in settings)
 
 Options:
-  /agent [name]     - Show/set agent (claude, gemini, codex, ollama, mistral, auto)
+  /agent [name]     - Show/set agent (claude, gemini, codex, ollama, mistral, factory, auto)
+  /enable <agent>   - Enable an agent in config
+  /disable <agent>  - Disable an agent in config
   /approval-mode    - Set approval mode (default/plan/accept/yolo)
   /model [agent] [model] - Show/set model (or open model panel)
   /router [name]    - Show/set routing agent
@@ -1771,6 +1850,15 @@ Compare View:
           setSession(cleared);
         }
         messageId = 0;
+        break;
+
+      case 'enable':
+      case 'activate':
+        await setAdapterEnabled(rest, true);
+        break;
+
+      case 'disable':
+        await setAdapterEnabled(rest, false);
         break;
 
       case 'index': {
@@ -3048,11 +3136,13 @@ Compare View:
           codexModel={codexModel}
           ollamaModel={ollamaModel}
           mistralModel={mistralModel}
+          factoryModel={factoryModel}
           onSetClaudeModel={handleSetClaudeModel}
           onSetGeminiModel={handleSetGeminiModel}
           onSetCodexModel={handleSetCodexModel}
           onSetOllamaModel={handleSetOllamaModel}
           onSetMistralModel={handleSetMistralModel}
+          onSetFactoryModel={handleSetFactoryModel}
         />
       )}
 

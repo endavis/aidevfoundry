@@ -4,6 +4,30 @@ import { getConfig } from '../lib/config';
 import { StreamParser, type ResultEvent } from '../lib/stream-parser';
 import { extractProposedEdits, type ProposedEdit } from '../lib/edit-review';
 
+export function buildClaudeArgs(params: {
+  prompt: string;
+  model?: string;
+  disableTools: boolean;
+}): string[] {
+  // claude -p --output-format stream-json --verbose "prompt" for non-interactive output
+  // -p is shorthand for --print (print without interactive mode)
+  // IMPORTANT: `--tools <tools...>` is variadic; using `--tools ""` consumes the positional prompt.
+  // Using `--tools=` sets an empty value without eating the prompt.
+  const args = ['-p', '--output-format', 'stream-json', '--verbose'];
+
+  if (params.disableTools) {
+    args.push('--tools=');
+  }
+
+  if (params.model) {
+    args.push('--model', params.model);
+  }
+
+  // Prompt must come last
+  args.push(params.prompt);
+  return args;
+}
+
 /**
  * Result of a dry-run execution (with permission-mode default)
  */
@@ -38,22 +62,11 @@ export const claudeAdapter: Adapter & {
     const disableTools = options?.disableTools ?? true; // Default: disable tools
 
     try {
-      // claude -p --output-format stream-json --verbose "prompt" for non-interactive output
-      // -p is shorthand for --print (print without interactive mode)
-      // Prompt must come AFTER the flags
-      const args = ['-p', '--output-format', 'stream-json', '--verbose'];
-
-      // Disable native tools for agentic mode (LLM returns JSON, we apply files)
-      if (disableTools) {
-        args.push('--tools', '');
-      }
-
-      if (model) {
-        args.push('--model', model);
-      }
-
-      // Prompt must come last
-      args.push(prompt);
+      const args = buildClaudeArgs({
+        prompt,
+        model,
+        disableTools,
+      });
 
       const { stdout, stderr } = await execa(
         config.adapters.claude.path,
