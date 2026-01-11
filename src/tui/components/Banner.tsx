@@ -106,8 +106,8 @@ export function Banner({ version = '0.1.0', minimal = false, agents = [], change
   // Get changelog items
   const changelogItems = changelog || getLatestChangelog();
 
-  // Default order for display: claude, gemini, codex, ollama, mistral
-  const agentOrder = ['claude', 'gemini', 'codex', 'ollama', 'mistral'];
+  // Default order for display: claude, gemini, codex, ollama, mistral, factory
+  const agentOrder = ['claude', 'gemini', 'codex', 'ollama', 'mistral', 'factory'];
   const defaultAgents: AgentStatus[] = agents.length > 0
     ? agentOrder.map(name => agents.find(a => a.name === name) || { name, ready: false })
     : agentOrder.map(name => ({ name, ready: false }));
@@ -314,15 +314,40 @@ export function Banner({ version = '0.1.0', minimal = false, agents = [], change
       })()}
 
       {/* Remaining changelog items */}
-      {changelogItems.slice(1).map((item, i) => (
-        <Box key={`changelog-${i + 1}`}>
-          <Text color={BORDER}>{BOX.v}</Text>
-          <Text dimColor>{pad('  - ' + item.text, LEFT_WIDTH)}</Text>
-          <Text color={BORDER}>{BOX.v}</Text>
-          <Text>{' '.repeat(RIGHT_WIDTH)}</Text>
-          <Text color={BORDER}>{BOX.v}</Text>
-        </Box>
-      ))}
+      {changelogItems.slice(1).map((item, i) => {
+        // If this is the first changelog item (index 1) and we have a 6th agent, show it
+        if (i === 0 && defaultAgents[5]) {
+          const agent = defaultAgents[5];
+          const bullet = agent.ready ? '●' : '○';
+          const statusText = agent.ready ? 'ready' : 'off';
+          const nameAndStatus = `${agent.name.padEnd(7)} ${statusText}`;
+          const contentLen = 1 + 1 + nameAndStatus.length;
+          const totalPad = RIGHT_WIDTH - contentLen;
+          const leftPadAmt = Math.floor(totalPad / 2);
+          const rightPadAmt = totalPad - leftPadAmt;
+          return (
+            <Box key={`changelog-${i + 1}-agent6`}>
+              <Text color={BORDER}>{BOX.v}</Text>
+              <Text dimColor>{pad('  - ' + item.text, LEFT_WIDTH)}</Text>
+              <Text color={BORDER}>{BOX.v}</Text>
+              <Text>{' '.repeat(leftPadAmt)}</Text>
+              <Text color={agent.ready ? 'green' : GRAY}>{bullet}</Text>
+              <Text> {nameAndStatus}</Text>
+              <Text>{' '.repeat(Math.max(0, rightPadAmt))}</Text>
+              <Text color={BORDER}>{BOX.v}</Text>
+            </Box>
+          );
+        }
+        return (
+          <Box key={`changelog-${i + 1}`}>
+            <Text color={BORDER}>{BOX.v}</Text>
+            <Text dimColor>{pad('  - ' + item.text, LEFT_WIDTH)}</Text>
+            <Text color={BORDER}>{BOX.v}</Text>
+            <Text>{' '.repeat(RIGHT_WIDTH)}</Text>
+            <Text color={BORDER}>{BOX.v}</Text>
+          </Box>
+        );
+      })}
 
       {/* Bottom border */}
       <Text color={BORDER}>{botLine}</Text>

@@ -141,7 +141,7 @@ export const claudeAdapter: Adapter & {
       // Use --permission-mode default to capture Write/Edit attempts
       // WITHOUT --tools "" so Claude can actually try to use tools
       const args = [
-        '-p', prompt,
+        '-p',
         '--output-format', 'stream-json',
         '--verbose',
         '--permission-mode', 'default'
@@ -149,6 +149,9 @@ export const claudeAdapter: Adapter & {
       if (model) {
         args.push('--model', model);
       }
+
+      // Prompt must come last
+      args.push(prompt);
 
       const { stdout, stderr } = await execa(
         config.adapters.claude.path,

@@ -4,7 +4,7 @@ import { getModelSuggestions, isModelAlias } from '../../lib/models';
 
 const HIGHLIGHT = '#8CA9FF';
 
-type AgentTab = 'claude' | 'gemini' | 'codex' | 'ollama' | 'mistral';
+type AgentTab = 'claude' | 'gemini' | 'codex' | 'ollama' | 'mistral' | 'factory';
 
 interface ModelPanelProps {
   onBack: () => void;
@@ -14,12 +14,14 @@ interface ModelPanelProps {
   codexModel: string;
   ollamaModel: string;
   mistralModel: string;
+  factoryModel: string;
   // Setters (parent handles persistence, returns warning if unknown model)
   onSetClaudeModel: (model: string) => string | undefined;
   onSetGeminiModel: (model: string) => string | undefined;
   onSetCodexModel: (model: string) => string | undefined;
   onSetOllamaModel: (model: string) => string | undefined;
   onSetMistralModel: (model: string) => string | undefined;
+  onSetFactoryModel: (model: string) => string | undefined;
 }
 
 export function ModelPanel({
@@ -29,17 +31,19 @@ export function ModelPanel({
   codexModel,
   ollamaModel,
   mistralModel,
+  factoryModel,
   onSetClaudeModel,
   onSetGeminiModel,
   onSetCodexModel,
   onSetOllamaModel,
-  onSetMistralModel
+  onSetMistralModel,
+  onSetFactoryModel
 }: ModelPanelProps) {
   const [tab, setTab] = useState<AgentTab>('claude');
   const [selectedIndex, setSelectedIndex] = useState(0);
   const [warning, setWarning] = useState<string | undefined>();
 
-  const tabs: AgentTab[] = ['claude', 'gemini', 'codex', 'ollama', 'mistral'];
+  const tabs: AgentTab[] = ['claude', 'gemini', 'codex', 'ollama', 'mistral', 'factory'];
 
   const getCurrentModel = () => {
     switch (tab) {
@@ -48,6 +52,7 @@ export function ModelPanel({
       case 'codex': return codexModel;
       case 'ollama': return ollamaModel;
       case 'mistral': return mistralModel;
+      case 'factory': return factoryModel;
     }
   };
 
@@ -69,6 +74,7 @@ export function ModelPanel({
       case 'codex': result = onSetCodexModel(model); break;
       case 'ollama': result = onSetOllamaModel(model); break;
       case 'mistral': result = onSetMistralModel(model); break;
+      case 'factory': result = onSetFactoryModel(model); break;
     }
     setWarning(result);
   };
@@ -114,6 +120,7 @@ export function ModelPanel({
       case 'codex': return 'Codex';
       case 'ollama': return 'Ollama';
       case 'mistral': return 'Mistral';
+      case 'factory': return 'Factory';
     }
   };
 
