@@ -1,11 +1,21 @@
 import Fastify from 'fastify';
 import fastifyStatic from '@fastify/static';
+import fastifySwagger from '@fastify/swagger';
+import fastifySwaggerUi from '@fastify/swagger-ui';
 import { resolve } from 'path';
 import { orchestrate } from '../orchestrator';
 import { adapters, getAvailableAdapters } from '../adapters';
 import { TaskQueue, TaskStatus, MAX_CONCURRENT_TASKS } from './task-queue';
 import * as persistence from './task-persistence';
 import { logger, createLogger, generateRequestId, apiLogger } from '../lib/logger';
+import {
+  taskSubmissionSchema,
+  taskResponseSchema,
+  taskStatusResponseSchema,
+  healthResponseSchema,
+  agentsResponseSchema,
+  errorResponseSchema
+} from './schema';
 
 interface ServerOptions {
   port: number;
