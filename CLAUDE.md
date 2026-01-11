@@ -417,7 +417,10 @@ To extend config with new features, update `src/lib/config.ts`
 ## CLI Commands
 
 ```bash
-# Single task
+# Recommended auto-select
+pk-puzldai do <task>
+
+# Single task (legacy)
 pk-puzldai run <task>
 
 # Compare agents
@@ -452,6 +455,9 @@ pk-puzldai model {show,list,set,clear}
 
 # API server
 pk-puzldai serve [-p PORT] [-w]
+
+# Orchestration profiles
+pk-puzldai profile {list,show,set-default,create,delete}
 ```
 
 To add new commands, create file in `src/cli/commands/` and register in `src/cli/index.ts`
@@ -476,9 +482,9 @@ npm run typecheck
 ```
 
 **Distribution:**
-- Published to npm registry as `puzldai`
-- Installed globally: `npm install -g puzldai`
-- Entry points: `puzld`, `puzldai`
+- Published to npm registry as `pk-puzldai`
+- Installed globally: `npm install -g pk-puzldai`
+- Entry points: `pk-puzldai`
 
 ---
 
@@ -654,8 +660,8 @@ For agentic mode, some providers have different safety profiles. See [PROVIDER_S
 | Claude | SAFE | Full permission system support |
 | Ollama | SAFE | Local, no native file access |
 | Mistral | SAFE | `disableTools: true` by default |
-| Gemini | UNSAFE | Auto-reads files, use `gemini-safe` |
-| Codex | UNSAFE | No approval layer, use `codex-safe` |
+| Gemini | UNSAFE | Auto-reads files; use `gemini-safe` (default redirect) |
+| Codex | UNSAFE | No approval layer; use `codex-safe` (default redirect) |
 | Factory | CONDITIONAL | Depends on `autonomy` and `skipPermissions` config |
 | Crush | CONDITIONAL | Depends on `autoAccept` config |
 

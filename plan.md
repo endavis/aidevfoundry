@@ -2,7 +2,7 @@
 
 **Last Updated:** 2026-01-11
 **Status:** In Progress
-**Completion:** 10/13 tasks (Game system); 0/6 tasks (CLI orchestration)
+**Completion:** 10/13 tasks (Game system); 6/6 tasks (CLI orchestration)
 
 ---
 
@@ -24,14 +24,16 @@ This document tracks the implementation of game mechanics, CLI improvements, and
 - [x] Add win/lose condition detection to both games
 - [x] Test complete game lifecycle (start → play → win/lose → end)
 - [ ] Update agents.md with game system documentation
+- [x] Register gemini-safe/codex-safe CLI adapters with auto-redirect and unsafe aliases
+
 ### CLI Orchestration Enhancements (New)
 
-- [ ] Add orchestration profile schema and defaults
-- [ ] Add profile registry + CLI management commands
-- [ ] Implement profile-driven auto plan selection
-- [ ] Add plan preview/dry-run for orchestrate/run
-- [ ] Add context compression + routing telemetry
-- [ ] Add tests and documentation for profiles
+- [x] Add orchestration profile schema and defaults
+- [x] Add profile registry + CLI management commands
+- [x] Implement profile-driven auto plan selection
+- [x] Add plan preview/dry-run for orchestrate/run
+- [x] Add context compression + routing telemetry
+- [x] Add tests and documentation for profiles
 
 
 ---
@@ -99,13 +101,13 @@ ON game_sessions(game_name) WHERE is_active = 1;
 **Verification:**
 ```bash
 # Should succeed
-puzldai game factory-ai-droid --new
-puzldai game factory-ai-droid --end
-puzldai game factory-ai-droid --new
-puzldai game factory-ai-droid --end
+pk-puzldai game factory-ai-droid --new
+pk-puzldai game factory-ai-droid --end
+pk-puzldai game factory-ai-droid --new
+pk-puzldai game factory-ai-droid --end
 
 # Should have 2+ inactive sessions
-puzldai game factory-ai-droid --list
+pk-puzldai game factory-ai-droid --list
 ```
 
 ---
@@ -247,10 +249,10 @@ private executeProduction(state: FactoryState): void {
 #### Verification
 
 ```bash
-puzldai game factory-ai-droid --new --difficulty easy
-puzldai game factory-ai-droid "build droid miner"
-puzldai game factory-ai-droid "produce"
-puzldai game factory-ai-droid "status"
+pk-puzldai game factory-ai-droid --new --difficulty easy
+pk-puzldai game factory-ai-droid "build droid miner"
+pk-puzldai game factory-ai-droid "produce"
+pk-puzldai game factory-ai-droid "status"
 ```
 
 Expected output should show:
@@ -438,9 +440,9 @@ private processCascade(state: CharmCrushState): void {
 #### Verification
 
 ```bash
-puzldai game charm-crush --new --difficulty easy
-puzldai game charm-crush "swap 0 0 0 1"
-puzldai game charm-crush "status"
+pk-puzldai game charm-crush --new --difficulty easy
+pk-puzldai game charm-crush "swap 0 0 0 1"
+pk-puzldai game charm-crush "status"
 ```
 
 Expected output should show:
@@ -518,14 +520,14 @@ console.log(response.content);
 
 ```bash
 # Should show state, not create new game
-puzldai game factory-ai-droid --new
-puzldai game factory-ai-droid
+pk-puzldai game factory-ai-droid --new
+pk-puzldai game factory-ai-droid
 
 # Should show "No active session"
-puzldai game charm-crush
+pk-puzldai game charm-crush
 
 # Session should update in database
-puzldai game factory-ai-droid "build droid miner"
+pk-puzldai game factory-ai-droid "build droid miner"
 # Check database: updated_at should be recent
 ```
 
@@ -600,15 +602,15 @@ Error: Unknown game: invalid-game
 
 ```bash
 # Should show error
-puzldai game factory-ai-droid --cleanup -5
-puzldai game factory-ai-droid --cleanup abc
-puzldai game factory-ai-droid --difficulty impossible
-puzldai game factory-ai-droid --session nonexistent
-puzldai game invalid-game --new
+pk-puzldai game factory-ai-droid --cleanup -5
+pk-puzldai game factory-ai-droid --cleanup abc
+pk-puzldai game factory-ai-droid --difficulty impossible
+pk-puzldai game factory-ai-droid --session nonexistent
+pk-puzldai game invalid-game --new
 
 # Should succeed
-puzldai game factory-ai-droid --cleanup 30
-puzldai game factory-ai-droid --difficulty hard
+pk-puzldai game factory-ai-droid --cleanup 30
+pk-puzldai game factory-ai-droid --difficulty hard
 ```
 
 ---
@@ -886,15 +888,15 @@ const response = await adapter.run(prompt, options);
 
 ```bash
 # Should show validation errors
-puzldai game factory-ai-droid "build droid invalid"
-puzldai game factory-ai-droid "build droid miner" # when credits < 10
-puzldai game charm-crush "swap 0 0 5 5" # non-adjacent
-puzldai game charm-crush "swap 10 10 10 11" # out of bounds
-puzldai game charm-crush "swap a b c d" # not numbers
+pk-puzldai game factory-ai-droid "build droid invalid"
+pk-puzldai game factory-ai-droid "build droid miner" # when credits < 10
+pk-puzldai game charm-crush "swap 0 0 5 5" # non-adjacent
+pk-puzldai game charm-crush "swap 10 10 10 11" # out of bounds
+pk-puzldai game charm-crush "swap a b c d" # not numbers
 
 # Should succeed
-puzldai game factory-ai-droid "build droid miner" # when credits >= 10
-puzldai game charm-crush "swap 0 0 0 1" # valid adjacent swap
+pk-puzldai game factory-ai-droid "build droid miner" # when credits >= 10
+pk-puzldai game charm-crush "swap 0 0 0 1" # valid adjacent swap
 ```
 
 ---
@@ -1002,12 +1004,12 @@ renderState(state: GameState): string {
 
 ```bash
 # Test win condition
-puzldai game factory-ai-droid --new --difficulty easy
+pk-puzldai game factory-ai-droid --new --difficulty easy
 # ... play until credits >= 100
 # Should see: "🎉 Victory! Reached 100 credits in X turns!"
 
 # Test lose condition
-puzldai game factory-ai-droid --new --difficulty hard
+pk-puzldai game factory-ai-droid --new --difficulty hard
 # ... play for 10 turns without reaching 200 credits
 # Should see: "💀 Game Over! Only X/200 credits after 10 turns."
 ```
@@ -1110,12 +1112,12 @@ renderState(state: GameState): string {
 
 ```bash
 # Test win condition
-puzldai game charm-crush --new --difficulty easy
+pk-puzldai game charm-crush --new --difficulty easy
 # ... play until score >= 1000
 # Should see: "🎉 You crushed it! Score: 1000/1000!"
 
 # Test lose condition
-puzldai game charm-crush --new --difficulty hard
+pk-puzldai game charm-crush --new --difficulty hard
 # ... use all 15 moves without reaching 2000 score
 # Should see: "💀 No more moves! Final score: X/2000"
 ```
@@ -1142,7 +1144,7 @@ describe('Game Integration Tests', () => {
   describe('Factory AI Droid', () => {
     it('should create new game', () => {
       const output = execSync(
-        'puzldai game factory-ai-droid --new --difficulty easy',
+        'pk-puzldai game factory-ai-droid --new --difficulty easy',
         { encoding: 'utf-8' }
       );
       expect(output).toContain('Factory AI Droid');
@@ -1150,9 +1152,9 @@ describe('Game Integration Tests', () => {
     });
 
     it('should build droid', () => {
-      execSync('puzldai game factory-ai-droid --new --difficulty easy');
+      execSync('pk-puzldai game factory-ai-droid --new --difficulty easy');
       const output = execSync(
-        'puzldai game factory-ai-droid "build droid miner"',
+        'pk-puzldai game factory-ai-droid "build droid miner"',
         { encoding: 'utf-8' }
       );
       expect(output).toContain('miner: 1');
@@ -1160,10 +1162,10 @@ describe('Game Integration Tests', () => {
     });
 
     it('should execute production', () => {
-      execSync('puzldai game factory-ai-droid --new --difficulty easy');
-      execSync('puzldai game factory-ai-droid "build droid miner"');
+      execSync('pk-puzldai game factory-ai-droid --new --difficulty easy');
+      execSync('pk-puzldai game factory-ai-droid "build droid miner"');
       const output = execSync(
-        'puzldai game factory-ai-droid "produce"',
+        'pk-puzldai game factory-ai-droid "produce"',
         { encoding: 'utf-8' }
       );
       expect(output).toContain('Ore: 15'); // 10 + 5
@@ -1171,9 +1173,9 @@ describe('Game Integration Tests', () => {
     });
 
     it('should show validation errors', () => {
-      execSync('puzldai game factory-ai-droid --new --difficulty easy');
+      execSync('pk-puzldai game factory-ai-droid --new --difficulty easy');
       expect(() => {
-        execSync('puzldai game factory-ai-droid "build droid invalid"');
+        execSync('pk-puzldai game factory-ai-droid "build droid invalid"');
       }).toThrow();
     });
   });
@@ -1181,7 +1183,7 @@ describe('Game Integration Tests', () => {
   describe('Charm Crush', () => {
     it('should create new game', () => {
       const output = execSync(
-        'puzldai game charm-crush --new --difficulty easy',
+        'pk-puzldai game charm-crush --new --difficulty easy',
         { encoding: 'utf-8' }
       );
       expect(output).toContain('Charm Crush');
@@ -1189,35 +1191,35 @@ describe('Game Integration Tests', () => {
     });
 
     it('should swap adjacent cells', () => {
-      execSync('puzldai game charm-crush --new --difficulty easy');
+      execSync('pk-puzldai game charm-crush --new --difficulty easy');
       const output = execSync(
-        'puzldai game charm-crush "swap 0 0 0 1"',
+        'pk-puzldai game charm-crush "swap 0 0 0 1"',
         { encoding: 'utf-8' }
       );
       expect(output).toContain('Moves Left:'); // Should decrement
     });
 
     it('should reject non-adjacent swaps', () => {
-      execSync('puzldai game charm-crush --new --difficulty easy');
+      execSync('pk-puzldai game charm-crush --new --difficulty easy');
       expect(() => {
-        execSync('puzldai game charm-crush "swap 0 0 5 5"');
+        execSync('pk-puzldai game charm-crush "swap 0 0 5 5"');
       }).toThrow();
     });
   });
 
   describe('Session Management', () => {
     it('should list sessions', () => {
-      const output = execSync('puzldai game factory-ai-droid --list', { encoding: 'utf-8' });
+      const output = execSync('pk-puzldai game factory-ai-droid --list', { encoding: 'utf-8' });
       expect(output).toContain('Sessions');
     });
 
     it('should show stats', () => {
-      const output = execSync('puzldai game --stats', { encoding: 'utf-8' });
+      const output = execSync('pk-puzldai game --stats', { encoding: 'utf-8' });
       expect(output).toContain('Total sessions');
     });
 
     it('should cleanup old sessions', () => {
-      const output = execSync('puzldai game --cleanup 30', { encoding: 'utf-8' });
+      const output = execSync('pk-puzldai game --cleanup 30', { encoding: 'utf-8' });
       expect(output).toContain('Cleaned up');
     });
   });
@@ -1237,15 +1239,15 @@ npm run test
 
 ```bash
 # Start game
-puzldai game factory-ai-droid --new --difficulty easy
+pk-puzldai game factory-ai-droid --new --difficulty easy
 
 # Build production chain
-puzldai game factory-ai-droid "build droid miner"
-puzldai game factory-ai-droid "build droid refinery"
+pk-puzldai game factory-ai-droid "build droid miner"
+pk-puzldai game factory-ai-droid "build droid refinery"
 
 # Produce multiple times
 for i in {1..10}; do
-  puzldai game factory-ai-droid "produce"
+  pk-puzldai game factory-ai-droid "produce"
 done
 
 # Should eventually win
@@ -1256,11 +1258,11 @@ done
 
 ```bash
 # Start hard difficulty
-puzldai game factory-ai-droid --new --difficulty hard
+pk-puzldai game factory-ai-droid --new --difficulty hard
 
 # Don't build anything, just produce
 for i in {1..10}; do
-  puzldai game factory-ai-droid "produce"
+  pk-puzldai game factory-ai-droid "produce"
 done
 
 # Should lose
@@ -1271,11 +1273,11 @@ done
 
 ```bash
 # Start game
-puzldai game charm-crush --new --difficulty easy
+pk-puzldai game charm-crush --new --difficulty easy
 
 # Make strategic swaps to reach 1000 points
 # (This requires actually finding valid matches on the board)
-puzldai game charm-crush "swap 0 0 0 1"
+pk-puzldai game charm-crush "swap 0 0 0 1"
 # ... continue making swaps until score >= 1000
 
 # Should win
@@ -1286,57 +1288,57 @@ puzldai game charm-crush "swap 0 0 0 1"
 
 ```bash
 # Create multiple sessions
-puzldai game factory-ai-droid --new --difficulty easy
-puzldai game factory-ai-droid --end
-puzldai game factory-ai-droid --new --difficulty medium
-puzldai game factory-ai-droid --end
-puzldai game charm-crush --new --difficulty hard
+pk-puzldai game factory-ai-droid --new --difficulty easy
+pk-puzldai game factory-ai-droid --end
+pk-puzldai game factory-ai-droid --new --difficulty medium
+pk-puzldai game factory-ai-droid --end
+pk-puzldai game charm-crush --new --difficulty hard
 
 # List all sessions
-puzldai game factory-ai-droid --list
-puzldai game charm-crush --list
+pk-puzldai game factory-ai-droid --list
+pk-puzldai game charm-crush --list
 
 # Should show multiple inactive sessions for factory-ai-droid
 # Should show 1 active session for charm-crush
 
 # Resume specific session
-SESSION_ID=$(puzldai game factory-ai-droid --list | grep -m1 "ID:" | awk '{print $2}')
-puzldai game factory-ai-droid --session $SESSION_ID
+SESSION_ID=$(pk-puzldai game factory-ai-droid --list | grep -m1 "ID:" | awk '{print $2}')
+pk-puzldai game factory-ai-droid --session $SESSION_ID
 
 # Cleanup old sessions
-puzldai game --cleanup 0  # Clean all
+pk-puzldai game --cleanup 0  # Clean all
 ```
 
 #### Test Case 5: Input Validation
 
 ```bash
 # All should show errors
-puzldai game invalid-game --new
-puzldai game factory-ai-droid --difficulty impossible
-puzldai game factory-ai-droid --cleanup abc
-puzldai game factory-ai-droid --session nonexistent
+pk-puzldai game invalid-game --new
+pk-puzldai game factory-ai-droid --difficulty impossible
+pk-puzldai game factory-ai-droid --cleanup abc
+pk-puzldai game factory-ai-droid --session nonexistent
 
 # Should succeed
-puzldai game factory-ai-droid --new --difficulty hard
-puzldai game factory-ai-droid --cleanup 30
+pk-puzldai game factory-ai-droid --new --difficulty hard
+pk-puzldai game factory-ai-droid --cleanup 30
 ```
 
 #### Test Case 6: State Persistence
 
 ```bash
 # Start game and make moves
-puzldai game factory-ai-droid --new --difficulty easy
-puzldai game factory-ai-droid "build droid miner"
-puzldai game factory-ai-droid "produce"
+pk-puzldai game factory-ai-droid --new --difficulty easy
+pk-puzldai game factory-ai-droid "build droid miner"
+pk-puzldai game factory-ai-droid "produce"
 
 # Show state (without new prompt)
-OUTPUT1=$(puzldai game factory-ai-droid)
+OUTPUT1=$(pk-puzldai game factory-ai-droid)
 
 # Make another move
-puzldai game factory-ai-droid "produce"
+pk-puzldai game factory-ai-droid "produce"
 
 # Show state again
-OUTPUT2=$(puzldai game factory-ai-droid)
+OUTPUT2=$(pk-puzldai game factory-ai-droid)
 
 # Outputs should differ (turn count, resources)
 echo "First state: $OUTPUT1"
@@ -1419,7 +1421,7 @@ Create `test-results.md` with:
    After line 142:
 
    ```markdown
-   | **Game** | Play puzzle games (Factory AI Droid, Charm Crush) | `puzldai game <name> [command]` |
+   | **Game** | Play puzzle games (Factory AI Droid, Charm Crush) | `pk-puzldai game <name> [command]` |
    ```
 
 5. **Update Troubleshooting**
@@ -1428,7 +1430,7 @@ Create `test-results.md` with:
 
    ```markdown
    | Game session conflict | Only one active session per game - end current with `--end` |
-   | Invalid game command | Check game-specific commands with `puzldai game <name> status` |
+   | Invalid game command | Check game-specific commands with `pk-puzldai game <name> status` |
    ```
 
 #### Verification
@@ -1438,6 +1440,95 @@ Create `test-results.md` with:
 - Check markdown formatting
 
 ---
+
+## Phase 8: CLI Orchestration Profiles (Not Started)
+
+**Status:** Not Started
+**Dependencies:** None
+**Goal:** Add profile-driven orchestration for pk-puzldai (auto mode selection, plan preview, and policy knobs).
+
+### Task 8.1: Define Orchestration Profile Schema
+
+**Files:**
+- `src/orchestrator/profiles.ts` (new)
+- `src/lib/config.ts` (add defaults + config shape)
+
+**Requirements:**
+- Profiles: speed, balanced, quality (default: speed)
+- Fields: preferredModes, maxConcurrency, consensusRounds, requireReview, allowAgents, useContextCompression, timeoutBudget
+- Validation with clear errors
+
+**Verification:**
+- Unit tests for profile parsing and validation
+
+### Task 8.2: Profile Registry + Loader
+
+**Files:**
+- `src/orchestrator/profiles.ts`
+- `src/cli/commands/profile.ts` (new)
+- `src/cli/index.ts` (wire command)
+
+**Requirements:**
+- Load from config or `~/.puzldai/profiles.json`
+- CLI: list/show/set-default/create/delete
+- Preserve ASCII and show defaults when missing
+
+**Verification:**
+- `pk-puzldai profile list`
+- `pk-puzldai profile show quality`
+
+### Task 8.3: Profile-Driven Auto Plan Selection
+
+**Files:**
+- `src/orchestrator/profile-orchestrator.ts` (new)
+- `src/executor/plan-builders.ts` (new helper)
+- `src/cli/commands/orchestrate.ts`
+- `src/cli/commands/run.ts`
+
+**Requirements:**
+- Heuristics: task length, router confidence, file count (optional)
+- Choose between single/pipeline/consensus/pickbuild/supervise
+- Emit rationale (selected mode + agents)
+
+**Verification:**
+- `pk-puzldai orchestrate "..." --profile quality --dry-run` prints plan
+
+### Task 8.4: Plan Preview and Dry-Run
+
+**Files:**
+- `src/cli/commands/orchestrate.ts`
+- `src/cli/commands/run.ts`
+- `src/executor/planner.ts` (reuse formatPlanForDisplay)
+
+**Requirements:**
+- `--dry-run` prints plan and exits
+- `--profile` in run/orchestrate uses profile selection
+- Show profile name + derived config in output
+
+### Task 8.5: Context Compression + Routing Telemetry
+
+**Files:**
+- `src/context/summarizer.ts` (reuse)
+- `src/context/injection.ts` (profile-based defaults)
+- `src/observation/*` (log routing decisions)
+
+**Requirements:**
+- When profile uses compression, summarize previous outputs for non-critical steps
+- Store routing decision metadata in observations
+- Provide opt-out flag `--no-compress`
+
+### Task 8.6: Tests + Docs
+
+**Files:**
+- `src/orchestrator/profile-orchestrator.test.ts` (new)
+- `src/cli/commands/orchestrate.test.ts` (new)
+- `AGENTS.md`
+- `MODES.md`
+- `README.md`
+
+**Requirements:**
+- Tests cover profile parsing, auto selection, dry-run output
+- Docs include examples and config schema
 
 ## 📊 Progress Tracking
 
@@ -1457,12 +1548,12 @@ Create `test-results.md` with:
 | 6A | Test Integration | ⬜ Not Started | Single | Sequential |
 | 6B | Test Lifecycle | ⬜ Not Started | Single | Sequential |
 | 7 | Documentation | ⬜ Not Started | Single | Anytime |
-| 8A | Orchestration Profiles | Not Started | Single | Define schema + defaults |
-| 8B | Profile Registry | Not Started | Single | CLI management + loader |
-| 8C | Auto Plan Selection | Not Started | Single | Profile-driven mode selection |
-| 8D | Plan Preview | Not Started | Single | Dry-run + profile flag |
-| 8E | Compression + Telemetry | Not Started | Single | Context compression + routing logs |
-| 8F | Tests + Docs | Not Started | Single | Coverage + documentation |
+| 8A | Orchestration Profiles | ? Completed | Single | Define schema + defaults (default: speed) |
+| 8B | Profile Registry | ? Completed | Single | CLI management + loader |
+| 8C | Auto Plan Selection | ? Completed | Single | Profile-driven mode selection |
+| 8D | Plan Preview | ? Completed | Single | Dry-run + profile flag |
+| 8E | Compression + Telemetry | ? Completed | Single | Context compression + routing logs |
+| 8F | Tests + Docs | ? Completed | Single | Coverage + documentation |
 
 **Legend:**
 - ⬜ Not Started
@@ -1667,6 +1758,15 @@ To work on a task from this plan:
 ## 📝 Change Log
 
 ### 2026-01-11: Game System + Validation Fixes
+
+- Task 8.6 completed: tests and docs for profiles.
+- Task 8.5 completed: context compression + routing telemetry.
+- Task 8.4 completed: dry-run plan preview for run/orchestrate.
+- Docs aligned with current CLI behavior (flags, safety notes, wrapper availability).
+- Registered gemini-safe/codex-safe CLI adapters with auto-redirect + unsafe aliases.
+- Task 8.3 completed: profile-driven auto plan selection.
+- Task 8.2 completed: profile registry + CLI management commands.
+- Orchestration profile schema and defaults implemented (speed default; balanced/quality included).
 
 **Implemented full game session persistence + CLI integration and made validators pass.**
 

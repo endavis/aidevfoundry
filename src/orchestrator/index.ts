@@ -1,7 +1,9 @@
 import type { ModelResponse, RunOptions } from '../lib/types';
+import type { AgentName } from '../executor/types';
 import { getConfig } from '../lib/config';
 import { adapters } from '../adapters';
 import { routeTask, isRouterAvailable } from '../router/router';
+import { resolveAgentSelection } from '../lib/agent-selection';
 
 export interface OrchestrateOptions extends RunOptions {
   agent?: string;
@@ -15,20 +17,24 @@ export async function orchestrate(
 
   // If specific agent requested, use it directly
   if (options?.agent && options.agent !== 'auto') {
-    const adapter = adapters[options.agent];
+    const selection = resolveAgentSelection(options.agent as AgentName);
+    if (selection.notice) {
+      console.log(`[orchestrator] ${selection.notice}`);
+    }
+    const adapter = adapters[selection.agent];
     if (!adapter) {
       return {
         content: '',
         model: 'unknown',
-        error: `Unknown agent: ${options.agent}`
+        error: `Unknown agent: ${selection.agent}`
       };
     }
 
     if (!(await adapter.isAvailable())) {
       return {
         content: '',
-        model: options.agent,
-        error: `Agent ${options.agent} is not available. Run 'ai check' for details.`
+        model: selection.agent,
+        error: `Agent ${selection.agent} is not available. Run 'ai check' for details.`
       };
     }
 
@@ -50,21 +56,29 @@ export async function orchestrate(
     }
   }
 
-  const adapter = adapters[selectedAgent];
+  const selection = resolveAgentSelection(selectedAgent as AgentName);
+  if (selection.notice) {
+    console.log(`[orchestrator] ${selection.notice}`);
+  }
+  const adapter = adapters[selection.agent];
   if (!adapter) {
     return {
       content: '',
       model: 'unknown',
-      error: `Unknown agent: ${selectedAgent}`
+      error: `Unknown agent: ${selection.agent}`
     };
   }
 
   if (!(await adapter.isAvailable())) {
     // Try fallback
-    const fallbackAdapter = adapters[config.fallbackAgent];
+    const fallbackSelection = resolveAgentSelection(config.fallbackAgent as AgentName);
+    if (fallbackSelection.notice) {
+      console.log(`[orchestrator] ${fallbackSelection.notice}`);
+    }
+    const fallbackAdapter = adapters[fallbackSelection.agent];
     if (fallbackAdapter && (await fallbackAdapter.isAvailable())) {
       if (routerFallbackReason) {
-        console.log(`[orchestrator] Router fallback to ${config.fallbackAgent}: ${routerFallbackReason}`);
+        console.log(`[orchestrator] Router fallback to ${fallbackSelection.agent}: ${routerFallbackReason}`);
       }
       return fallbackAdapter.run(task, options);
     }

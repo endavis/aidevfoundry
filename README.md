@@ -14,7 +14,7 @@
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/npm/v/puzldai?color=blue" alt="npm">
+  <img src="https://img.shields.io/npm/v/pk-puzldai?color=blue" alt="npm">
   <img src="https://img.shields.io/badge/license-AGPL--3.0-green" alt="license">
   <img src="https://img.shields.io/badge/agents-Claude%20%7C%20Gemini%20%7C%20Codex%20%7C%20Ollama%20%7C%20Mistral-purple" alt="agents">
   <img src="https://img.shields.io/badge/models-sonnet%20%7C%20opus%20%7C%20gemini--pro%20%7C%20devstral-orange" alt="models">
@@ -25,8 +25,8 @@
 
 > **Beyond CLI wrappers.** PuzldAI is a complete AI orchestration framework — route tasks, explore codebases, execute file edits, build memory, and generate training data.
 
-> **Current Status (v0.1.0)**
-> PuzldAI v0.1.0 is an early preview release. The core CLI/TUI, Factory AI Droid game system, task persistence layer, structured logging, and eval harness are in place, but APIs and behavior may change in upcoming versions.
+> **Current Status (v0.2.95)**
+> PuzldAI v0.2.95 is an early preview release. The core CLI/TUI, Factory AI Droid game system, task persistence layer, structured logging, and eval harness are in place, but APIs and behavior may change in upcoming versions.
 
 PuzldAI is a terminal-native framework for orchestrating multiple AI agents. Route tasks to the best agent, compare responses, chain agents in pipelines, or let them collaborate. **Agentic Mode** gives LLMs tools to explore your codebase (view, glob, grep, bash) and propose file edits with permission prompts — like Claude Code, but for any LLM. **Memory/RAG** stores decisions and code for future context. **Observation Layer** logs everything for DPO fine-tuning. One framework that grows with your AI workflow.
 
@@ -75,9 +75,9 @@ PuzldAI is a terminal-native framework for orchestrating multiple AI agents. Rou
 | Ollama | Local | [Ollama](https://ollama.ai) running | ✅ Full support | SAFE |
 | Mistral | Mistral AI | [Vibe CLI](https://github.com/mistralai/vibe) | ✅ Full support | SAFE |
 | Gemini | Google | [Gemini CLI](https://ai.google.dev) | ⚠️ Auto-reads files | Use `gemini-safe` |
-| Codex | OpenAI | [Codex CLI](https://openai.com) | ⚠️ Auto-reads files | Use `codex-safe` |
+| Codex | OpenAI | [Codex CLI](https://openai.com) | ⚠️ No approval interception | Use `codex-safe` |
 
-> **Safety Note:** Claude, Ollama, and Mistral respect our permission system fully. Gemini and Codex auto-read files - use their `-safe` wrapper adapters for production. See [PROVIDER_SUPPORT_MATRIX.md](PROVIDER_SUPPORT_MATRIX.md) for details.
+> **Safety Note:** Claude, Ollama, and Mistral respect our permission system fully. Gemini and Codex auto-read files or bypass approvals, so the CLI auto-redirects `gemini` → `gemini-safe` and `codex` → `codex-safe`. Use `gemini-unsafe` or `codex-unsafe` only if you accept the risk. See [PROVIDER_SUPPORT_MATRIX.md](PROVIDER_SUPPORT_MATRIX.md) for details.
 >
 > **Orchestration Modes:** See [MODES.md](MODES.md) for comprehensive documentation of all orchestration modes, workflows, and CLI examples.
 
@@ -112,8 +112,11 @@ pk-puzldai
 # Single task
 pk-puzldai run "explain recursion"
 
+# Recommended: auto-select approach
+pk-puzldai do "explain recursion"
+
 # Compare agents
-pk-puzldai compare claude,gemini "best error handling practices"
+pk-puzldai compare "best error handling practices" -a claude,gemini
 
 # Pipeline: analyze → code → review
 pk-puzldai run "build a logger" -P "gemini:analyze,claude:code,gemini:review"
@@ -176,12 +179,12 @@ pk-puzldai check
 | | `execute` | boolean | `false` | Auto-run generated plan |
 | Correct | `producer` | AgentName | `auto` | Agent that creates output |
 | | `reviewer` | AgentName | `auto` | Agent that critiques |
-| | `fixAfterReview` | boolean | `false` | Producer fixes based on review |
+| | `fix` | boolean | `false` | Producer fixes based on review |
 | Debate | `agents` | AgentName[] | — | Debating agents (min 2) |
 | | `rounds` | number | `2` | Number of debate rounds |
 | | `moderator` | AgentName | `none` | Synthesizes final conclusion |
 | Consensus | `agents` | AgentName[] | — | Participating agents (min 2) |
-| | `maxRounds` | number | `2` | Voting rounds |
+| | `rounds` | number | `2` | Voting rounds |
 | | `synthesizer` | AgentName | `auto` | Creates final output |
 | PickBuild | `agents` | AgentName[] | `claude,gemini` | Agents to propose plans |
 | | `picker` | AgentName\|`human` | `human` | Who selects the winning plan |
@@ -570,7 +573,8 @@ When you run `/agentic`, project instructions are automatically injected into th
 
 ```bash
 pk-puzldai                           # Launch TUI
-pk-puzldai run "task"                # Single task
+pk-puzldai do "task"                 # Recommended: auto-select approach
+pk-puzldai run "task"                # Single task (legacy)
 pk-puzldai run "task" -a claude      # Force agent
 pk-puzldai run "task" -m opus        # Override model
 pk-puzldai run "task" -P "..."       # Pipeline
@@ -587,6 +591,11 @@ pk-puzldai correct "task" --producer claude --reviewer gemini
 pk-puzldai correct "task" --producer claude --reviewer gemini --fix
 pk-puzldai debate "topic" -a claude,gemini -r 3 -m ollama
 pk-puzldai consensus "task" -a claude,gemini -r 3 -s claude
+pk-puzldai profile list              # List orchestration profiles
+pk-puzldai profile show quality      # Show a profile
+pk-puzldai profile set-default speed # Set default profile
+pk-puzldai profile create fast -f speed # Clone a profile
+pk-puzldai profile delete fast       # Delete a profile
 pk-puzldai session list              # List sessions
 pk-puzldai session new               # Create new session
 pk-puzldai check                     # Agent status

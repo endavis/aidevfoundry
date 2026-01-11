@@ -4,6 +4,8 @@
 **Date**: 2026-01-10
 **Priority**: High - Safety and Configuration Improvements
 
+**Note**: This document proposes changes that are not yet implemented in the current codebase.
+
 ---
 
 ## Executive Summary
@@ -63,7 +65,7 @@ export function validateConfig(config: PuzldConfig): void {
     warnings.push(
       'Using base gemini adapter is unsafe. ' +
       'It auto-reads files without permission. ' +
-      'Consider disabling gemini and enabling gemini-safe instead.'
+      'Consider disabling base gemini or use gemini-safe (CLI wrapper).'
     );
   }
 
@@ -71,7 +73,7 @@ export function validateConfig(config: PuzldConfig): void {
     warnings.push(
       'Using base codex adapter is unsafe. ' +
       'It has no approval interception. ' +
-      'Consider disabling codex and enabling codex-safe instead.'
+      'Consider disabling base codex or use codex-safe (CLI wrapper).'
     );
   }
 
@@ -126,7 +128,7 @@ export function getConfig(): PuzldConfig {
 
 ### Problem
 
-Users must manually select `gemini-safe` and `codex-safe` adapters. The unsafe base adapters are the default.
+Safe wrapper adapters are registered in the CLI as gemini-safe/codex-safe. The unsafe base adapters remain available via gemini-unsafe/codex-unsafe.
 
 ### Solution: Auto-Select Safe Adapters
 
@@ -299,7 +301,7 @@ PuzldAI includes comprehensive safety features:
 - ✅ **Diff Preview**: See changes before applying
 - ✅ **Rollback Capability**: Revert unwanted changes
 - ✅ **Safe Adapters**: Claude, Ollama, Mistral are safe by default
-- ⚠️  **Unsafe Adapters**: Gemini and Codex require safe wrappers
+- ⚠️  **- ??  **Unsafe Adapters**: Gemini and Codex auto-redirect to safe wrappers; use gemini-unsafe/codex-unsafe only if required
 
 ### Production Configuration
 
@@ -307,7 +309,7 @@ For production use, we recommend:
 
 ```bash
 # Install with safe defaults
-pk-puzldai setup --safety-first
+pk-puzldai setup --safety-first  # Proposed (not implemented)
 
 # Or manually configure
 cp config.default.json ~/.puzldai/config.json
@@ -340,8 +342,8 @@ Add "Safety Best Practices" section:
 ```bash
 # GOOD: Use safe adapters
 pk-puzldai run "task" -a claude
-pk-puzldai run "task" -a gemini-safe
-pk-puzldai run "task" -a codex-safe
+pk-puzldai run "task" -a ollama
+pk-puzldai run "task" -a mistral
 
 # BAD: Unsafe adapters
 pk-puzldai run "task" -a gemini  # Auto-reads files!
@@ -352,24 +354,24 @@ pk-puzldai run "task" -a codex   # No approval!
 
 ```bash
 # Check your config
-pk-puzldai config validate
+pk-puzldai config validate  # Proposed (not implemented)
 
 # View safety warnings
-pk-puzldai config check
+pk-puzldai config check  # Proposed (not implemented)
 ```
 
 ### 3. Use Diff Preview
 
 ```bash
 # Always review changes before applying
-pk-puzldai agent -a claude --diff-preview
+pk-puzldai agent -a claude  # Diff previews appear during agentic tool edits
 ```
 
 ### 4. Enable Rollback for Risky Tasks
 
 ```bash
-# Use codex-safe for file operations
-pk-puzldai run "refactor code" -a codex-safe --rollback-enabled
+# Use safe adapters for file operations (claude/ollama/mistral)
+pk-puzldai run "refactor code" -a gemini-safe  # Use safe adapter with rollback prompt
 ```
 ```
 
@@ -381,10 +383,10 @@ pk-puzldai run "refactor code" -a codex-safe --rollback-enabled
 
 ```bash
 # Enable all safety features
-pk-puzldai run "task" --safety-first
+pk-puzldai run "task" --safety-first  # Proposed (not implemented)
 
 # Equivalent to:
-# - Use claude or gemini-safe
+# - Use claude, ollama, or mistral (safe adapters)
 # - Enable diff preview
 # - Enable rollback
 # - Require explicit approval for all operations
@@ -394,11 +396,11 @@ pk-puzldai run "task" --safety-first
 
 ```bash
 # Validate configuration
-pk-puzldai config validate
+pk-puzldai config validate  # Proposed (not implemented)
 
 # Output:
 # ✅ Configuration is valid
-# ℹ️  Consider enabling gemini-safe instead of gemini
+# ??  Consider using gemini-safe instead of base gemini
 # ℹ️  Factory adapter: skipPermissions is false (good)
 ```
 
@@ -406,12 +408,12 @@ pk-puzldai config validate
 
 ```bash
 # Check for safety issues
-pk-puzldai config check
+pk-puzldai config check  # Proposed (not implemented)
 
 # Output:
 # ✅ Safe adapters: claude, ollama, mistral
-# ⚠️  Unsafe adapters: gemini (consider gemini-safe)
-# ⚠️  Unsafe adapters: codex (consider codex-safe)
+# ??  Unsafe adapters: gemini (use gemini-safe or gemini-unsafe)
+# ??  Unsafe adapters: codex (use codex-safe or codex-unsafe)
 # ✅ Factory: skipPermissions is false (safe)
 # ✅ Crush: autoAccept is false (safe)
 ```
@@ -422,7 +424,7 @@ pk-puzldai config check
 
 ### Phase 1: Critical Safety (Week 1)
 - [ ] Add `validateConfig()` function
-- [ ] Add auto-redirect for unsafe adapters
+- [x] Add auto-redirect for unsafe adapters
 - [ ] Test with dangerous configurations
 - [ ] Add error messages to documentation
 
@@ -456,8 +458,8 @@ pk-puzldai config check
 - [ ] Test with safe config (should pass)
 
 ### Auto-Redirection
-- [ ] Test `agent: gemini` → uses `gemini-safe`
-- [ ] Test `agent: codex` → uses `codex-safe`
+- [ ] Test `agent: gemini` auto-redirect (implemented)
+- [ ] Test `agent: codex` auto-redirect (implemented)
 - [ ] Test `agent: gemini-unsafe` → uses base gemini
 - [ ] Test `agent: codex-unsafe` → uses base codex
 - [ ] Test `agent: claude` → no redirection

@@ -12,8 +12,8 @@ const PLANNER_PROMPT = `You are a task planner for a multi-LLM system. Analyze t
 
 Available agents:
 - claude: Best for coding, code generation, architecture, creative writing
-- gemini: Best for analysis, research, planning, data processing
-- codex: Best for debugging, security analysis, finding bugs, code review
+- gemini: Best for analysis, research, planning, data processing (auto-redirects to gemini-safe)
+- codex: Best for debugging, security analysis, finding bugs, code review (auto-redirects to codex-safe)
 - ollama: Best for simple queries, local processing, fast responses
 
 Guidelines:
@@ -228,7 +228,20 @@ function buildPlanFromRaw(task: string, raw: RawPlan): ExecutionPlan {
 
 function normalizeAgent(agent: string): AgentName | 'auto' {
   const normalized = agent.toLowerCase().trim();
-  if (['claude', 'gemini', 'codex', 'ollama'].includes(normalized)) {
+  const allowed = new Set([
+    'claude',
+    'gemini',
+    'gemini-safe',
+    'gemini-unsafe',
+    'codex',
+    'codex-safe',
+    'codex-unsafe',
+    'ollama',
+    'mistral',
+    'factory',
+    'crush'
+  ]);
+  if (allowed.has(normalized)) {
     return normalized as AgentName;
   }
   return 'auto';

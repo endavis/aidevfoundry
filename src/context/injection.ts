@@ -68,6 +68,11 @@ interface ContextBlock {
   includeMode: IncludeMode;
 }
 
+interface CompressionSettings {
+  enabled: boolean;
+  tokenLimit: number;
+}
+
 // --- Main Assembly Function ---
 
 /**
@@ -124,6 +129,8 @@ async function collectContextBlocks(
   currentStep: PlanStep
 ): Promise<ContextBlock[]> {
   const blocks: ContextBlock[] = [];
+  const compression = getCompressionSettings(context);
+  const isMemoryContext = 'memory' in context;
 
   for (const rule of rules) {
     // Check condition if present
@@ -137,19 +144,21 @@ async function collectContextBlocks(
       continue;
     }
 
-    const content = await resolveContextSource(rule, context, currentStep);
+    const adjustedRule = applyCompressionRule(rule, compression);
+    const content = await resolveContextSource(adjustedRule, context, currentStep);
     if (!content) continue;
 
-    const tokens = estimateTokens(content);
+    const finalContent = await maybeSummarizeContent(content, adjustedRule, compression, isMemoryContext);
+    const tokens = estimateTokens(finalContent);
 
     blocks.push({
-      source: rule.source,
-      stepId: rule.stepId,
-      content,
+      source: adjustedRule.source,
+      stepId: adjustedRule.stepId,
+      content: finalContent,
       tokens,
-      priority: rule.priority,
-      tag: rule.tag,
-      includeMode: rule.include
+      priority: adjustedRule.priority,
+      tag: adjustedRule.tag,
+      includeMode: adjustedRule.include
     });
   }
 
@@ -259,6 +268,58 @@ function getContentByIncludeMode(
     default:
       return fallback;
   }
+}
+
+function getCompressionSettings(
+  context: ExecutionContext | MemoryContext
+): CompressionSettings {
+  const orchestration = (context.initial?.['orchestration'] ?? {}) as {
+    useContextCompression?: boolean;
+    noCompress?: boolean;
+    compressionTokenLimit?: number;
+  };
+
+  const enabled = Boolean(orchestration.useContextCompression) && !orchestration.noCompress;
+  const tokenLimit = orchestration.compressionTokenLimit && orchestration.compressionTokenLimit > 0
+    ? orchestration.compressionTokenLimit
+    : 800;
+
+  return { enabled, tokenLimit };
+}
+
+function applyCompressionRule(
+  rule: InjectionRule,
+  compression: CompressionSettings
+): InjectionRule {
+  if (!compression.enabled) {
+    return rule;
+  }
+
+  if (rule.include === 'full' && rule.priority > 1) {
+    if (rule.source === 'previous_output' || rule.source === 'step_output') {
+      return { ...rule, include: 'summary' };
+    }
+  }
+
+  return rule;
+}
+
+async function maybeSummarizeContent(
+  content: string,
+  rule: InjectionRule,
+  compression: CompressionSettings,
+  isMemoryContext: boolean
+): Promise<string> {
+  if (!compression.enabled || rule.include !== 'summary' || isMemoryContext) {
+    return content;
+  }
+
+  const summarizerAvailable = await isSummarizerAvailable();
+  if (!summarizerAvailable) {
+    return content;
+  }
+
+  return summarizeIfNeeded(content, compression.tokenLimit);
 }
 
 // --- Priority-Based Overflow Handling ---

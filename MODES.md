@@ -73,7 +73,7 @@ Each step automatically receives the output of the previous step as context via 
 
 ```bash
 # Use saved template
-pk-puzldai run "your task" -t code-review -i
+pk-puzldai run "your task" -T code-review -i
 ```
 
 ### Safety Notes
@@ -103,13 +103,12 @@ pk-puzldai autopilot "add caching to API responses" \
 
 # Autopilot with specific planner
 pk-puzldai autopilot "optimize bundle size" \
-  --agent claude \
+  --planner claude \
   --execute \
   --interactive
 
-# Dry run - see plan without executing
-pk-puzldai autopilot "implement rate limiting" \
-  --plan-only
+# Plan-only (default) - see plan without executing
+pk-puzldai autopilot "implement rate limiting"
 ```
 
 ### Step-by-Step Workflow
@@ -121,17 +120,7 @@ pk-puzldai autopilot "implement rate limiting" \
 
 ### Configuration
 
-```json
-// ~/.puzldai/config.json
-{
-  "autopilot": {
-    "defaultPlanner": "claude",
-    "requireApproval": true,
-    "maxSteps": 20,
-    "allowParallel": true
-  }
-}
-```
+Autopilot configuration is currently CLI-only (no `autopilot` block in `~/.puzldai/config.json`).
 
 ### Safety Notes
 - `--execute` flag required for actual execution
@@ -288,7 +277,7 @@ pk-puzldai compare "implement feature" -a claude,gemini --pick
 pk-puzldai correct "fix this bug" --producer claude --reviewer gemini
 
 # Producer → reviewer → fix
-pk-puzldai correct "refactor this" --producer claude --reviewer gemini --fix-after-review
+pk-puzldai correct "refactor this" --producer claude --reviewer gemini --fix
 ```
 
 ### Debate Mode
@@ -358,3 +347,19 @@ $ pk-puzldai pickbuild "add feature" -i
 
 *Last updated: 2025-12-24*
 *Version: 0.2.95*
+
+## Orchestration Profiles
+
+Profiles control auto-selection of modes and agents for `run` and `orchestrate`.
+
+- **speed**: default, favors single/pipeline
+- **balanced**: pipeline with optional supervision or consensus
+- **quality**: consensus/pickbuild with review
+
+```bash
+# Preview plan without executing
+pk-puzldai run "task" --profile balanced --dry-run
+
+# Disable context compression
+pk-puzldai orchestrate "task" --profile quality --no-compress
+```

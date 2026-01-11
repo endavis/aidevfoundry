@@ -8,6 +8,7 @@ import { ollamaAdapter } from './ollama';
 import { mistralAdapter } from './mistral';
 import { factoryAdapter } from './factory';
 import { crushAdapter } from './crush';
+import { codexSafeCliAdapter, geminiSafeCliAdapter } from './safe-cli';
 import { factoryDroidAdapter } from './factory-ai-droid';
 import { charmCrushAdapter } from './charm-crush';
 import { openrouterAdapter, runOpenRouter } from './openrouter';
@@ -19,6 +20,10 @@ export const adapters: Record<string, Adapter> = {
   claude: claudeAdapter,
   gemini: geminiAdapter,
   codex: codexAdapter,
+  'gemini-safe': geminiSafeCliAdapter,
+  'codex-safe': codexSafeCliAdapter,
+  'gemini-unsafe': geminiAdapter,
+  'codex-unsafe': codexAdapter,
   ollama: ollamaAdapter,
   mistral: mistralAdapter,
   factory: factoryAdapter,
@@ -44,6 +49,8 @@ export {
   geminiSafeAdapter,
   codexAdapter,
   codexSafeAdapter,
+  geminiSafeCliAdapter,
+  codexSafeCliAdapter,
   ollamaAdapter,
   mistralAdapter,
   factoryAdapter,

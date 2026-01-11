@@ -1,12 +1,17 @@
 import pc from 'picocolors';
 import * as readline from 'readline';
 import { orchestrate } from '../../orchestrator';
+import { orchestrate as orchestrateIntelligent } from '../../orchestrator/intelligent-orchestrator';
 import { runAgentLoop } from '../../agentic/agent-loop';
 import { adapters } from '../../adapters';
 import { getConfig } from '../../lib/config';
+import { resolveOrchestrationConfig } from '../../orchestrator/profiles';
+import { selectPlanForProfile } from '../../orchestrator/profile-orchestrator';
 import {
   buildPipelinePlan,
   parsePipelineString,
+  buildSingleAgentPlan,
+  formatPlanForDisplay,
   execute,
   type ExecutionPlan,
   type PlanStep,
@@ -21,6 +26,9 @@ interface RunCommandOptions {
   template?: string;
   interactive?: boolean;
   agentic?: boolean;
+  profile?: string;
+  dryRun?: boolean;
+  noCompress?: boolean;
 }
 
 export async function runCommand(task: string, options: RunCommandOptions): Promise<void> {
@@ -31,16 +39,16 @@ export async function runCommand(task: string, options: RunCommandOptions): Prom
   }
 
   if (options.pipeline) {
-    await runPipeline(task, options.pipeline, options.interactive);
+    await runPipeline(task, options.pipeline, options.interactive, options.dryRun, options.noCompress);
     return;
   }
 
   if (options.template) {
-    await runTemplate(task, options.template, options.interactive);
+    await runTemplate(task, options.template, options.interactive, options.dryRun, options.noCompress);
     return;
   }
 
-  await runSingleAgent(task, options);
+  await runProfiledTask(task, options);
 }
 
 async function runSingleAgent(task: string, options: RunCommandOptions): Promise<void> {
@@ -84,6 +92,73 @@ async function runSingleAgent(task: string, options: RunCommandOptions): Promise
   if (result.tokens) {
     console.log(pc.dim(`Tokens: ${result.tokens.input} in / ${result.tokens.output} out`));
   }
+}
+
+async function runProfiledTask(task: string, options: RunCommandOptions): Promise<void> {
+  const config = getConfig();
+  const orchestration = resolveOrchestrationConfig(config.orchestration);
+  const profileName = options.profile || orchestration.defaultProfile;
+  const profile = orchestration.profiles[profileName];
+
+  if (!profile) {
+    console.error(pc.red('Profile not found: ' + profileName));
+    process.exit(1);
+  }
+
+  const selection = await selectPlanForProfile(task, profile);
+  const orchestrationContext = {
+    useContextCompression: profile.useContextCompression,
+    noCompress: options.noCompress
+  };
+
+  console.log(pc.dim(`Profile: ${profileName}`));
+  console.log(pc.dim(`Mode: ${selection.mode}`));
+  console.log(pc.dim(`Rationale: ${selection.rationale}`));
+  if (selection.agents.length > 0) {
+    console.log(pc.dim(`Agents: ${selection.agents.join(', ')}`));
+  }
+  console.log();
+
+  if (options.dryRun) {
+    const previewPlan = selection.plan || buildSingleAgentPlan(task, selection.primaryAgent);
+    previewPlan.context = {
+      ...previewPlan.context,
+      orchestration: orchestrationContext
+    };
+    console.log(formatPlanForDisplay(previewPlan));
+    return;
+  }
+
+  if (selection.mode === 'single') {
+    await runSingleAgent(task, { ...options, agent: selection.primaryAgent });
+    return;
+  }
+
+  if (selection.mode === 'supervise') {
+    const result = await orchestrateIntelligent(task, {
+      mode: 'supervise',
+      agents: selection.agents
+    });
+
+    if (result.error) {
+      console.error(pc.red(`\nError: ${result.error}`));
+      process.exit(1);
+    }
+
+    console.log(result.content);
+    return;
+  }
+
+  if (selection.plan) {
+    selection.plan.context = {
+      ...selection.plan.context,
+      orchestration: orchestrationContext
+    };
+    await executePlan(selection.plan, options.interactive);
+    return;
+  }
+
+  await runSingleAgent(task, options);
 }
 
 async function runAgenticMode(task: string, options: RunCommandOptions): Promise<void> {
@@ -152,7 +227,13 @@ async function runAgenticMode(task: string, options: RunCommandOptions): Promise
   }
 }
 
-async function runPipeline(task: string, pipelineStr: string, interactive?: boolean): Promise<void> {
+async function runPipeline(
+  task: string,
+  pipelineStr: string,
+  interactive?: boolean,
+  dryRun?: boolean,
+  noCompress?: boolean
+): Promise<void> {
   console.log(pc.bold('\nRunning pipeline: ') + pipelineStr);
   if (interactive) {
     console.log(pc.cyan('Interactive mode: You will be prompted before each step'));
@@ -161,11 +242,30 @@ async function runPipeline(task: string, pipelineStr: string, interactive?: bool
 
   const pipelineOpts = parsePipelineString(pipelineStr);
   const plan = buildPipelinePlan(task, pipelineOpts);
+  if (noCompress) {
+    plan.context = {
+      ...plan.context,
+      orchestration: {
+        noCompress: true
+      }
+    };
+  }
+
+  if (dryRun) {
+    console.log(formatPlanForDisplay(plan));
+    return;
+  }
 
   await executePlan(plan, interactive);
 }
 
-async function runTemplate(task: string, templateName: string, interactive?: boolean): Promise<void> {
+async function runTemplate(
+  task: string,
+  templateName: string,
+  interactive?: boolean,
+  dryRun?: boolean,
+  noCompress?: boolean
+): Promise<void> {
   const template = loadTemplate(templateName);
 
   if (!template) {
@@ -184,6 +284,19 @@ async function runTemplate(task: string, templateName: string, interactive?: boo
   console.log();
 
   const plan = buildPipelinePlan(task, { steps: template.steps });
+  if (noCompress) {
+    plan.context = {
+      ...plan.context,
+      orchestration: {
+        noCompress: true
+      }
+    };
+  }
+
+  if (dryRun) {
+    console.log(formatPlanForDisplay(plan));
+    return;
+  }
 
   await executePlan(plan, interactive);
 }

@@ -105,10 +105,7 @@ geminiApprovalMode: 'yolo'    // Bypasses ALL approvals
 geminiApprovalMode: 'auto_edit'  // Auto-applies without review
 ```
 
-**Safe alternative:** Use `gemini-safe` adapter wrapper
-- Backs up files before execution
-- Provides rollback capability
-- Adds approval layer before changes
+**Safe alternative:** Use `gemini-safe` (CLI-safe wrapper with approval prompt)
 
 ---
 
@@ -126,10 +123,7 @@ geminiApprovalMode: 'auto_edit'  // Auto-applies without review
 - No explicit bypass flags, but no approval checks either
 - Write operations execute without PuzldAI approval layer
 
-**Safe alternative:** Use `codex-safe` adapter wrapper
-- Backs up files before execution
-- Compares changes after execution
-- Prompts for approval before committing
+**Safe alternative:** Use `codex-safe` (CLI-safe wrapper with approval prompt)
 
 ---
 
@@ -193,16 +187,17 @@ Before using agentic mode in production:
 - [ ] Mistral: `disableTools: true` (default)
 
 ### Must Avoid:
-- [ ] Gemini: DO NOT use base adapter (use `gemini-safe`)
-- [ ] Codex: DO NOT use base adapter (use `codex-safe`)
+- [ ] Gemini: DO NOT use base adapter in agentic mode (use `gemini-safe`)
+- [ ] Codex: DO NOT use base adapter in agentic mode (use `codex-safe`)
 - [ ] Factory: `skipPermissions` MUST be false
 - [ ] Crush: `autoAccept` MUST be false
 
 ### Safe Alternatives:
-```typescript
-// Instead of base adapters
-import { geminiSafe } from './adapters/gemini-safe';
-import { codexSafe } from './adapters/codex-safe';
+Use the CLI-safe wrappers:
+
+```bash
+pk-puzldai run "task" -a gemini-safe
+pk-puzldai run "task" -a codex-safe
 ```
 
 ---

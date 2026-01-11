@@ -26,6 +26,17 @@ export interface ObservationOutput {
   tokensOut?: number;
 }
 
+export interface RoutingDecision {
+  task: string;
+  selectedAgent: string;
+  confidence: number;
+  taskType?: string;
+  fallbackReason?: string;
+  routerModel?: string;
+  profile?: string;
+  mode?: string;
+}
+
 export interface ReviewDecision {
   acceptedFiles?: string[];
   rejectedFiles?: string[];
@@ -141,6 +152,26 @@ export function logResponse(observationId: number, output: ObservationOutput): v
     output.tokensOut || null,
     observationId
   );
+}
+
+/**
+ * Log routing decisions as observations (agent: router)
+ */
+export function logRoutingDecision(decision: RoutingDecision): void {
+  const observationId = startObservation({
+    prompt: decision.task,
+    injectedContext: JSON.stringify({
+      profile: decision.profile,
+      mode: decision.mode,
+      taskType: decision.taskType
+    }),
+    agent: 'router',
+    model: decision.routerModel
+  });
+
+  logResponse(observationId, {
+    response: JSON.stringify(decision)
+  });
 }
 
 /**

@@ -24,11 +24,11 @@
 **Output**: Structured analysis identifying:
 - Orchestration layer uses Ollama (local LLM) - ✅ Excellent
 - CLI adapters have safety issues - ⚠️ Needs attention
-- Safety wrappers exist (gemini-safe, codex-safe) - ✅ Good practice
+- Safe wrapper adapters are registered in the CLI as gemini-safe/codex-safe
 - Permission system in place - ✅ Comprehensive
 
 **Key Finding**: 
-> PuzldAI follows best practices with proper subprocess management, safety wrappers for risky adapters, and comprehensive permission systems.
+> PuzldAI follows best practices with proper subprocess management, safe adapter implementations for risky providers (registered as gemini-safe/codex-safe), and comprehensive permission systems.
 
 ---
 
@@ -51,7 +51,7 @@
 **Key Insights**:
 1. **Orchestration**: Uses local Ollama - excellent choice for privacy, reliability, cost
 2. **Safe Adapters**: Claude, Ollama, Mistral properly disable native tools
-3. **Unsafe Adapters**: Gemini (auto-reads), Codex (no approval) - need wrappers
+3. **Unsafe Adapters**: Gemini (auto-reads), Codex (no approval) - safe wrappers registered as gemini-safe/codex-safe
 4. **Conditional Adapters**: Factory/Crush depend on configuration
 5. **Safety Systems**: Permission system, diff preview, rollback - comprehensive
 
@@ -84,7 +84,7 @@
 **Key Findings**:
 - ✅ Orchestration Grade: A+ (Local Ollama routing)
 - ✅ Safe Adapters Grade: A (Claude, Ollama, Mistral)
-- ⚠️ Unsafe Adapters Grade: B+ (Wrappers exist but not default)
+- ⚠️ Unsafe Adapters Grade: B+ (Wrappers registered as gemini-safe/codex-safe)
 - ✅ Permission System Grade: A (Comprehensive)
 - ✅ Documentation Grade: A (Clear risk documentation)
 - ⚠️ Configuration Grade: B+ (Needs validation)
@@ -101,8 +101,8 @@
 - Log warnings for unsafe configurations
 
 **Priority 2 - HIGH**: Safe Adapter Defaults
-- Auto-redirect `gemini` → `gemini-safe`
-- Auto-redirect `codex` → `codex-safe`
+- Auto-redirect `gemini` -> `gemini-safe` (implemented)
+- Auto-redirect `codex` -> `codex-safe` (implemented)
 - Add `gemini-unsafe` and `codex-unsafe` aliases
 - Console warnings for unsafe usage
 
@@ -147,7 +147,7 @@
 2. **Ollama**: Local only, no file access, PuzldAI-controlled
 3. **Mistral**: Native tools disabled, safe defaults
 
-**Unsafe Adapters** (Require Wrappers):
+**Unsafe Adapters** (Use CLI-safe wrappers):
 1. **Gemini**: Auto-reads files - use `gemini-safe`
 2. **Codex**: No approval interception - use `codex-safe`
 
@@ -179,7 +179,7 @@
 2. **Subprocess Management**: Uses `execa` for all CLI tool execution
 3. **Tool Disabling**: Safe adapters disable native tools correctly
 4. **Fallback Mechanisms**: Multiple fallback layers prevent failures
-5. **Safety Wrappers**: `gemini-safe` and `codex-safe` provide protection
+5. **Safety Wrappers**: CLI-safe wrappers registered as gemini-safe/codex-safe
 6. **Permission System**: Comprehensive approval workflow
 7. **Diff Preview**: Users see changes before applying
 8. **Rollback**: Can revert unwanted changes
@@ -202,7 +202,7 @@
 
 **Conditions**:
 - Use safe adapters (Claude, Ollama, Mistral)
-- Or use wrapped adapters (gemini-safe, codex-safe)
+- Avoid Gemini/Codex for agentic mode until safe wrappers are registered
 - Verify Factory/Crush configurations
 - Follow documented best practices
 

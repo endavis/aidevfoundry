@@ -1,9 +1,23 @@
 import { readFileSync, writeFileSync, existsSync, mkdirSync } from 'fs';
 import { join } from 'path';
 import { homedir } from 'os';
+import type { OrchestrationConfig } from '../orchestrator/profiles';
+import { getDefaultOrchestrationConfig } from '../orchestrator/profiles';
 
 export interface PulzdConfig {
-  defaultAgent: 'auto' | 'claude' | 'gemini' | 'codex' | 'ollama' | 'mistral' | 'factory' | 'crush';
+  defaultAgent:
+    | 'auto'
+    | 'claude'
+    | 'gemini'
+    | 'gemini-safe'
+    | 'gemini-unsafe'
+    | 'codex'
+    | 'codex-safe'
+    | 'codex-unsafe'
+    | 'ollama'
+    | 'mistral'
+    | 'factory'
+    | 'crush';
   routerModel: string;
   timeout: number;
   fallbackAgent: string;
@@ -35,6 +49,7 @@ export interface PulzdConfig {
   };
   api: { port: number; host: string };
   ttyd: { port: number; enabled: boolean };
+  orchestration: OrchestrationConfig;
   // MCP Cloud integration
   cloud?: {
     endpoint: string;      // MCP server URL
@@ -81,6 +96,7 @@ const DEFAULT_CONFIG: PulzdConfig = {
   },
   api: { port: 3000, host: '0.0.0.0' },
   ttyd: { port: 3001, enabled: true },
+  orchestration: getDefaultOrchestrationConfig(),
   cloud: {
     endpoint: 'https://api.puzld.cc'
   },

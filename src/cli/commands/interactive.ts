@@ -10,6 +10,7 @@ import pc from 'picocolors';
 import { runInteractiveSession } from '../../interactive';
 import type { AgentName } from '../../executor/types';
 import { adapters } from '../../adapters';
+import { resolveInteractiveAgent } from '../../lib/agent-selection';
 
 interface InteractiveCommandOptions {
   agent?: string;
@@ -33,9 +34,14 @@ export async function interactiveCommand(
     const timeout = options.timeout ? parseInt(options.timeout, 10) * 1000 : 300000;
 
     // Validate agent
-    const adapter = adapters[agent];
+    const selection = resolveInteractiveAgent(agent);
+    if (selection.notice) {
+      console.log(pc.yellow(selection.notice));
+    }
+
+    const adapter = adapters[selection.agent];
     if (!adapter || !(await adapter.isAvailable())) {
-      spinner.error({ text: `Agent ${agent} is not available` });
+      spinner.error({ text: `Agent ${selection.agent} is not available` });
       process.exit(1);
     }
 
@@ -45,7 +51,7 @@ export async function interactiveCommand(
     console.log(pc.bold(pc.cyan('=== Interactive Mode ===')));
     console.log(pc.dim('pk-puzldai will respond to prompts from the CLI tool'));
     console.log('');
-    console.log(pc.dim('Agent:'), agent);
+    console.log(pc.dim('Agent:'), selection.agent);
     console.log(pc.dim('Responder:'), responder);
     console.log(pc.dim('Max Interactions:'), maxInteractions);
     console.log(pc.dim('Timeout:'), `${timeout / 1000}s`);
@@ -56,7 +62,7 @@ export async function interactiveCommand(
     console.log('');
 
     const result = await runInteractiveSession({
-      agent,
+      agent: selection.agent as AgentName,
       initialPrompt: prompt,
       planContext: prompt,
       responderAgent: responder,

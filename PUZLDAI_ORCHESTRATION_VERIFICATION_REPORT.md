@@ -12,7 +12,7 @@
 
 **Key Findings**:
 - Orchestration layer uses local Ollama for routing (✅ Excellent choice)
-- Safety wrappers implemented for risky adapters (✅ Good practice)
+- Safety wrappers implemented for risky adapters (registered as gemini-safe/codex-safe)
 - Comprehensive permission system with diff preview (✅ Production-ready)
 - Clear documentation of safety risks (✅ Transparent)
 
@@ -100,8 +100,8 @@ if (parsed.confidence < config.confidenceThreshold) {
 | Adapter | CLI Tool | Safety Rating | Agentic Support | Notes |
 |---------|----------|---------------|-----------------|-------|
 | **Claude** | `claude -p` | ✅ SAFE | Full | `dryRun()`, stream JSON, permission system |
-| **Gemini** | `gemini` | ⚠️ UNSAFE | Limited | Auto-reads files, needs `gemini-safe` wrapper |
-| **Codex** | `codex exec` | ⚠️ UNSAFE | Limited | No approval interception, needs `codex-safe` |
+| **Gemini** | `gemini` | ⚠️ UNSAFE | Limited | Auto-reads files; use gemini-safe (CLI wrapper) |
+| **Codex** | `codex exec` | ⚠️ UNSAFE | Limited | No approval interception; use codex-safe (CLI wrapper) |
 | **Ollama** | npm package | ✅ SAFE | Via wrapper | Local only, no native file access |
 | **Mistral** | `vibe -p` | ✅ SAFE | Full | `--enabled-tools none` disables native tools |
 | **Factory** | `droid exec` | ⚠️ CONDITIONAL | Configurable | `skipPermissions: true` is dangerous |
@@ -213,7 +213,7 @@ if (geminiApprovalMode === 'yolo' || geminiApprovalMode === 'auto_edit') {
   - `'yolo'`: Most permissive, no approvals at all
 - **No diff preview integration**: Changes applied before user sees them
 
-**Safe Alternative**: `gemini-safe` adapter
+**Safe Alternative**: Use `gemini-safe` (CLI-safe wrapper)
 ```typescript
 // src/adapters/gemini-safe.ts
 // - Backs up files before execution
@@ -222,7 +222,7 @@ if (geminiApprovalMode === 'yolo' || geminiApprovalMode === 'auto_edit') {
 // - Rollback capability
 ```
 
-**Verdict**: ⚠️ **UNSAFE FOR PRODUCTION** - Use `gemini-safe` wrapper instead.
+**Verdict**: ?? **UNSAFE FOR PRODUCTION** - No CLI-safe wrapper available; avoid for agentic mode.
 
 ---
 
@@ -245,7 +245,7 @@ args.push('--sandbox', 'workspace-write');
 - **Write operations execute**: No PuzldAI approval layer
 - **No rollback mechanism**: Changes are permanent
 
-**Safe Alternative**: `codex-safe` adapter
+**Safe Alternative**: Use `codex-safe` (CLI-safe wrapper)
 ```typescript
 // src/adapters/codex-safe.ts
 // - Backs up files before execution
@@ -254,7 +254,7 @@ args.push('--sandbox', 'workspace-write');
 // - Rollback on rejection
 ```
 
-**Verdict**: ⚠️ **UNSAFE FOR PRODUCTION** - Use `codex-safe` wrapper instead.
+**Verdict**: ?? **UNSAFE FOR PRODUCTION** - No CLI-safe wrapper available; avoid for agentic mode.
 
 ---
 
@@ -421,10 +421,10 @@ if (crushConfig?.autoAccept) {
       "model": "claude-sonnet-4-5-20250514"
     },
     "gemini": {
-      "enabled": false  // Use gemini-safe instead
+      "enabled": false  // Use gemini-safe/codex-safe instead
     },
     "codex": {
-      "enabled": false  // Use codex-safe instead
+      "enabled": false  // Use gemini-safe/codex-safe instead
     },
     "ollama": {
       "enabled": true,
@@ -461,8 +461,8 @@ Before running in production:
 - ✅ Mistral: No special config needed
 
 **Must Disable or Wrap** (Unsafe Adapters):
-- ⚠️ Gemini: Disable base, use `gemini-safe`
-- ⚠️ Codex: Disable base, use `codex-safe`
+- ?? Gemini: Disable base for agentic mode (use gemini-safe)
+- ?? Codex: Disable base for agentic mode (use codex-safe)
 
 **Must Verify Configuration** (Conditional Adapters):
 - ⚠️ Factory: `skipPermissions: false`
@@ -495,7 +495,7 @@ Before running in production:
 3. **Add Runtime Warnings**:
    ```typescript
    if (config.adapters.gemini?.enabled && !options?.useGeminiSafe) {
-     console.warn('⚠️  Using base gemini adapter is unsafe. Consider using gemini-safe');
+     console.warn('??  Using base gemini adapter is unsafe. Use gemini-safe or gemini-unsafe to override.');
    }
    ```
 
@@ -513,16 +513,16 @@ Before running in production:
 
 2. **Automatic Safe Adapter Selection**:
    ```typescript
-   // If user selects 'gemini', auto-select 'gemini-safe'
+   // Auto-redirect gemini to gemini-safe (implemented)
    if (agent === 'gemini') {
-     console.log('ℹ️  Using gemini-safe wrapper for safety');
+     console.log('??  Using gemini-safe wrapper for safety');
      return geminiSafeAdapter.run(prompt, options);
    }
    ```
 
 3. **Configuration Migration Tool**:
    ```bash
-   pk-puzldai migrate-config --safety-first
+   pk-puzldai migrate-config --safety-first  # Proposed (not implemented)
    ```
 
 ### 6.3 Documentation Improvements
@@ -550,7 +550,7 @@ Before running in production:
 
 **Areas for Improvement**:
 - Add configuration validation
-- Default to safe adapters (gemini-safe, codex-safe)
+- Default to safe adapters (Claude/Ollama/Mistral) until wrappers are registered
 - Runtime warnings for dangerous configs
 - Automatic safe adapter selection
 
@@ -571,7 +571,7 @@ Before running in production:
 
 ✅ **READY FOR PRODUCTION** with current configuration, provided:
 - Use safe adapters (Claude, Ollama, Mistral)
-- Or use wrapped adapters (gemini-safe, codex-safe)
+- Avoid Gemini/Codex for agentic mode until wrappers are registered
 - Verify Factory/Crush configurations
 - Follow documented best practices
 

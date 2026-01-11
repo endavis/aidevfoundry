@@ -51,10 +51,10 @@ Edit `~/.puzldai/config.json`:
 
 ```bash
 # Using Factory (droid)
-puzldai run "Create a hello world function in JavaScript" --agent factory
+pk-puzldai run "Create a hello world function in JavaScript" --agent factory
 
 # Using Crush
-puzldai run "Explain closures in JavaScript" --agent crush
+pk-puzldai run "Explain closures in JavaScript" --agent crush
 ```
 
 ### 2. Compare Mode
@@ -62,10 +62,10 @@ puzldai run "Explain closures in JavaScript" --agent crush
 Compare responses from multiple agents:
 
 ```bash
-puzldai compare "What is the best way to handle errors in async JS?" \
+pk-puzldai compare "What is the best way to handle errors in async JS?" \
   --agents claude,factory
 
-puzldai compare "Should TypeScript be used for all projects?" \
+pk-puzldai compare "Should TypeScript be used for all projects?" \
   --agents factory,crush,gemini
 ```
 
@@ -75,11 +75,11 @@ Chain agents for multi-step workflows:
 
 ```bash
 # Factory implements, then Claude reviews
-puzldai run "Create a Fibonacci calculator in Python" \
+pk-puzldai run "Create a Fibonacci calculator in Python" \
   -P "factory:implement,claude:review"
 
 # Multi-stage pipeline
-puzldai run "Build a REST API endpoint" \
+pk-puzldai run "Build a REST API endpoint" \
   -P "factory:design,claude:implement,gemini:test"
 ```
 
@@ -88,7 +88,7 @@ puzldai run "Build a REST API endpoint" \
 Multi-round debates between agents:
 
 ```bash
-puzldai debate "Should TypeScript be used for all projects?" \
+pk-puzldai debate "Should TypeScript be used for all projects?" \
   --agents claude,factory \
   --rounds 3
 ```
@@ -98,7 +98,7 @@ puzldai debate "Should TypeScript be used for all projects?" \
 Build consensus across multiple agents:
 
 ```bash
-puzldai consensus "What are the best practices for React hooks?" \
+pk-puzldai consensus "What are the best practices for React hooks?" \
   --agents claude,factory,gemini
 ```
 
@@ -228,7 +228,7 @@ Crush can be slower in non-interactive mode. Optimization strategies:
 
 ```bash
 # Factory writes code, Claude reviews for best practices, Gemini checks tests
-puzldai run "Implement user authentication" \
+pk-puzldai run "Implement user authentication" \
   -P "factory:implement,claude:review-security,gemini:review-tests"
 ```
 
@@ -236,7 +236,7 @@ puzldai run "Implement user authentication" \
 
 ```bash
 # All agents analyze simultaneously
-puzldai compare "Analyze this codebase for performance issues" \
+pk-puzldai compare "Analyze this codebase for performance issues" \
   --agents claude,factory,gemini \
   --parallel
 ```
@@ -245,12 +245,12 @@ puzldai compare "Analyze this codebase for performance issues" \
 
 ```bash
 # Debate to explore options, then factory implements consensus
-puzldai debate "Best architecture for microservices" \
+pk-puzldai debate "Best architecture for microservices" \
   --agents claude,factory \
   --rounds 2
 
 # Then implement based on debate outcome
-puzldai run "Implement the agreed architecture" --agent factory
+pk-puzldai run "Implement the agreed architecture" --agent factory
 ```
 
 ### 4. Context-Aware Workflows
@@ -264,7 +264,7 @@ puzldai run "Implement the agreed architecture" --agent factory
 }
 
 # Factory will operate within project context
-puzldai run "Add error handling to the API" --agent factory
+pk-puzldai run "Add error handling to the API" --agent factory
 ```
 
 ---
@@ -384,15 +384,15 @@ droid exec --list-tools
 
 ```bash
 # 1. Design phase
-puzldai debate "Best approach for user authentication" \
+pk-puzldai debate "Best approach for user authentication" \
   --agents claude,factory --rounds 2
 
 # 2. Implementation
-puzldai run "Implement JWT authentication" \
+pk-puzldai run "Implement JWT authentication" \
   -P "factory:backend,claude:frontend,gemini:tests"
 
 # 3. Review
-puzldai compare "Review the authentication implementation" \
+pk-puzldai compare "Review the authentication implementation" \
   --agents claude,factory,gemini
 ```
 
@@ -400,11 +400,11 @@ puzldai compare "Review the authentication implementation" \
 
 ```bash
 # Parallel analysis
-puzldai compare "Analyze legacy code for modernization opportunities" \
+pk-puzldai compare "Analyze legacy code for modernization opportunities" \
   --agents claude,factory --parallel
 
 # Implement changes with factory
-puzldai run "Migrate callbacks to async/await" \
+pk-puzldai run "Migrate callbacks to async/await" \
   --agent factory
 ```
 
@@ -412,7 +412,7 @@ puzldai run "Migrate callbacks to async/await" \
 
 ```bash
 # Factory generates docs, Claude reviews for clarity
-puzldai run "Generate API documentation from code" \
+pk-puzldai run "Generate API documentation from code" \
   -P "factory:generate,claude:review-clarity"
 ```
 
@@ -438,9 +438,9 @@ Start conservative and increase as needed:
 
 ```bash
 # Debate → Consensus → Implementation
-puzldai debate "..." --agents claude,factory
-puzldai consensus "..." --agents claude,factory,gemini
-puzldai run "..." --agent factory
+pk-puzldai debate "..." --agents claude,factory
+pk-puzldai consensus "..." --agents claude,factory,gemini
+pk-puzldai run "..." --agent factory
 ```
 
 ### 4. Leverage Model Selection
@@ -526,10 +526,10 @@ Want to try the puzzle games?
 
 ```bash
 # Factory AI Droid - Resource management game
-puzldai game factory-ai-droid --new --difficulty medium
+pk-puzldai game factory-ai-droid --new --difficulty medium
 
 # Charm Crush - Match-3 puzzle
-puzldai game charm-crush --new --difficulty easy
+pk-puzldai game charm-crush --new --difficulty easy
 ```
 
 **Note:** These are fun demonstrations of the adapter pattern, not production coding tools!

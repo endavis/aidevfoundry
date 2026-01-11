@@ -27,6 +27,7 @@ import { adapters, runInteractive } from '../adapters';
 import { routeTask, isRouterAvailable } from '../router/router';
 import { getConfig } from '../lib/config';
 import { assembleStepContext, inferStepRole } from '../context/injection';
+import { resolveAgentSelection, resolveInteractiveAgent } from '../lib/agent-selection';
 
 const DEFAULT_TIMEOUT = 120000;
 const DEFAULT_MAX_CONCURRENCY = 3;
@@ -435,7 +436,11 @@ async function executeStepOnce(
 
   // Check for interactive mode
   if (step.interactive) {
-    const result = await runInteractiveStep(agent, prompt, step, config);
+    const interactiveSelection = resolveInteractiveAgent(agent);
+    if (interactiveSelection.notice) {
+      console.log(`[executor] ${interactiveSelection.notice}`);
+    }
+    const result = await runInteractiveStep(interactiveSelection.agent as AgentName, prompt, step, config);
     return {
       stepId: step.id,
       status: result.error ? 'failed' : 'completed',
@@ -445,7 +450,11 @@ async function executeStepOnce(
     };
   }
 
-  const result = await runAdapter(agent, prompt, config, step.id, step.model);
+  const selection = resolveAgentSelection(agent);
+  if (selection.notice) {
+    console.log(`[executor] ${selection.notice}`);
+  }
+  const result = await runAdapter(selection.agent as AgentName, prompt, config, step.id, step.model);
 
   return {
     stepId: step.id,

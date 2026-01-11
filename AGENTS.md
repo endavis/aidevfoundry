@@ -175,6 +175,7 @@ npm link              # Link CLI globally
 
 | Mode | Description | Command |
 |------|-------------|---------|
+| **Do** | Auto-select best approach (recommended) | `pk-puzldai do "task"` |
 | **Single** | One agent processes task | `pk-puzldai run "task"` |
 | **Compare** | Multiple agents in parallel | `pk-puzldai compare "task"` |
 | **Pipeline** | Chain agents: `gemini:analyze,claude:code` | `pk-puzldai run "task" -P "..."` |
@@ -261,7 +262,7 @@ For agentic mode, some providers are safer than others. See [PROVIDER_SUPPORT_MA
 | Claude | SAFE | Full permission system support |
 | Ollama | SAFE | Local, no native file access |
 | Mistral | SAFE | `disableTools: true` by default |
-| Gemini | UNSAFE | Auto-reads files, use `gemini-safe` |
-| Codex | UNSAFE | No approval layer, use `codex-safe` |
+| Gemini | UNSAFE | Auto-reads files; use `gemini-safe` (default redirect) |
+| Codex | UNSAFE | No approval layer; use `codex-safe` (default redirect) |
 | Factory | CONDITIONAL | Depends on `autonomy` and `skipPermissions` config |
 | Crush | CONDITIONAL | Depends on `autoAccept` config |

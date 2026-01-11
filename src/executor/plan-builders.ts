@@ -223,6 +223,38 @@ export function parsePipelineString(pipeline: string): PipelineOptions {
   return { steps };
 }
 
+export function buildProfilePipelineSteps(options: {
+  primaryAgent: AgentName;
+  allowAgents: AgentName[];
+  includeReview?: boolean;
+}): PipelineStep[] {
+  const { primaryAgent, allowAgents, includeReview } = options;
+
+  const pickAgent = (preferred: AgentName[], fallback: AgentName): AgentName => {
+    for (const agent of preferred) {
+      if (allowAgents.includes(agent)) {
+        return agent;
+      }
+    }
+    return fallback;
+  };
+
+  const analyzeAgent = pickAgent(['gemini', 'claude'], primaryAgent);
+  const codeAgent = pickAgent(['claude', 'codex'], primaryAgent);
+  const reviewAgent = pickAgent(['codex', 'claude'], primaryAgent);
+
+  const steps: PipelineStep[] = [
+    { agent: analyzeAgent, action: 'analyze' },
+    { agent: codeAgent, action: 'code' }
+  ];
+
+  if (includeReview) {
+    steps.push({ agent: reviewAgent, action: 'review' });
+  }
+
+  return steps;
+}
+
 /**
  * Parse compare agents string
  *

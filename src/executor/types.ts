@@ -5,7 +5,18 @@
  */
 
 // Agent types - includes both LLM providers and external CLI coding tools
-export type AgentName = 'claude' | 'gemini' | 'codex' | 'ollama' | 'mistral' | 'factory' | 'crush';
+export type AgentName =
+  | 'claude'
+  | 'gemini'
+  | 'gemini-safe'
+  | 'gemini-unsafe'
+  | 'codex'
+  | 'codex-safe'
+  | 'codex-unsafe'
+  | 'ollama'
+  | 'mistral'
+  | 'factory'
+  | 'crush';
 
 // Step action types
 export type StepAction =

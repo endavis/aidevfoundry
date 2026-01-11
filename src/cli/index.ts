@@ -15,6 +15,13 @@ import {
   templateDeleteCommand
 } from './commands/template';
 import {
+  profileListCommand,
+  profileShowCommand,
+  profileSetDefaultCommand,
+  profileCreateCommand,
+  profileDeleteCommand
+} from './commands/profile';
+import {
   sessionListCommand,
   sessionNewCommand,
   sessionInfoCommand,
@@ -112,6 +119,9 @@ program
   .option('-T, --template <name>', 'Use a saved template')
   .option('-i, --interactive', 'Prompt before each step')
   .option('-x, --agentic', 'Enable agentic mode')
+  .option('--dry-run', 'Show the plan and exit')
+  .option('--no-compress', 'Disable context compression')
+  .option('-p, --profile <name>', 'Use orchestration profile (speed, balanced, quality)')
   .action(runCommand);
 
 program
@@ -130,10 +140,16 @@ program
   .option('-m, --mode <mode>', 'Orchestration mode: delegate|coordinate|supervise', 'delegate')
   .option('-a, --agents <agents>', 'Comma-separated agents to use', 'claude,gemini')
   .option('-A, --agent <agent>', 'Primary agent (overrides agents)', 'auto')
+  .option('--dry-run', 'Show the plan and exit')
+  .option('--no-compress', 'Disable context compression')
+  .option('-p, --profile <name>', 'Use orchestration profile (speed, balanced, quality)')
   .action((task, opts) => orchestrateCommand(task, {
     mode: opts.mode as 'delegate' | 'coordinate' | 'supervise',
     agents: opts.agents,
-    agent: opts.agent
+    agent: opts.agent,
+    profile: opts.profile,
+    dryRun: opts.dryRun,
+    noCompress: opts.noCompress
   }));
 
 program
@@ -267,6 +283,37 @@ templateCmd
   .command('delete <name>')
   .description('Delete a user template')
   .action(templateDeleteCommand);
+
+// Profile subcommands
+const profileCmd = program
+  .command('profile')
+  .description('Manage orchestration profiles');
+
+profileCmd
+  .command('list')
+  .description('List all available profiles')
+  .action(profileListCommand);
+
+profileCmd
+  .command('show <name>')
+  .description('Show profile details')
+  .action(profileShowCommand);
+
+profileCmd
+  .command('set-default <name>')
+  .description('Set the default profile')
+  .action(profileSetDefaultCommand);
+
+profileCmd
+  .command('create <name>')
+  .description('Create a new profile')
+  .option('-f, --from <name>', 'Clone from existing profile')
+  .action((name, opts, cmd) => profileCreateCommand(name, cmd.opts()));
+
+profileCmd
+  .command('delete <name>')
+  .description('Delete a profile')
+  .action(profileDeleteCommand);
 
 // Session subcommands
 const sessionCmd = program

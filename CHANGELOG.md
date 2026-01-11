@@ -19,8 +19,8 @@ All notable changes to PuzldAI will be documented in this file.
 
 ### Added
 - **MCP Cloud Integration** - Connect to Puzld MCP server via WebSocket
-  - `puzld serve --mcp` - Start local Core and connect to cloud MCP
-  - `puzld login` - Authenticate with Puzld MCP (opens browser OAuth)
+  - `pk-puzldai serve --mcp` - Start local Core and connect to cloud MCP
+  - `pk-puzldai login` - Authenticate with Puzld MCP (opens browser OAuth)
   - Outbound WebSocket connection (solves localhost unreachable problem)
 
 - **MCP Compare Mode** - Run prompts through multiple agents via MCP
@@ -425,7 +425,7 @@ All notable changes to PuzldAI will be documented in this file.
   - `src/indexing/searcher.ts` - Multi-strategy search (semantic + FTS5 + structure)
   - `src/indexing/config-detector.ts` - AGENTS.md and project config detection
   - `src/indexing/index.ts` - Unified `indexCodebase()` orchestrator
-  - CLI: `puzld index [path]` with options: `--quick`, `--search`, `--context`, `--config`, `--graph`
+  - CLI: `pk-puzldai index [path]` with options: `--quick`, `--search`, `--context`, `--config`, `--graph`
   - TUI: `/index` panel with Full/Quick/Search options
   - Auto-injects AGENTS.md into agentic prompts (enabled by default)
   - Supports: AGENTS.md, CLAUDE.md, .cursorrules, copilot-instructions.md
@@ -629,7 +629,7 @@ All notable changes to PuzldAI will be documented in this file.
 ### Added
 - Interactive mode for pipeline/workflow execution (Phase 6)
   - TUI: Enable via `/settings` toggle, shows step confirmation dialog
-  - CLI: `--interactive` flag for `puzld run --pipeline/--template` and `puzld autopilot --execute`
+  - CLI: `--interactive` flag for `pk-puzldai run --pipeline/--template` and `pk-puzldai autopilot --execute`
   - Options: [Y] Yes, [A] Yes All, [S] Skip, [E] Edit prompt, [X] Abort
 - StepConfirmation component with edit-in-place prompt support
 
@@ -652,7 +652,7 @@ All notable changes to PuzldAI will be documented in this file.
 ### Added
 - Model selection panel via `/model` command in TUI with tabbed interface
   - Shows aliases as (latest) with specific versions separated below
-- CLI commands: `puzld model show/list/set/clear`
+- CLI commands: `pk-puzldai model show/list/set/clear`
 - `-m, --model` flag for `run` and `agent` commands
 - Syncs default models from agent CLI configs on startup
 
@@ -697,7 +697,7 @@ All notable changes to PuzldAI will be documented in this file.
   - Tiered processing: <5k pass, 5-15k summarize, >15k scaffold
   - Code-aware boundary detection (functions/classes/headings/paragraphs)
   - Semantic retrieval via Ollama embeddings (nomic-embed-text)
-- "Disabled in config" messaging in `puzldai check` command
+- "Disabled in config" messaging in `pk-puzldai check` command
 
 ### Changed
 - Ollama model token limits updated (phi3, qwen2, llama3.2 → 128k)
@@ -813,11 +813,11 @@ All notable changes to PuzldAI will be documented in this file.
 - Compression ratio stats
 
 #### CLI Session Commands (`src/cli/commands/session.ts`)
-- `puzld session list [agent]` — List all sessions
-- `puzld session new [agent]` — Create a new session
-- `puzld session info <id>` — View session details
-- `puzld session delete <id>` — Remove a session
-- `puzld session clear <id>` — Clear history, keep session
+- `pk-puzldai session list [agent]` — List all sessions
+- `pk-puzldai session new [agent]` — Create a new session
+- `pk-puzldai session info <id>` — View session details
+- `pk-puzldai session delete <id>` — Remove a session
+- `pk-puzldai session clear <id>` — Clear history, keep session
 
 #### TUI Session Management (`src/tui/components/SessionsManager.tsx`)
 - `/session` — Create new session directly
@@ -834,19 +834,19 @@ All notable changes to PuzldAI will be documented in this file.
 
 #### Multi-Agent Collaboration (`src/executor/plan-builders.ts`)
 - **Cross-Agent Correction** — One agent produces, another reviews, optional fix step
-  - CLI: `puzld correct "task" --producer claude --reviewer gemini [--fix]`
+  - CLI: `pk-puzldai correct "task" --producer claude --reviewer gemini [--fix]`
   - TUI: `/correct <producer> <reviewer> <task>`
 - **Multi-Agent Debate** — Agents argue positions across configurable rounds
-  - CLI: `puzld debate "topic" -a claude,gemini [-r 3] [-m ollama]`
+  - CLI: `pk-puzldai debate "topic" -a claude,gemini [-r 3] [-m ollama]`
   - TUI: `/debate <agents> <topic>`
 - **Consensus Building** — Agents propose, vote, and synthesize best solution
-  - CLI: `puzld consensus "task" -a claude,gemini,ollama [-r 2] [-s claude]`
+  - CLI: `pk-puzldai consensus "task" -a claude,gemini,ollama [-r 2] [-s claude]`
   - TUI: `/consensus <agents> <task>`
 
 #### CLI Collaboration Commands (`src/cli/commands/collaboration.ts`)
-- `puzld correct` — Cross-agent correction with --producer, --reviewer, --fix
-- `puzld debate` — Multi-agent debate with -a agents, -r rounds, -m moderator
-- `puzld consensus` — Consensus building with -a agents, -r rounds, -s synthesizer
+- `pk-puzldai correct` — Cross-agent correction with --producer, --reviewer, --fix
+- `pk-puzldai debate` — Multi-agent debate with -a agents, -r rounds, -m moderator
+- `pk-puzldai consensus` — Consensus building with -a agents, -r rounds, -s synthesizer
 
 #### TUI Collaboration Settings
 - **Correct tab** — Toggle fix after review

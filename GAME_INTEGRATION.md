@@ -36,54 +36,54 @@ A colorful match-3 puzzle game where you swap adjacent charms to create matches 
 
 ```bash
 # Start Factory AI Droid on medium difficulty
-puzldai game factory-ai-droid --new
+pk-puzldai game factory-ai-droid --new
 
 # Start Charm Crush on hard difficulty
-puzldai game charm-crush --new --difficulty hard
+pk-puzldai game charm-crush --new --difficulty hard
 ```
 
 ### List Game Sessions
 
 ```bash
 # List all game sessions
-puzldai game --list
+pk-puzldai game --list
 
 # List sessions for specific game
-puzldai game factory-ai-droid --list
+pk-puzldai game factory-ai-droid --list
 ```
 
 ### View Statistics
 
 ```bash
 # Show overall statistics
-puzldai game --stats
+pk-puzldai game --stats
 ```
 
 ### Session Management
 
 ```bash
 # Resume specific session
-puzldai game factory-ai-droid --session <session-id>
+pk-puzldai game factory-ai-droid --session <session-id>
 
 # End active session
-puzldai game factory-ai-droid --end
+pk-puzldai game factory-ai-droid --end
 
 # Delete specific session
-puzldai game --delete <session-id>
+pk-puzldai game --delete <session-id>
 
 # Clean up old sessions (older than 30 days)
-puzldai game --cleanup 30
+pk-puzldai game --cleanup 30
 ```
 
 ### Gameplay
 
 ```bash
 # Send game commands to active session
-puzldai game factory-ai-droid "build droid miner"
-puzldai game charm-crush "swap A3 with B3"
+pk-puzldai game factory-ai-droid "build droid miner"
+pk-puzldai game charm-crush "swap A3 with B3"
 
 # Show current game state
-puzldai game factory-ai-droid
+pk-puzldai game factory-ai-droid
 ```
 
 ## Multi-Agent Integration
@@ -94,7 +94,7 @@ Games work seamlessly with PuzldAI's orchestration modes:
 Have different agents solve the same puzzle and compare strategies:
 
 ```bash
-puzldai compare "What's the optimal strategy for Factory AI Droid?" \
+pk-puzldai compare "What's the optimal strategy for Factory AI Droid?" \
   -a claude,gemini,codex
 ```
 
@@ -102,7 +102,7 @@ puzldai compare "What's the optimal strategy for Factory AI Droid?" \
 Let agents debate the best approach:
 
 ```bash
-puzldai debate "Best opening move in Charm Crush" \
+pk-puzldai debate "Best opening move in Charm Crush" \
   -a claude,gemini -r 3
 ```
 
@@ -110,7 +110,7 @@ puzldai debate "Best opening move in Charm Crush" \
 Build consensus on strategy:
 
 ```bash
-puzldai consensus "Determine optimal Factory AI Droid build order" \
+pk-puzldai consensus "Determine optimal Factory AI Droid build order" \
   -a claude,gemini,codex
 ```
 
@@ -119,10 +119,10 @@ Create multi-step game solving workflows:
 
 ```bash
 # Using template
-puzldai template create game-solver \
+pk-puzldai template create game-solver \
   -P "factory-ai-droid:init,claude:analyze,gemini:strategy,claude:execute"
 
-puzldai run "Solve Factory AI Droid" --template game-solver
+pk-puzldai run "Solve Factory AI Droid" --template game-solver
 ```
 
 ## Architecture
@@ -247,8 +247,8 @@ To add a new puzzle game:
 
 4. **Test Integration**
    ```bash
-   puzldai game your-game --new
-   puzldai game --list
+   pk-puzldai game your-game --new
+   pk-puzldai game --list
    ```
 
 ## Use Cases
@@ -256,7 +256,7 @@ To add a new puzzle game:
 ### 1. Agent Strategy Comparison
 Compare how different LLMs approach puzzle solving:
 ```bash
-puzldai compare "Solve this Factory AI Droid scenario optimally" \
+pk-puzldai compare "Solve this Factory AI Droid scenario optimally" \
   -a claude,gemini,codex
 ```
 
@@ -284,7 +284,7 @@ Show PuzldAI's versatility:
 
 ```bash
 # Start new game
-$ puzldai game factory-ai-droid --new --difficulty medium
+$ pk-puzldai game factory-ai-droid --new --difficulty medium
 
 ✓ Started new factory-ai-droid game
   Difficulty: medium
@@ -312,10 +312,10 @@ Available commands:
   • help
 
 # Make a move (future implementation)
-$ puzldai game factory-ai-droid "build droid miner"
+$ pk-puzldai game factory-ai-droid "build droid miner"
 
 # View all sessions
-$ puzldai game --list
+$ pk-puzldai game --list
 
 === All Games Sessions ===
 
@@ -326,7 +326,7 @@ game_1703365200_abc123 [active]
   Status: playing
 
 # View statistics
-$ puzldai game --stats
+$ pk-puzldai game --stats
 
 === Game Session Statistics ===
 

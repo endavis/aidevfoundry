@@ -1,6 +1,7 @@
 import { Ollama } from 'ollama';
 import type { RouteResult } from '../lib/types';
 import { getConfig } from '../lib/config';
+import { logRoutingDecision } from '../observation/logger';
 
 let ollamaClient: Ollama | null = null;
 
@@ -46,6 +47,19 @@ export async function routeTask(task: string): Promise<RouteResult> {
     if (parsed.confidence < config.confidenceThreshold) {
       console.log(`[router] Low confidence (${parsed.confidence.toFixed(2)} < ${config.confidenceThreshold}) - using fallback agent: ${config.fallbackAgent}`);
       console.log(`[router] Fix: Start Ollama service, adjust confidenceThreshold in config, or specify agent directly`);
+      try {
+        logRoutingDecision({
+          task,
+          selectedAgent: config.fallbackAgent,
+          confidence: parsed.confidence,
+          taskType: parsed.taskType || 'fallback',
+          fallbackReason: `Router confidence (${parsed.confidence.toFixed(2)}) below threshold (${config.confidenceThreshold})`,
+          routerModel: config.routerModel,
+          mode: 'auto'
+        });
+      } catch {
+        // Ignore logging errors
+      }
       return {
         agent: config.fallbackAgent as RouteResult['agent'],
         confidence: 1.0,
@@ -54,11 +68,37 @@ export async function routeTask(task: string): Promise<RouteResult> {
       };
     }
 
+    try {
+      logRoutingDecision({
+        task,
+        selectedAgent: parsed.agent,
+        confidence: parsed.confidence,
+        taskType: parsed.taskType,
+        routerModel: config.routerModel,
+        mode: 'auto'
+      });
+    } catch {
+      // Ignore logging errors
+    }
+
     return parsed as RouteResult;
   } catch (error) {
     const reason = error instanceof Error ? error.message : 'Unknown error';
     console.log(`[router] Unavailable - ${reason}. Using fallback agent: ${config.fallbackAgent}`);
     console.log(`[router] Fix: Start Ollama service (ollama serve) or change routerModel in config`);
+    try {
+      logRoutingDecision({
+        task,
+        selectedAgent: config.fallbackAgent,
+        confidence: 0,
+        taskType: 'fallback',
+        fallbackReason: `Router unavailable: ${reason}`,
+        routerModel: config.routerModel,
+        mode: 'auto'
+      });
+    } catch {
+      // Ignore logging errors
+    }
     return {
       agent: config.fallbackAgent as RouteResult['agent'],
       confidence: 1.0,

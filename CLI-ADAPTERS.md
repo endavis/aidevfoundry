@@ -82,13 +82,13 @@ Run tasks with Factory's autonomous agent:
 
 ```bash
 # Direct invocation
-puzldai run "refactor the authentication module" --agent factory
+pk-puzldai run "refactor the authentication module" --agent factory
 
 # With specific model
-puzldai run "implement JWT refresh tokens" --agent factory --model gpt-4
+pk-puzldai run "implement JWT refresh tokens" --agent factory --model gpt-4
 
 # Auto-routing (will select factory if appropriate)
-puzldai run "migrate from REST to GraphQL"
+pk-puzldai run "migrate from REST to GraphQL"
 ```
 
 **Key Features:**
@@ -104,13 +104,13 @@ Run tasks with Charm's terminal-based coding agent:
 
 ```bash
 # Direct invocation
-puzldai run "add dark mode support" --agent crush
+pk-puzldai run "add dark mode support" --agent crush
 
 # With specific model
-puzldai run "optimize database queries" --agent crush --model claude-3-opus
+pk-puzldai run "optimize database queries" --agent crush --model claude-3-opus
 
 # Auto-routing
-puzldai run "fix the memory leak in the worker pool"
+pk-puzldai run "fix the memory leak in the worker pool"
 ```
 
 **Key Features:**
@@ -135,14 +135,14 @@ The naming might be confusing, so here's the distinction:
 
 Use the game command for puzzles:
 ```bash
-puzldai game factory-ai-droid --new
-puzldai game charm-crush --new
+pk-puzldai game factory-ai-droid --new
+pk-puzldai game charm-crush --new
 ```
 
 Use the run command for actual development work:
 ```bash
-puzldai run "your task" --agent factory
-puzldai run "your task" --agent crush
+pk-puzldai run "your task" --agent factory
+pk-puzldai run "your task" --agent crush
 ```
 
 ## Auto-Routing
@@ -151,12 +151,12 @@ PuzldAI's router can automatically select the appropriate agent based on task ch
 
 ```bash
 # Router might select 'factory' for:
-puzldai run "perform a complete refactor of the API layer"
-puzldai run "migrate from MongoDB to PostgreSQL"
+pk-puzldai run "perform a complete refactor of the API layer"
+pk-puzldai run "migrate from MongoDB to PostgreSQL"
 
 # Router might select 'crush' for:
-puzldai run "add comprehensive logging to the service"
-puzldai run "implement rate limiting middleware"
+pk-puzldai run "add comprehensive logging to the service"
+pk-puzldai run "implement rate limiting middleware"
 ```
 
 To configure routing confidence thresholds, edit `~/.puzldai/config.json`:
@@ -235,13 +235,13 @@ Use different agents for different phases:
 
 ```bash
 # Factory for architecture and implementation
-puzldai run "design and implement a caching layer" --agent factory
+pk-puzldai run "design and implement a caching layer" --agent factory
 
 # Crush for refinement and optimization
-puzldai run "optimize the caching layer implementation" --agent crush
+pk-puzldai run "optimize the caching layer implementation" --agent crush
 
 # Codex for testing
-puzldai run "write comprehensive tests for the cache" --agent codex
+pk-puzldai run "write comprehensive tests for the cache" --agent codex
 ```
 
 ### Comparison Mode
@@ -249,7 +249,7 @@ puzldai run "write comprehensive tests for the cache" --agent codex
 Compare how different agents approach the same task:
 
 ```bash
-puzldai compare "implement a rate limiter" --agents factory,crush,codex
+pk-puzldai compare "implement a rate limiter" --agents factory,crush,codex
 ```
 
 ### Consensus Building
@@ -257,7 +257,7 @@ puzldai compare "implement a rate limiter" --agents factory,crush,codex
 Get consensus across multiple agents:
 
 ```bash
-puzldai consensus "should we use Redis or Memcached for session storage?"
+pk-puzldai consensus "should we use Redis or Memcached for session storage?"
 ```
 
 ## API Reference
