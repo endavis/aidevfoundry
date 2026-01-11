@@ -5,7 +5,7 @@
  * from CLI tools based on the plan context and conversation history.
  */
 
-import { adapters } from '../adapters';
+import { adapters, runOpenRouter } from '../adapters';
 import type { AgentName } from '../executor/types';
 import type {
   DetectedPrompt,
@@ -105,21 +105,31 @@ function parseResponderOutput(output: string): GeneratedResponse {
 export async function generateResponse(
   options: ResponderOptions
 ): Promise<GeneratedResponse> {
+  const prompt = buildResponderPrompt(options);
+
+  // Try OpenRouter first (fast and cheap with Devstral)
+  try {
+    const orResult = await runOpenRouter(prompt);
+
+    if (!orResult.error && orResult.content) {
+      return parseResponderOutput(orResult.content);
+    }
+  } catch {
+    // Fall through to adapter fallback
+  }
+
+  // Fallback to specified adapter or ollama
   const agentName = options.agent || 'ollama';
   const adapter = adapters[agentName];
 
   if (!adapter) {
-    // Fallback to simple heuristics if no adapter available
     return generateHeuristicResponse(options.prompt);
   }
 
   const isAvailable = await adapter.isAvailable();
   if (!isAvailable) {
-    // Fallback to heuristics
     return generateHeuristicResponse(options.prompt);
   }
-
-  const prompt = buildResponderPrompt(options);
 
   try {
     const result = await adapter.run(prompt, {

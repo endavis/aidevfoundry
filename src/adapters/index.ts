@@ -10,6 +10,7 @@ import { factoryAdapter } from './factory';
 import { crushAdapter } from './crush';
 import { factoryDroidAdapter } from './factory-ai-droid';
 import { charmCrushAdapter } from './charm-crush';
+import { openrouterAdapter, runOpenRouter } from './openrouter';
 import { GameStateParser } from './base-game-adapter';
 import { createInteractiveAdapter, runInteractive } from './interactive-adapter';
 import type { InteractiveRunOptions } from './interactive-adapter';
@@ -22,6 +23,7 @@ export const adapters: Record<string, Adapter> = {
   mistral: mistralAdapter,
   factory: factoryAdapter,
   crush: crushAdapter,
+  openrouter: openrouterAdapter,
   'factory-ai-droid': factoryDroidAdapter,
   'charm-crush': charmCrushAdapter
 };
@@ -48,6 +50,8 @@ export {
   crushAdapter,
   factoryDroidAdapter,
   charmCrushAdapter,
+  openrouterAdapter,
+  runOpenRouter,
   GameStateParser,
   // Interactive mode support
   createInteractiveAdapter,

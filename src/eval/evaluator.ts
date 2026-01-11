@@ -5,7 +5,7 @@
  * correct and high-quality results using LLM feedback.
  */
 
-import { adapters } from '../adapters';
+import { adapters, runOpenRouter } from '../adapters';
 import { execute } from '../executor/executor';
 import { buildPKPoetPlan } from '../executor/pk-poet-builder';
 import { buildPoetiqPlan, buildSelfDiscoverPlan } from '../executor/factory-modes-builder';
@@ -66,14 +66,24 @@ Consider:
 Respond in this exact JSON format only:
 {"score": <number 1-10>, "reasoning": "<one sentence explanation>"}`;
 
-  // Use ollama for evaluation (fast and cheap)
-  const ollama = adapters['ollama'];
-  if (!ollama || !(await ollama.isAvailable())) {
-    return { score: 5, reasoning: 'Evaluator not available' };
-  }
-
+  // Use OpenRouter with Devstral for evaluation (fast and cheap)
   try {
-    const evalResult = await ollama.run(evaluatorPrompt, { disableTools: true });
+    const evalResult = await runOpenRouter(evaluatorPrompt);
+
+    if (evalResult.error) {
+      // Fallback to ollama if OpenRouter is not available
+      const ollama = adapters['ollama'];
+      if (ollama && (await ollama.isAvailable())) {
+        const ollamaResult = await ollama.run(evaluatorPrompt, { disableTools: true });
+        const parsed = JSON.parse(ollamaResult.content.match(/\{[\s\S]*\}/)?.[0] || '{}');
+        return {
+          score: parsed.score || 5,
+          reasoning: parsed.reasoning || 'No reasoning provided',
+        };
+      }
+      return { score: 5, reasoning: 'Evaluator not available' };
+    }
+
     const parsed = JSON.parse(evalResult.content.match(/\{[\s\S]*\}/)?.[0] || '{}');
     return {
       score: parsed.score || 5,
