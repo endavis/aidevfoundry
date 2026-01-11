@@ -34,8 +34,8 @@ function initStatements(): void {
   const db = getDatabase();
 
   saveTaskStmt = db.prepare(`
-    INSERT INTO api_tasks (id, prompt, agent, status, result, error, model, started_at, completed_at, updated_at)
-    VALUES (@id, @prompt, @agent, @status, @result, @error, @model, @startedAt, @completedAt, @updatedAt)
+    INSERT INTO api_tasks (id, prompt, agent, status, result, error, model, started_at, completed_at, updated_at, queue_position)
+    VALUES (@id, @prompt, @agent, @status, @result, @error, @model, @startedAt, @completedAt, @updatedAt, @queuePosition)
   `);
 
   updateTaskStmt = db.prepare(`
@@ -74,7 +74,7 @@ function ensureStatements(): void {
 /**
  * Save a new task to the database
  */
-export function saveTask(id: string, entry: TaskEntry): void {
+export function saveTask(id: string, entry: TaskEntry, queuePosition?: number): void {
   ensureStatements();
   const db = getDatabase();
   const now = Date.now();
@@ -91,6 +91,7 @@ export function saveTask(id: string, entry: TaskEntry): void {
       startedAt: entry.startedAt,
       completedAt: entry.completedAt || null,
       updatedAt: now,
+      queuePosition: queuePosition || 0,
     });
   } catch (error) {
     console.error(`[task-persistence] Failed to save task ${id}:`, error);

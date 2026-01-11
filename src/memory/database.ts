@@ -290,6 +290,19 @@ function runMigrations(database: Database.Database): void {
 
     database.prepare("UPDATE metadata SET value = '5' WHERE key = 'schema_version'").run();
   }
+
+  // Migration 6: Add queue_position to api_tasks for crash recovery
+  if (currentVersion < 6) {
+    database.exec(`
+      -- Add queue_position column for tracking task order in queue
+      ALTER TABLE api_tasks ADD COLUMN queue_position INTEGER DEFAULT 0;
+
+      -- Create index for efficient queue position queries
+      CREATE INDEX IF NOT EXISTS idx_api_tasks_queue_position ON api_tasks(queue_position);
+    `);
+
+    database.prepare("UPDATE metadata SET value = '6' WHERE key = 'schema_version'").run();
+  }
 }
 
 /**

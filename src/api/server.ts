@@ -38,6 +38,15 @@ function removeTaskFromCache(id: string): void {
   tasks.delete(id);
 }
 
+// Evict completed/failed tasks from cache to prevent memory leaks (Fix #4)
+function evictFromCache(id: string): void {
+  const task = tasks.get(id);
+  if (task && (task.status === 'completed' || task.status === 'failed')) {
+    tasks.delete(id);
+    console.log(`[server] Evicted task ${id} from cache (status: ${task.status})`);
+  }
+}
+
 // Cleanup tasks older than 1 hour (from database + cache)
 setInterval(() => {
   // Clean database
@@ -110,6 +119,9 @@ export async function startServer(options: ServerOptions): Promise<void> {
     const id = generateId();
     const now = Date.now();
 
+    // Get queue position BEFORE enqueuing (Fix #2: prevent race conditions)
+    const queuePosition = taskQueue.metrics.pending + 1;
+
     const entry: TaskEntry = {
       prompt,
       agent,
@@ -117,8 +129,8 @@ export async function startServer(options: ServerOptions): Promise<void> {
       startedAt: now,
     };
 
-    // Save to database and cache
-    persistence.saveTask(id, entry);
+    // Save to database WITH queue position (Fix #2: atomic save)
+    persistence.saveTask(id, entry, queuePosition);
     syncTaskToCache(id, entry);
 
     // Use task queue with concurrency limit (max 5)
@@ -129,25 +141,54 @@ export async function startServer(options: ServerOptions): Promise<void> {
         persistence.updateTask(id, { status: 'running' });
       }
 
-      const result = await orchestrate(prompt, { agent });
+      try {
+        // Fix #10: Wrap orchestrate in try-catch to handle unexpected errors
+        const result = await orchestrate(prompt, { agent });
 
-      const currentTask = tasks.get(id);
-      if (currentTask) {
-        if (result.error) {
-          currentTask.status = 'failed';
-          currentTask.error = result.error;
-          persistence.updateTask(id, { status: 'failed', error: result.error, completedAt: Date.now() });
-        } else {
-          currentTask.status = 'completed';
-          currentTask.result = result.content;
-          persistence.updateTask(id, { status: 'completed', result: result.content, model: result.model, completedAt: Date.now() });
+        const currentTask = tasks.get(id);
+        if (currentTask) {
+          if (result.error) {
+            currentTask.status = 'failed';
+            currentTask.error = result.error;
+            persistence.updateTask(id, { status: 'failed', error: result.error, completedAt: Date.now() });
+          } else {
+            currentTask.status = 'completed';
+            currentTask.result = result.content;
+            persistence.updateTask(id, { status: 'completed', result: result.content, model: result.model, completedAt: Date.now() });
+          }
+          currentTask.model = result.model;
+
+          // Fix #4: Evict completed/failed tasks from cache
+          evictFromCache(id);
         }
-        currentTask.model = result.model;
+        return result;
+      } catch (orchestrateError) {
+        // Fix #10: Handle unexpected errors from orchestrate
+        const errorMessage = orchestrateError instanceof Error
+          ? orchestrateError.message
+          : 'Unknown orchestrate error';
+
+        console.error(`[server] Orchestrate error for task ${id}:`, errorMessage);
+
+        const currentTask = tasks.get(id);
+        if (currentTask) {
+          currentTask.status = 'failed';
+          currentTask.error = errorMessage;
+          persistence.updateTask(id, {
+            status: 'failed',
+            error: errorMessage,
+            completedAt: Date.now()
+          });
+
+          // Fix #4: Evict failed tasks from cache
+          evictFromCache(id);
+        }
+
+        throw orchestrateError; // Re-throw for task queue error handling
       }
-      return result;
     });
 
-    return { id, status: 'queued', queuePosition: taskQueue.metrics.pending };
+    return { id, status: 'queued', queuePosition };
   });
 
   // Get task status
@@ -227,8 +268,15 @@ export async function startServer(options: ServerOptions): Promise<void> {
       }
     }, 100);
 
-    request.raw.on('close', () => {
+    // Fix #5: Handle client disconnect to prevent resource leaks
+    reply.raw.on('close', () => {
       clearInterval(interval);
+      console.log(`[server] SSE client disconnected for task ${id}`);
+    });
+
+    reply.raw.on('error', (err) => {
+      clearInterval(interval);
+      console.error(`[server] SSE error for task ${id}:`, err);
     });
   });
 
