@@ -7,13 +7,15 @@
  * Timestamps are Unix epoch milliseconds (Date.now()).
  */
 
-import Database from 'better-sqlite3';
 import { join } from 'path';
 import { existsSync, mkdirSync } from 'fs';
 import { getConfigDir } from '../lib/config';
+import { createRequire } from 'module';
+
+const require = createRequire(import.meta.url);
 
 // Database instance (singleton)
-let db: Database.Database | null = null;
+let db: any | null = null;
 
 /**
  * Get database file path
@@ -25,7 +27,7 @@ export function getDatabasePath(): string {
 /**
  * Initialize database connection and schema
  */
-export function initDatabase(): Database.Database {
+export function initDatabase(): any {
   if (db) return db;
 
   // Ensure config directory exists
@@ -35,7 +37,39 @@ export function initDatabase(): Database.Database {
   }
 
   const dbPath = getDatabasePath();
-  db = new Database(dbPath);
+  const isBun = typeof (globalThis as any).Bun !== 'undefined';
+
+  if (isBun) {
+    const { Database } = require('bun:sqlite') as { Database: any };
+    db = new Database(dbPath);
+
+    // bun:sqlite API compatibility with better-sqlite3
+    if (!db.prepare && db.query) {
+      db.prepare = db.query.bind(db);
+    }
+    if (!db.pragma) {
+      db.pragma = (pragma: string) => db.exec(`PRAGMA ${pragma}`);
+    }
+    if (!db.transaction) {
+      db.transaction = (fn: () => unknown) => {
+        return () => {
+          db.exec('BEGIN');
+          try {
+            const result = fn();
+            db.exec('COMMIT');
+            return result;
+          } catch (err) {
+            db.exec('ROLLBACK');
+            throw err;
+          }
+        };
+      };
+    }
+  } else {
+    const BetterSqlite3 = require('better-sqlite3') as any;
+    const Ctor = BetterSqlite3?.default ?? BetterSqlite3;
+    db = new Ctor(dbPath);
+  }
 
   // Enable WAL mode for better concurrency
   db.pragma('journal_mode = WAL');
@@ -49,7 +83,7 @@ export function initDatabase(): Database.Database {
 /**
  * Get database instance (initializes if needed)
  */
-export function getDatabase(): Database.Database {
+export function getDatabase(): any {
   if (!db) {
     return initDatabase();
   }
@@ -69,7 +103,7 @@ export function closeDatabase(): void {
 /**
  * Create database schema
  */
-function createSchema(database: Database.Database): void {
+function createSchema(database: any): void {
   // Metadata table (for schema versioning)
   database.exec(`
     CREATE TABLE IF NOT EXISTS metadata (
@@ -148,7 +182,7 @@ function createSchema(database: Database.Database): void {
 /**
  * Run all migrations
  */
-function runMigrations(database: Database.Database): void {
+function runMigrations(database: any): void {
   const currentVersion = parseInt(
     (database.prepare("SELECT value FROM metadata WHERE key = 'schema_version'").get() as { value: string })?.value || '1',
     10
@@ -316,6 +350,30 @@ function runMigrations(database: Database.Database): void {
     `);
 
     database.prepare("UPDATE metadata SET value = '6' WHERE key = 'schema_version'").run();
+  }
+
+  // Migration 7: Add game_sessions table for puzzle game persistence
+  if (currentVersion < 7) {
+    database.exec(`
+      CREATE TABLE IF NOT EXISTS game_sessions (
+        id TEXT PRIMARY KEY,
+        game_name TEXT NOT NULL,
+        state_json TEXT NOT NULL,
+        is_active INTEGER NOT NULL DEFAULT 1 CHECK(is_active IN (0, 1)),
+        created_at INTEGER NOT NULL,
+        updated_at INTEGER NOT NULL
+      );
+
+      CREATE INDEX IF NOT EXISTS idx_game_sessions_game_name ON game_sessions(game_name);
+      CREATE INDEX IF NOT EXISTS idx_game_sessions_updated_at ON game_sessions(updated_at DESC);
+
+      -- Enforce single active session per game, allow unlimited inactive sessions
+      CREATE UNIQUE INDEX IF NOT EXISTS idx_game_sessions_unique_active
+      ON game_sessions(game_name)
+      WHERE is_active = 1;
+    `);
+
+    database.prepare("UPDATE metadata SET value = '7' WHERE key = 'schema_version'").run();
   }
 }
 

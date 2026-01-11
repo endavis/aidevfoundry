@@ -10,23 +10,7 @@ import { factoryAdapter } from './factory';
 import { crushAdapter } from './crush';
 import { factoryDroidAdapter } from './factory-ai-droid';
 import { charmCrushAdapter } from './charm-crush';
-import {
-  type GameState,
-  type GameOptions,
-  type GameAdapter,
-  type GameSession,
-  createGameSession,
-  getActiveSession,
-  getSession,
-  listGameSessions,
-  updateGameSession,
-  endGameSession,
-  deleteGameSession,
-  clearInactiveSessions,
-  cleanupOldSessions,
-  getGameSessionStats,
-  runGameCommand
-} from './base-game-adapter';
+import { GameStateParser } from './base-game-adapter';
 
 export const adapters: Record<string, Adapter> = {
   claude: claudeAdapter,
@@ -62,19 +46,5 @@ export {
   crushAdapter,
   factoryDroidAdapter,
   charmCrushAdapter,
-  type GameState,
-  type GameOptions,
-  type GameAdapter,
-  type GameSession,
-  createGameSession,
-  getActiveSession,
-  getSession,
-  listGameSessions,
-  updateGameSession,
-  endGameSession,
-  deleteGameSession,
-  clearInactiveSessions,
-  cleanupOldSessions,
-  getGameSessionStats,
-  runGameCommand
+  GameStateParser
 };

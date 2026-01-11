@@ -11,6 +11,42 @@ export interface ModelResponse {
   state?: unknown;
 }
 
+export type GameStatus = 'playing' | 'won' | 'lost' | 'invalid';
+
+export interface GameState {
+  status: GameStatus;
+  moves?: string[];
+  score?: number;
+  message?: string;
+  data?: unknown;
+}
+
+export type GameDifficulty = 'easy' | 'medium' | 'hard';
+
+export interface GameOptions {
+  difficulty: GameDifficulty;
+}
+
+export interface GameCommandValidation {
+  valid: boolean;
+  error?: string;
+}
+
+export interface GameAdapter extends Adapter {
+  initializeGame(options: GameOptions): GameState;
+  renderState(state: GameState): string;
+  validateCommand?(command: string, state: GameState): GameCommandValidation;
+}
+
+export interface GameSession {
+  id: string;
+  gameName: string;
+  state: GameState;
+  isActive: boolean;
+  createdAt: number;
+  updatedAt: number;
+}
+
 export interface RalphWiggumOptions {
   /** Enable Ralph Wiggum loop (keep retrying until task is done) */
   enabled?: boolean;

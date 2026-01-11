@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Box, Text, useInput } from 'ink';
-import { getSessionStats, type AgentSession } from '../../memory';
+import { getUnifiedSessionStats, type UnifiedSession } from '../../context';
 
 const HIGHLIGHT = '#8CA9FF';
 
@@ -12,7 +12,7 @@ interface SettingsPanelProps {
   currentAgent: string;
   routerAgent: string;
   plannerAgent: string;
-  session: AgentSession | null;
+  session: UnifiedSession | null;
   // Toggles
   sequential: boolean;
   pick: boolean;
@@ -172,7 +172,7 @@ export function SettingsPanel({
   }, { isActive: tab === 'collaboration' });
 
   // Get session stats
-  const sessionStats = session ? getSessionStats(session) : null;
+  const sessionStats = session ? getUnifiedSessionStats(session) : null;
 
   const getFooterHint = () => {
     switch (tab) {
@@ -268,8 +268,8 @@ function StatusTab({ version, currentAgent, routerAgent, plannerAgent }: StatusT
 }
 
 interface SessionTabProps {
-  session: AgentSession | null;
-  stats: ReturnType<typeof getSessionStats> | null;
+  session: UnifiedSession | null;
+  stats: ReturnType<typeof getUnifiedSessionStats> | null;
 }
 
 function SessionTab({ session, stats }: SessionTabProps) {
@@ -286,8 +286,8 @@ function SessionTab({ session, stats }: SessionTabProps) {
         <Text dimColor>{session.id}</Text>
       </Box>
       <Box>
-        <Text bold>{'Agent:'.padEnd(20)}</Text>
-        <Text>{session.agent}</Text>
+        <Text bold>{'Agents Used:'.padEnd(20)}</Text>
+        <Text>{session.agentsUsed.length > 0 ? session.agentsUsed.join(', ') : 'none'}</Text>
       </Box>
       <Box>
         <Text bold>{'Messages:'.padEnd(20)}</Text>
@@ -295,12 +295,8 @@ function SessionTab({ session, stats }: SessionTabProps) {
       </Box>
       <Box>
         <Text bold>{'Tokens:'.padEnd(20)}</Text>
-        <Text>{stats.totalTokens} </Text>
-        <Text dimColor>(recent: {stats.recentTokens}, summary: {stats.summaryTokens})</Text>
-      </Box>
-      <Box>
-        <Text bold>{'Compression:'.padEnd(20)}</Text>
-        <Text>{stats.compressionRatio}%</Text>
+        <Text>{stats.totalTokens}</Text>
+        <Text dimColor>(avg/msg: {stats.avgTokensPerMessage})</Text>
       </Box>
       <Box>
         <Text bold>{'Created:'.padEnd(20)}</Text>

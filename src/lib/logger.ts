@@ -9,7 +9,7 @@
  */
 
 import pino from 'pino';
-import { v4 as uuidv4 } from 'crypto';
+import { randomUUID } from 'crypto';
 
 // Create base logger with production-ready defaults
 const logger = pino({
@@ -62,12 +62,11 @@ export function createLogger(context: LogContext): pino.Logger {
  * Generate a new request ID
  */
 export function generateRequestId(): string {
-  // Use crypto.randomUUID() if available (Node 14.17+)
-  if (typeof crypto !== 'undefined' && crypto.randomUUID) {
-    return crypto.randomUUID();
+  try {
+    return randomUUID();
+  } catch {
+    return `${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
   }
-  // Fallback to simple UUID generation
-  return `${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
 }
 
 /**

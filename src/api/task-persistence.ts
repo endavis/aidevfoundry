@@ -6,7 +6,7 @@
  */
 
 import { getDatabase } from '../memory/database';
-import { persistenceLogger, createLogger } from '../lib/logger';
+import { createLogger } from '../lib/logger';
 
 export interface TaskEntry {
   prompt: string;
@@ -17,19 +17,20 @@ export interface TaskEntry {
   model?: string;
   startedAt: number;
   completedAt?: number;
+  queuePosition?: number;
 }
 
 // Create module-specific logger
 const logger = createLogger({ module: 'persistence' });
 
 // Prepared statements for performance
-let saveTaskStmt: Database.Statement | null = null;
-let updateTaskStmt: Database.Statement | null = null;
-let getTaskStmt: Database.Statement | null = null;
-let getAllTasksStmt: Database.Statement | null = null;
-let deleteTaskStmt: Database.Statement | null = null;
-let deleteOldTasksStmt: Database.Statement | null = null;
-let getActiveTasksStmt: Database.Statement | null = null;
+let saveTaskStmt: any | null = null;
+let updateTaskStmt: any | null = null;
+let getTaskStmt: any | null = null;
+let getAllTasksStmt: any | null = null;
+let deleteTaskStmt: any | null = null;
+let deleteOldTasksStmt: any | null = null;
+let getActiveTasksStmt: any | null = null;
 
 /**
  * Initialize prepared statements
@@ -39,18 +40,18 @@ function initStatements(): void {
 
   saveTaskStmt = db.prepare(`
     INSERT INTO api_tasks (id, prompt, agent, status, result, error, model, started_at, completed_at, updated_at, queue_position)
-    VALUES (@id, @prompt, @agent, @status, @result, @error, @model, @startedAt, @completedAt, @updatedAt, @queuePosition)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `);
 
   updateTaskStmt = db.prepare(`
     UPDATE api_tasks
-    SET status = @status,
-        result = @result,
-        error = @error,
-        model = @model,
-        completed_at = @completedAt,
-        updated_at = @updatedAt
-    WHERE id = @id
+    SET status = ?,
+        result = ?,
+        error = ?,
+        model = ?,
+        completed_at = ?,
+        updated_at = ?
+    WHERE id = ?
   `);
 
   getTaskStmt = db.prepare('SELECT * FROM api_tasks WHERE id = ?');
@@ -80,7 +81,6 @@ function ensureStatements(): void {
  */
 export function saveTask(id: string, entry: TaskEntry, queuePosition?: number): void {
   ensureStatements();
-  const db = getDatabase();
   const now = Date.now();
 
   // Fix #5: Validate queue position
@@ -89,19 +89,19 @@ export function saveTask(id: string, entry: TaskEntry, queuePosition?: number): 
     : 0;
 
   try {
-    saveTaskStmt!.run({
+    saveTaskStmt!.run([
       id,
-      prompt: entry.prompt,
-      agent: entry.agent || null,
-      status: entry.status,
-      result: entry.result || null,
-      error: entry.error || null,
-      model: entry.model || null,
-      startedAt: entry.startedAt,
-      completedAt: entry.completedAt || null,
-      updatedAt: now,
-      queuePosition: validatedQueuePosition,
-    });
+      entry.prompt,
+      entry.agent || null,
+      entry.status,
+      entry.result || null,
+      entry.error || null,
+      entry.model || null,
+      entry.startedAt,
+      entry.completedAt || null,
+      now,
+      validatedQueuePosition,
+    ]);
   } catch (error) {
     logger.error({ taskId: id, error }, 'Failed to save task');
     throw error;
@@ -116,19 +116,18 @@ export function updateTask(
   updates: Partial<Pick<TaskEntry, 'status' | 'result' | 'error' | 'model' | 'completedAt'>>
 ): void {
   ensureStatements();
-  const db = getDatabase();
   const now = Date.now();
 
   try {
-    updateTaskStmt!.run({
+    updateTaskStmt!.run([
+      updates.status,
+      updates.result || null,
+      updates.error || null,
+      updates.model || null,
+      updates.completedAt || null,
+      now,
       id,
-      status: updates.status,
-      result: updates.result || null,
-      error: updates.error || null,
-      model: updates.model || null,
-      completedAt: updates.completedAt || null,
-      updatedAt: now,
-    });
+    ]);
   } catch (error) {
     logger.error({ taskId: id, error }, 'Failed to update task');
     throw error;
@@ -142,7 +141,7 @@ export function getTask(id: string): TaskEntry | null {
   ensureStatements();
 
   try {
-    const row = getTaskStmt!.get(id) as Database.Row | undefined;
+    const row = getTaskStmt!.get(id) as any | undefined;
     return row ? mapRowToTaskEntry(row) : null;
   } catch (error) {
     logger.error({ taskId: id, error }, 'Failed to get task');
@@ -157,7 +156,7 @@ export function getAllTasks(): TaskEntry[] {
   ensureStatements();
 
   try {
-    const rows = getAllTasksStmt!.all() as Database.Row[];
+    const rows = getAllTasksStmt!.all() as any[];
     return rows.map(mapRowToTaskEntry);
   } catch (error) {
     logger.error({ error }, 'Failed to get all tasks');
@@ -207,7 +206,7 @@ export function loadActiveTasks(): TaskEntry[] {
   ensureStatements();
 
   try {
-    const rows = getActiveTasksStmt!.all() as Database.Row[];
+    const rows = getActiveTasksStmt!.all() as any[];
     const tasks = rows.map(mapRowToTaskEntry);
 
     if (tasks.length > 0) {
@@ -224,16 +223,17 @@ export function loadActiveTasks(): TaskEntry[] {
 /**
  * Map database row to TaskEntry interface
  */
-function mapRowToTaskEntry(row: Database.Row): TaskEntry {
+function mapRowToTaskEntry(row: any): TaskEntry {
   return {
     prompt: row.prompt as string,
-    agent: row.agent as string | undefined,
+    agent: (row.agent as string | null) ?? undefined,
     status: row.status as 'queued' | 'running' | 'completed' | 'failed',
-    result: row.result as string | undefined,
-    error: row.error as string | undefined,
-    model: row.model as string | undefined,
+    result: (row.result as string | null) ?? undefined,
+    error: (row.error as string | null) ?? undefined,
+    model: (row.model as string | null) ?? undefined,
     startedAt: row.started_at as number,
-    completedAt: row.completed_at as number | undefined,
+    completedAt: (row.completed_at as number | null) ?? undefined,
+    queuePosition: (row.queue_position as number | null) ?? 0,
   };
 }
 

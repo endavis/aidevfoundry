@@ -11,20 +11,7 @@
  * - Win by reaching target score before moves run out
  */
 
-import type { Adapter, ModelResponse, RunOptions } from '../lib/types';
-import {
-  GameAdapter,
-  GameState,
-  GameOptions,
-  GameSession,
-  createGameSession,
-  getActiveSession,
-  getSession,
-  listGameSessions,
-  updateGameSession,
-  endGameSession,
-  runGameCommand
-} from './base-game-adapter';
+import type { GameAdapter, GameOptions, GameState, ModelResponse, RunOptions } from '../lib/types';
 
 interface CharmCrushState extends GameState {
   data: {
@@ -141,8 +128,6 @@ function renderCharmCrushState(state: GameState): string {
 }
 
 function validateCharmCrushCommand(command: string, state: GameState): { valid: boolean; error?: string } {
-  const s = state as CharmCrushState;
-
   if (state.status === 'won' || state.status === 'lost') {
     return { valid: false, error: 'Game is over. Use --new to start a new game.' };
   }
@@ -380,13 +365,6 @@ export const charmCrushAdapter: GameAdapter = {
 };
 
 export {
-  createGameSession,
-  getActiveSession,
-  getSession,
-  listGameSessions,
-  updateGameSession,
-  endGameSession,
-  runGameCommand,
   type CharmCrushState,
   CHARM_TYPES,
   DIFFICULTY_SETTINGS

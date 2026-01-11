@@ -4,13 +4,14 @@
  */
 
 import { describe, it, expect, beforeEach, afterEach } from 'bun:test';
-import Fastify from 'fastify';
+import type { FastifyInstance } from 'fastify';
+import { createServer } from './server';
 
 describe('API Server', () => {
-  let fastify: ReturnType<typeof Fastify>;
+  let fastify: FastifyInstance;
 
   beforeEach(async () => {
-    fastify = Fastify({ logger: false });
+    fastify = await createServer({ restoreTasks: false });
   });
 
   afterEach(async () => {

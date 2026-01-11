@@ -1,65 +1,79 @@
 /**
  * Game CLI Command
- *
- * Manage puzzle games (Factory AI Droid, Charm Crush) from the command line.
- *
- * Commands:
- * - puzldai game <name> --new [--difficulty easy|medium|hard] - Start new game
- * - puzldai game <name> - Show current state (when no prompt)
- * - puzldai game <name> <command> - Send command to active session
- * - puzldai game <name> --list - List sessions
- * - puzldai game <name> --session <id> - Resume specific session
- * - puzldai game <name> --end - End current session
- * - puzldai game --stats - Show overall stats
- * - puzldai game --cleanup <days> - Clean old sessions
  */
 
 import type { Command } from 'commander';
+import type { GameAdapter, GameOptions, GameSession, GameState } from '../../lib/types';
+import { factoryDroidAdapter, charmCrushAdapter } from '../../adapters';
 import {
-  factoryDroidAdapter,
-  charmCrushAdapter,
   createGameSession,
-  getActiveSession,
-  getSession,
+  getActiveGameSession,
+  getGameSession,
   listGameSessions,
   updateGameSession,
   endGameSession,
-  clearInactiveSessions,
-  cleanupOldSessions,
-  getGameSessionStats,
-  type GameAdapter,
-  type GameOptions
-} from '../../adapters/index.js';
+  activateGameSession,
+  deleteGameSession,
+  cleanupOldGameSessions,
+  getGameSessionStats
+} from '../../memory';
 
 const GAME_ADAPTERS: Record<string, GameAdapter> = {
   'factory-ai-droid': factoryDroidAdapter,
   'charm-crush': charmCrushAdapter
 };
 
-const VALID_DIFFICULTIES = ['easy', 'medium', 'hard'];
+const VALID_DIFFICULTIES = ['easy', 'medium', 'hard'] as const;
 
-function parseDifficulty(value: string): 'easy' | 'medium' | 'hard' {
-  const normalized = value.toLowerCase() as 'easy' | 'medium' | 'hard';
+type Difficulty = (typeof VALID_DIFFICULTIES)[number];
+
+type GameCommandOpts = {
+  new?: boolean;
+  difficulty?: string;
+  list?: boolean;
+  session?: string;
+  end?: boolean;
+  delete?: string;
+  stats?: boolean;
+  cleanup?: string;
+};
+
+function parseDifficulty(value: string): Difficulty {
+  const normalized = value.toLowerCase() as Difficulty;
   if (!VALID_DIFFICULTIES.includes(normalized)) {
     throw new Error(`Invalid difficulty: ${value}. Valid options: ${VALID_DIFFICULTIES.join(', ')}`);
   }
   return normalized;
 }
 
+function renderSessionList(sessions: GameSession[]): void {
+  for (const s of sessions) {
+    const status = s.isActive ? 'ACTIVE' : 'INACTIVE';
+    console.log(`ID: ${s.id}`);
+    console.log(`Game: ${s.gameName}`);
+    console.log(`Status: ${status}`);
+    console.log(`Updated: ${new Date(s.updatedAt).toLocaleString()}`);
+    console.log('---');
+  }
+}
+
 export function gameCommand(program: Command): void {
   program
-    .command('game [name]')
+    .command('game')
     .description('Play puzzle games (factory-ai-droid, charm-crush)')
+    .argument('[name]', 'Game name')
+    .argument('[command...]', 'Game command to send to active session')
     .option('--new', 'Start a new game')
     .option('--difficulty <level>', 'Difficulty level (easy, medium, hard)', 'easy')
     .option('--list', 'List game sessions')
-    .option('--session <id>', 'Resume specific session by ID')
-    .option('--end', 'End current session')
+    .option('--session <id>', 'Activate and show a specific session by ID')
+    .option('--end', 'End current active session for the game')
+    .option('--delete <id>', 'Delete a session by ID')
     .option('--stats', 'Show game statistics')
-    .option('--cleanup <days>', 'Clean up sessions older than specified days')
-    .action(async (name: string | undefined, options: Record<string, unknown>) => {
+    .option('--cleanup <days>', 'Delete inactive sessions older than N days')
+    .action(async (name: string | undefined, commandParts: string[], opts: GameCommandOpts) => {
       try {
-        await runGameCommand(name, options);
+        await runGameCommand(name, commandParts, opts);
       } catch (error) {
         console.error(`Error: ${error instanceof Error ? error.message : error}`);
         process.exit(1);
@@ -67,108 +81,115 @@ export function gameCommand(program: Command): void {
     });
 }
 
-async function runGameCommand(name: string | undefined, options: Record<string, unknown>): Promise<void> {
-  const {
-    new: isNew,
-    difficulty,
-    list: isList,
-    session: sessionId,
-    end: isEnd,
-    stats: isStats,
-    cleanup: cleanupDays
-  } = options;
-
-  if (isStats) {
+async function runGameCommand(
+  name: string | undefined,
+  commandParts: string[],
+  opts: GameCommandOpts
+): Promise<void> {
+  if (opts.stats) {
     const stats = getGameSessionStats();
-    console.log(`=== Game Statistics ===`);
+    console.log('=== Game Statistics ===');
     console.log(`Total sessions: ${stats.total}`);
     console.log(`Active sessions: ${stats.active}`);
     console.log(`Inactive sessions: ${stats.inactive}`);
     return;
   }
 
-  if (cleanupDays !== undefined) {
-    const days = Number(cleanupDays);
-    if (isNaN(days) || days <= 0) {
+  if (opts.cleanup !== undefined) {
+    const days = Number(opts.cleanup);
+    if (Number.isNaN(days) || days <= 0) {
       throw new Error('--cleanup requires a positive number of days');
     }
-    const ms = days * 24 * 60 * 60 * 1000;
-    const count = cleanupOldSessions(ms);
-    console.log(`Cleaned up ${count} old session(s).`);
+    const count = cleanupOldGameSessions(days * 24 * 60 * 60 * 1000);
+    console.log(`Deleted ${count} old inactive session(s).`);
+    return;
+  }
+
+  if (opts.delete) {
+    const session = getGameSession(opts.delete);
+    if (!session) {
+      throw new Error(`Session not found: ${opts.delete}`);
+    }
+    deleteGameSession(opts.delete);
+    console.log(`Deleted session ${opts.delete} (${session.gameName}).`);
+    return;
+  }
+
+  if (opts.list) {
+    const sessions = listGameSessions(name);
+    if (sessions.length === 0) {
+      console.log(name ? `No sessions found for ${name}.` : 'No game sessions found.');
+      return;
+    }
+
+    console.log('=== Game Sessions ===\n');
+    renderSessionList(sessions);
+    return;
+  }
+
+  if (opts.session) {
+    const session = getGameSession(opts.session);
+    if (!session) {
+      throw new Error(`Session not found: ${opts.session}`);
+    }
+
+    if (name && session.gameName !== name) {
+      throw new Error(`Session ${opts.session} is for ${session.gameName}, not ${name}`);
+    }
+
+    activateGameSession(opts.session);
+    const adapter = GAME_ADAPTERS[session.gameName];
+    if (!adapter) {
+      throw new Error(`Unknown game: ${session.gameName}`);
+    }
+
+    console.log(adapter.renderState(session.state));
     return;
   }
 
   if (!name) {
     console.log('Available games:');
     console.log('  factory-ai-droid  - Resource management puzzle');
-    console.log('  charm-crush      - Match-3 puzzle game');
-    console.log('\nUse --stats for overall statistics or --cleanup <days> to clean old sessions.');
+    console.log('  charm-crush       - Match-3 puzzle game');
+    console.log('\nUse --stats, --list, or --cleanup <days>.');
     return;
   }
 
   const adapter = GAME_ADAPTERS[name];
   if (!adapter) {
-    throw new Error(`Unknown game: ${name}\nAvailable games: ${Object.keys(GAME_ADAPTERS).join(', ')}`);
+    throw new Error(`Unknown game: ${name}. Available games: ${Object.keys(GAME_ADAPTERS).join(', ')}`);
   }
 
-  if (isList) {
-    const sessions = listGameSessions(name);
-    if (sessions.length === 0) {
-      console.log(`No sessions found for ${name}.`);
+  if (opts.end) {
+    const active = getActiveGameSession(name);
+    if (!active) {
+      console.log(`No active session for ${name}.`);
       return;
     }
 
-    console.log(`=== ${name} Sessions ===\n`);
-    for (const session of sessions) {
-      const status = session.is_active ? 'ACTIVE' : 'INACTIVE';
-      const updated = new Date(session.updated_at).toLocaleString();
-      console.log(`ID: ${session.id}`);
-      console.log(`Status: ${status}`);
-      console.log(`Updated: ${updated}`);
-      console.log(`---`);
-    }
-    return;
-  }
-
-  if (sessionId) {
-    const session = getSession(sessionId);
-    if (!session) {
-      throw new Error(`Session not found: ${sessionId}`);
-    }
-    if (session.game_name !== name) {
-      throw new Error(`Session ${sessionId} is for ${session.game_name}, not ${name}`);
-    }
-    console.log(adapter.renderState(session.state));
-    return;
-  }
-
-  if (isEnd) {
-    const active = getActiveSession(name);
-    if (!active) {
-      throw new Error(`No active session for ${name}.`);
-    }
     endGameSession(active.id);
-    console.log(`Session ended. Final state:`);
+    console.log('Session ended. Final state:');
     console.log(adapter.renderState(active.state));
     return;
   }
 
-  if (isNew) {
-    const active = getActiveSession(name);
-    if (active) {
+  if (opts.new) {
+    const existing = getActiveGameSession(name);
+    if (existing) {
       console.log(`Active session exists for ${name}.`);
       console.log('Use --end to end it first, or --session <id> to resume a different session.\n');
       console.log('Current state:');
-      console.log(adapter.renderState(active.state));
+      console.log(adapter.renderState(existing.state));
       return;
     }
 
     const gameOptions: GameOptions = {
-      difficulty: parseDifficulty(String(difficulty))
+      difficulty: parseDifficulty(opts.difficulty ?? 'easy')
     };
 
     const state = adapter.initializeGame(gameOptions);
     const session = createGameSession(name, state);
+
     console.log(`New ${name} game started!`);
     console.log(`Session ID: ${session.id}`);
     console.log('');
@@ -176,30 +197,34 @@ async function runGameCommand(name: string | undefined, options: Record<string, 
     return;
   }
 
-  const active = getActiveSession(name);
+  const active = getActiveGameSession(name);
   if (!active) {
     console.log(`No active session for ${name}.`);
-    console.log(`Use --new to start a new game.`);
+    console.log('Use --new to start a new game.');
     return;
   }
 
-  const command = typeof options.args?.[0] === 'string' ? options.args[0] : '';
-  if (!command) {
+  const commandText = commandParts.join(' ').trim();
+  if (!commandText) {
     console.log(adapter.renderState(active.state));
     return;
   }
 
-  const response = await adapter.run(command, { state: active.state });
-
-  if (response.state) {
-    updateGameSession(active.id, response.state as Parameters<typeof updateGameSession>[1]);
+  const validation = adapter.validateCommand?.(commandText, active.state);
+  if (validation && !validation.valid) {
+    console.log(`Invalid command: ${validation.error}`);
+    console.log('');
+    console.log(adapter.renderState(active.state));
+    return;
   }
 
+  const response = await adapter.run(commandText, { state: active.state });
+  const newState = (response.state as GameState | undefined) ?? active.state;
+
+  updateGameSession(active.id, newState);
   console.log(response.content);
 
-  if (response.state && (response.state as { status?: string }).status !== 'playing') {
+  if (newState.status === 'won' || newState.status === 'lost') {
     endGameSession(active.id);
   }
 }
-
-export { GAME_ADAPTERS, parseDifficulty };

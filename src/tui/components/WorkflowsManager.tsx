@@ -23,7 +23,7 @@ function CustomItem({ isSelected, label }: ItemProps) {
 }
 
 // Custom indicator
-function CustomIndicator({ isSelected }: { isSelected: boolean }) {
+function CustomIndicator({ isSelected }: { isSelected?: boolean }) {
   return (
     <Box marginRight={1}>
       <Text color={HIGHLIGHT_COLOR}>{isSelected ? '❯' : ' '}</Text>
@@ -329,9 +329,18 @@ export function WorkflowsManager({ onBack, onRun }: WorkflowsManagerProps) {
       return;
     }
 
+    const pipelineStr = editSteps.map(s => `${s.agent}:${s.action}`).join(',');
+    let parsed;
+    try {
+      parsed = parsePipelineString(pipelineStr);
+    } catch {
+      setError('Invalid pipeline steps. Use format: agent:role');
+      return;
+    }
+
     const updated = {
       ...existing,
-      steps: editSteps,
+      steps: parsed.steps,
       updatedAt: Date.now()
     };
     saveTemplate(updated);

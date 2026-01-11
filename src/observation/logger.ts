@@ -238,11 +238,11 @@ export function getRecentObservations(options: {
     params.push(sessionId);
   }
 
-  sql += ' ORDER BY timestamp DESC LIMIT ?';
+  sql += ' ORDER BY timestamp DESC, id DESC LIMIT ?';
   params.push(limit);
 
   const rows = db.prepare(sql).all(...params);
-  return rows.map(row => mapRowToObservation(row as Parameters<typeof mapRowToObservation>[0]));
+  return rows.map((row: any) => mapRowToObservation(row as Parameters<typeof mapRowToObservation>[0]));
 }
 
 /**

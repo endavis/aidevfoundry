@@ -1,8 +1,8 @@
 import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { render, Box, Text, useInput, useApp } from 'ink';
 import TextInput from 'ink-text-input';
-import { readFileSync } from 'fs';
-import { join, dirname } from 'path';
+import { existsSync, readFileSync } from 'fs';
+import { join, dirname, resolve } from 'path';
 import { fileURLToPath } from 'url';
 import { orchestrate } from '../orchestrator';
 import { chat as chatOrchestrator } from '../chat';
@@ -100,8 +100,6 @@ import {
   parseFiles
 } from '../indexing';
 import { globSync } from 'glob';
-import { existsSync, readFileSync } from 'fs';
-import { resolve } from 'path';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const pkg = JSON.parse(readFileSync(join(__dirname, '../../package.json'), 'utf-8'));
@@ -415,6 +413,7 @@ function App() {
     if (known.length > 0 && !known.includes(model)) {
       return `Warning: "${model}" not in known models. It may still work.`;
     }
+    return undefined;
   };
   const handleSetGeminiModel = (model: string): string | undefined => {
     setGeminiModel(model);
@@ -425,6 +424,7 @@ function App() {
     if (known.length > 0 && !known.includes(model)) {
       return `Warning: "${model}" not in known models. It may still work.`;
     }
+    return undefined;
   };
   const handleSetCodexModel = (model: string): string | undefined => {
     setCodexModel(model);
@@ -435,6 +435,7 @@ function App() {
     if (known.length > 0 && !known.includes(model)) {
       return `Warning: "${model}" not in known models. It may still work.`;
     }
+    return undefined;
   };
   const handleSetOllamaModel = (model: string): string | undefined => {
     setOllamaModel(model);
@@ -442,6 +443,7 @@ function App() {
     cfg.adapters.ollama.model = model;
     saveConfig(cfg);
     // Ollama models are dynamic, no warning needed
+    return undefined;
   };
   const handleSetMistralModel = (model: string): string | undefined => {
     setMistralModel(model);
@@ -455,6 +457,7 @@ function App() {
     if (known.length > 0 && !known.includes(model)) {
       return `Warning: "${model}" not in known models. It may still work.`;
     }
+    return undefined;
   };
 
   const { addToHistory, navigateHistory } = useHistory();
@@ -617,6 +620,7 @@ function App() {
         return () => clearTimeout(timer);
       }
     }
+    return undefined;
   }, []);
 
   // Show notification when agent changes (but don't clear messages)
@@ -1079,8 +1083,8 @@ Keep your response concise and focused on the plan, not the implementation.`;
           content: f.content
         })),
         durationMs: Date.now() - startTime,
-        tokensIn: result.rawResponse?.tokensIn,
-        tokensOut: result.rawResponse?.tokensOut
+        tokensIn: result.rawResponse?.tokens?.input,
+        tokensOut: result.rawResponse?.tokens?.output
       });
 
       if (!result.success) {
@@ -1109,20 +1113,20 @@ Keep your response concise and focused on the plan, not the implementation.`;
         return;
       }
 
-      const editSummary = result.proposedEdits.map(e =>
+      const editSummary = result.proposedEdits!.map(e =>
         `  ${e.operation}: ${e.filePath}${e.originalContent === null ? ' (new)' : ''}`
       ).join('\n');
       const explanation = result.agenticResponse?.explanation || '';
       setMessages(prev => [...prev, {
         id: nextId(),
         role: 'assistant',
-        content: `${explanation}\n\n${agentName} proposed ${result.proposedEdits.length} file edit(s):\n${editSummary}\n\nReview each edit below:`,
+        content: `${explanation}\n\n${agentName} proposed ${result.proposedEdits!.length} file edit(s):\n${editSummary}\n\nReview each edit below:`,
         agent: agentName
       }]);
 
       setCurrentObservationId(observationId);
       setCurrentAgenticResult(result);
-      setProposedEdits(result.proposedEdits);
+      setProposedEdits(result.proposedEdits!);
       setMode('review');
     } catch (err) {
       setMessages(prev => [...prev, { id: nextId(), role: 'assistant', content: 'Error: ' + (err as Error).message }]);
@@ -2084,8 +2088,9 @@ Compare View:
         } else {
           const fullConfig = { ...currentConfig };
           fullConfig.cloud = {
-            ...fullConfig.cloud,
-            token: undefined
+            endpoint: fullConfig.cloud?.endpoint ?? 'https://api.puzld.cc',
+            machineId: fullConfig.cloud?.machineId,
+            token: undefined,
           };
           saveConfig(fullConfig);
           setMcpStatus('local');

@@ -22,6 +22,10 @@ interface ServerOptions {
   host: string;
 }
 
+export interface CreateServerOptions extends Partial<ServerOptions> {
+  restoreTasks?: boolean;
+}
+
 interface TaskEntry {
   prompt: string;
   agent?: string;
@@ -72,118 +76,118 @@ setInterval(() => {
   }
 }, 60000);
 
-export async function startServer(options: ServerOptions): Promise<void> {
+export async function createServer(options: CreateServerOptions = {}): Promise<ReturnType<typeof Fastify>> {
   const fastify = Fastify({ logger: false });
 
   // Add request ID tracing middleware
   fastify.addHook('onRequest', async (request, reply) => {
     const requestId = request.headers['x-request-id'] as string || generateRequestId();
-    request.requestId = requestId;
-    request.log = createLogger({ module: 'api', requestId });
+    const req = request as any;
+    req.requestId = requestId;
+    req.log = createLogger({ module: 'api', requestId });
     reply.header('x-request-id', requestId);
   });
 
-  // Structured logging for server startup
-  apiLogger.info({ port: options.port, host: options.host }, 'Starting PuzldAI API server');
+  if (options.restoreTasks ?? true) {
+    // Restore active tasks from database on startup
+    const activeTasks = persistence.loadActiveTasks();
+    let restoredCount = 0;
+    let failedCount = 0;
 
-  // Restore active tasks from database on startup
-  const activeTasks = persistence.loadActiveTasks();
-  let restoredCount = 0;
-  let failedCount = 0;
+    for (const task of activeTasks) {
+      const taskId = task.startedAt.toString(); // Use startedAt as ID since we need the original
+      if (task.status === 'queued') {
+        syncTaskToCache(taskId, task);
 
-  for (const task of activeTasks) {
-    const taskId = task.startedAt.toString(); // Use startedAt as ID since we need the original
-    if (task.status === 'queued') {
-      syncTaskToCache(taskId, task);
-
-      // Fix #3: Re-enqueue the task so it actually executes
-      taskQueue.enqueue(taskId, async () => {
-        const taskForRun = tasks.get(taskId);
-        if (taskForRun) {
-          taskForRun.status = 'running';
-          try {
-            persistence.updateTask(taskId, { status: 'running' });
-          } catch (dbError) {
-            apiLogger.error({ taskId, error: dbError }, 'Failed to update task status in DB');
-          }
-        }
-
-        try {
-          // Fix #10: Wrap orchestrate in try-catch to handle unexpected errors
-          const result = await orchestrate(task.prompt, { agent: task.agent });
-
-          const currentTask = tasks.get(taskId);
-          if (currentTask) {
-            if (result.error) {
-              currentTask.status = 'failed';
-              currentTask.error = result.error;
-              try {
-                persistence.updateTask(taskId, { status: 'failed', error: result.error, completedAt: Date.now() });
-              } catch (dbError) {
-                apiLogger.error({ taskId, error: dbError }, 'Failed to persist task failure');
-              }
-            } else {
-              currentTask.status = 'completed';
-              currentTask.result = result.content;
-              currentTask.model = result.model;
-              try {
-                persistence.updateTask(taskId, { status: 'completed', result: result.content, model: result.model, completedAt: Date.now() });
-              } catch (dbError) {
-                apiLogger.error({ taskId, error: dbError }, 'Failed to persist task completion');
-              }
-            }
-
-            // Fix #4: Evict completed/failed tasks from cache
-            evictFromCache(taskId);
-          }
-          return result;
-        } catch (orchestrateError) {
-          // Fix #10: Handle unexpected errors from orchestrate
-          const errorMessage = orchestrateError instanceof Error
-            ? orchestrateError.message
-            : 'Unknown orchestrate error';
-
-          apiLogger.error({ taskId, error: errorMessage }, 'Orchestrate error');
-
-          const currentTask = tasks.get(taskId);
-          if (currentTask) {
-            currentTask.status = 'failed';
-            currentTask.error = errorMessage;
+        // Fix #3: Re-enqueue the task so it actually executes
+        taskQueue.enqueue(taskId, async () => {
+          const taskForRun = tasks.get(taskId);
+          if (taskForRun) {
+            taskForRun.status = 'running';
             try {
-              persistence.updateTask(taskId, {
-                status: 'failed',
-                error: errorMessage,
-                completedAt: Date.now()
-              });
+              persistence.updateTask(taskId, { status: 'running' });
             } catch (dbError) {
-              apiLogger.error({ taskId, error: dbError }, 'Failed to persist orchestrate error');
+              apiLogger.error({ taskId, error: dbError }, 'Failed to update task status in DB');
             }
-
-            // Fix #4: Evict failed tasks from cache
-            evictFromCache(taskId);
           }
 
-          throw orchestrateError; // Re-throw for task queue error handling
-        }
-      });
+          try {
+            // Fix #10: Wrap orchestrate in try-catch to handle unexpected errors
+            const result = await orchestrate(task.prompt, { agent: task.agent });
 
-      restoredCount++;
-    } else if (task.status === 'running') {
-      try {
-        persistence.updateTask(taskId, {
-          status: 'failed',
-          error: 'Server restarted during task execution',
-          completedAt: Date.now(),
+            const currentTask = tasks.get(taskId);
+            if (currentTask) {
+              if (result.error) {
+                currentTask.status = 'failed';
+                currentTask.error = result.error;
+                try {
+                  persistence.updateTask(taskId, { status: 'failed', error: result.error, completedAt: Date.now() });
+                } catch (dbError) {
+                  apiLogger.error({ taskId, error: dbError }, 'Failed to persist task failure');
+                }
+              } else {
+                currentTask.status = 'completed';
+                currentTask.result = result.content;
+                currentTask.model = result.model;
+                try {
+                  persistence.updateTask(taskId, { status: 'completed', result: result.content, model: result.model, completedAt: Date.now() });
+                } catch (dbError) {
+                  apiLogger.error({ taskId, error: dbError }, 'Failed to persist task completion');
+                }
+              }
+
+              // Fix #4: Evict completed/failed tasks from cache
+              evictFromCache(taskId);
+            }
+            return result;
+          } catch (orchestrateError) {
+            // Fix #10: Handle unexpected errors from orchestrate
+            const errorMessage = orchestrateError instanceof Error
+              ? orchestrateError.message
+              : 'Unknown orchestrate error';
+
+            apiLogger.error({ taskId, error: errorMessage }, 'Orchestrate error');
+
+            const currentTask = tasks.get(taskId);
+            if (currentTask) {
+              currentTask.status = 'failed';
+              currentTask.error = errorMessage;
+              try {
+                persistence.updateTask(taskId, {
+                  status: 'failed',
+                  error: errorMessage,
+                  completedAt: Date.now()
+                });
+              } catch (dbError) {
+                apiLogger.error({ taskId, error: dbError }, 'Failed to persist orchestrate error');
+              }
+
+              // Fix #4: Evict failed tasks from cache
+              evictFromCache(taskId);
+            }
+
+            throw orchestrateError; // Re-throw for task queue error handling
+          }
         });
-      } catch (dbError) {
-        apiLogger.error({ taskId, error: dbError }, 'Failed to mark running task as failed');
-      }
-      failedCount++;
-    }
-  }
 
-  if (restoredCount > 0 || failedCount > 0) {
-    apiLogger.info({ restoredCount, failedCount }, 'Restored tasks on startup');
+        restoredCount++;
+      } else if (task.status === 'running') {
+        try {
+          persistence.updateTask(taskId, {
+            status: 'failed',
+            error: 'Server restarted during task execution',
+            completedAt: Date.now(),
+          });
+        } catch (dbError) {
+          apiLogger.error({ taskId, error: dbError }, 'Failed to mark running task as failed');
+        }
+        failedCount++;
+      }
+    }
+
+    if (restoredCount > 0 || failedCount > 0) {
+      apiLogger.info({ restoredCount, failedCount }, 'Restored tasks on startup');
+    }
   }
 
   // Serve static web UI
@@ -398,5 +402,12 @@ export async function startServer(options: ServerOptions): Promise<void> {
     });
   });
 
+  return fastify;
+}
+
+export async function startServer(options: ServerOptions): Promise<void> {
+  // Structured logging for server startup
+  apiLogger.info({ port: options.port, host: options.host }, 'Starting PuzldAI API server');
+  const fastify = await createServer({ ...options, restoreTasks: true });
   await fastify.listen({ port: options.port, host: options.host });
 }

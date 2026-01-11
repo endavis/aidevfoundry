@@ -37,6 +37,20 @@ export {
   type SessionConfig
 } from './sqlite-sessions';
 
+// Game sessions (puzzle games)
+export {
+  createGameSession,
+  getActiveGameSession,
+  getGameSession,
+  listGameSessions as listGameSessions,
+  updateGameSession,
+  endGameSession as endGameSession,
+  activateGameSession,
+  deleteGameSession,
+  cleanupOldGameSessions,
+  getGameSessionStats
+} from './game-sessions';
+
 // Legacy JSON sessions (for migration/fallback)
 export {
   getSessionsDir,

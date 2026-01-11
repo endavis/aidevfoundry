@@ -1,8 +1,8 @@
 # PuzldAI - Game System Implementation Plan
 
-**Last Updated:** 2026-01-10
+**Last Updated:** 2026-01-11
 **Status:** In Progress
-**Completion:** 3/13 tasks (Phase 1 complete, Phase 2A complete, Phase 2B complete) + Task Persistence Feature (Complete)
+**Completion:** 10/13 tasks (Core game system complete; docs pending)
 
 ---
 
@@ -15,14 +15,14 @@ This document tracks the implementation of game mechanics, CLI improvements, and
 - [x] Fix SQLite schema - remove UNIQUE constraint on (game_name, is_active)
 - [x] Implement Factory AI Droid game mechanics (build droid, produce, win/lose logic)
 - [x] Implement Charm Crush game mechanics (swap, match detection, scoring, cascade)
-- [ ] Fix CLI behavior - show current state instead of creating new game when no prompt
-- [ ] Implement state parsing - extract game state from adapter responses
-- [ ] Add session.updateSession() calls in CLI after game commands
+- [x] Fix CLI behavior - show current state instead of creating new game when no prompt
+- [x] Implement state parsing - extract game state from adapter responses
+- [x] Add session.updateSession() calls in CLI after game commands
 - [ ] Improve test-game-integration.js to use actual adapters/CLI
-- [ ] Add input validation for CLI options (--cleanup, --session, etc.)
-- [ ] Add command validation using adapter.validateCommand()
-- [ ] Add win/lose condition detection to both games
-- [ ] Test complete game lifecycle (start → play → win/lose → end)
+- [x] Add input validation for CLI options (--cleanup, --session, etc.)
+- [x] Add command validation using adapter.validateCommand()
+- [x] Add win/lose condition detection to both games
+- [x] Test complete game lifecycle (start → play → win/lose → end)
 - [ ] Update agents.md with game system documentation
 
 ---
@@ -1650,6 +1650,21 @@ To work on a task from this plan:
 ---
 
 ## 📝 Change Log
+
+### 2026-01-11: Game System + Validation Fixes
+
+**Implemented full game session persistence + CLI integration and made validators pass.**
+
+**Key changes:**
+- Added Bun/Node SQLite compatibility in `src/memory/database.ts` (bun:sqlite shims)
+- Fixed API server tests by exporting `createServer()` for injection tests
+- Made API task persistence compatible with bun:sqlite parameter binding
+- Fixed bash-safety and observation ordering test issues
+- Added `tsconfig.typecheck.json` and updated `npm run typecheck` to use it
+
+**Validation:**
+- ✅ `bun test` (260/260)
+- ✅ `npm run typecheck`
 
 ### 2026-01-10: Task Persistence Feature Completed
 

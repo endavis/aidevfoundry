@@ -10,20 +10,7 @@
  * - Win by reaching target credits before turns run out
  */
 
-import type { Adapter, ModelResponse, RunOptions } from '../lib/types';
-import {
-  GameAdapter,
-  GameState,
-  GameOptions,
-  GameSession,
-  createGameSession,
-  getActiveSession,
-  getSession,
-  listGameSessions,
-  updateGameSession,
-  endGameSession,
-  runGameCommand
-} from './base-game-adapter';
+import type { GameAdapter, GameOptions, GameState, ModelResponse, RunOptions } from '../lib/types';
 
 interface FactoryDroidState extends GameState {
   data: {
@@ -281,13 +268,6 @@ export const factoryDroidAdapter: GameAdapter = {
 };
 
 export {
-  createGameSession,
-  getActiveSession,
-  getSession,
-  listGameSessions,
-  updateGameSession,
-  endGameSession,
-  runGameCommand,
   type FactoryDroidState,
   type DroidType,
   DIFFICULTY_SETTINGS,

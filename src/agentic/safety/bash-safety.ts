@@ -19,7 +19,8 @@ const DESTRUCTIVE_PATTERNS: { pattern: RegExp; reason: string }[] = [
   { pattern: /rd\s+\/s\b/i, reason: 'Windows remove directory recursive' },
   
   // Disk/formats
-  { pattern: /\bformat\b.*\/[cyp]/i, reason: 'Disk format command' },
+  { pattern: /\bformat\s+[a-z]:/i, reason: 'Disk format command' },
+  { pattern: /\bformat\b.*\/(?:fs:|q|u|y|c|p)/i, reason: 'Disk format command' },
   { pattern: /\bmkfs\b/i, reason: 'Filesystem creation' },
   { pattern: /\bdiskpart\b/i, reason: 'Disk partitioning utility' },
   { pattern: /\bfdisk\b/i, reason: 'Disk partitioning utility' },
@@ -145,18 +146,7 @@ const CONFIRMATION_DENYLIST: RegExp[] = [
 
 export function assessBashSafety(command: string): SafetyAssessment {
   const trimmed = command.trim();
-  
-  // Check allowlist first - if matches, return low risk
-  for (const allowPattern of SAFE_ALLOWLIST) {
-    if (allowPattern.test(trimmed)) {
-      return {
-        riskLevel: 'low',
-        reason: 'Allowlisted safe command',
-        requiresConfirmation: false,
-      };
-    }
-  }
-  
+
   // Check destructive patterns
   for (const { pattern, reason } of DESTRUCTIVE_PATTERNS) {
     if (pattern.test(trimmed)) {
@@ -165,6 +155,17 @@ export function assessBashSafety(command: string): SafetyAssessment {
         reason: `Dangerous pattern detected: ${reason}`,
         requiresConfirmation: true,
         matchedPattern: reason,
+      };
+    }
+  }
+
+  // Check allowlist - if matches, return low risk
+  for (const allowPattern of SAFE_ALLOWLIST) {
+    if (allowPattern.test(trimmed)) {
+      return {
+        riskLevel: 'low',
+        reason: 'Allowlisted safe command',
+        requiresConfirmation: false,
       };
     }
   }
@@ -201,5 +202,5 @@ export function formatSafetyMessage(assessment: SafetyAssessment): string {
   const confirmationHint = assessment.requiresConfirmation 
     ? ' (requires explicit confirmation)' 
     : '';
-  return `[${color.toUpperCase()}] ${assessment.riskLevel.toUpperCase()}${confirmationHint}: ${assessment.reason}`;
+  return `[${color.toUpperCase()}] ${assessment.riskLevel}${confirmationHint}: ${assessment.reason}`;
 }

@@ -29,8 +29,16 @@ import { initDatabase, closeDatabase, getDatabase } from '../memory/database';
 
 describe('Observation Logger Reliability', () => {
   beforeEach(() => {
-    // Use in-memory database for testing
     initDatabase();
+
+    // Ensure a clean DB state for deterministic stats assertions
+    const db = getDatabase();
+    try {
+      db.exec('DELETE FROM diff_tracking');
+      db.exec('DELETE FROM observations');
+    } catch {
+      // Ignore cleanup errors
+    }
   });
 
   describe('Basic Observation Logging', () => {
