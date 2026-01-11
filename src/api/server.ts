@@ -4,6 +4,7 @@ import { resolve } from 'path';
 import { orchestrate } from '../orchestrator';
 import { adapters, getAvailableAdapters } from '../adapters';
 import { TaskQueue, TaskStatus, MAX_CONCURRENT_TASKS } from './task-queue';
+import * as persistence from './task-persistence';
 
 interface ServerOptions {
   port: number;
@@ -28,18 +29,55 @@ function generateId(): string {
   return `task_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
 }
 
-// Cleanup tasks older than 1 hour
+// Sync cache with persistence layer
+function syncTaskToCache(id: string, entry: TaskEntry): void {
+  tasks.set(id, entry);
+}
+
+function removeTaskFromCache(id: string): void {
+  tasks.delete(id);
+}
+
+// Cleanup tasks older than 1 hour (from database + cache)
 setInterval(() => {
+  // Clean database
+  const dbDeleted = persistence.deleteOldTasks(3600000);
+
+  // Clean cache
   const oneHourAgo = Date.now() - 3600000;
   for (const [id, task] of tasks) {
     if (task.completedAt && task.completedAt < oneHourAgo) {
-      tasks.delete(id);
+      removeTaskFromCache(id);
     }
   }
 }, 60000);
 
 export async function startServer(options: ServerOptions): Promise<void> {
   const fastify = Fastify({ logger: false });
+
+  // Restore active tasks from database on startup
+  const activeTasks = persistence.loadActiveTasks();
+  let restoredCount = 0;
+  let failedCount = 0;
+
+  for (const task of activeTasks) {
+    const taskId = task.startedAt.toString(); // Use startedAt as ID since we need the original
+    if (task.status === 'queued') {
+      syncTaskToCache(taskId, task);
+      restoredCount++;
+    } else if (task.status === 'running') {
+      persistence.updateTask(taskId, {
+        status: 'failed',
+        error: 'Server restarted during task execution',
+        completedAt: Date.now(),
+      });
+      failedCount++;
+    }
+  }
+
+  if (restoredCount > 0 || failedCount > 0) {
+    console.log(`[server] Restored ${restoredCount} queued tasks, ${failedCount} running tasks marked failed`);
+  }
 
   // Serve static web UI
   await fastify.register(fastifyStatic, {
@@ -70,37 +108,63 @@ export async function startServer(options: ServerOptions): Promise<void> {
     }
 
     const id = generateId();
-    tasks.set(id, {
+    const now = Date.now();
+
+    const entry: TaskEntry = {
       prompt,
       agent,
-      status: 'pending',
-      startedAt: Date.now()
-    });
+      status: 'queued',
+      startedAt: now,
+    };
 
-    setImmediate(async () => {
-      const task = tasks.get(id)!;
-      task.status = 'running';
+    // Save to database and cache
+    persistence.saveTask(id, entry);
+    syncTaskToCache(id, entry);
+
+    // Use task queue with concurrency limit (max 5)
+    taskQueue.enqueue(id, async () => {
+      const taskForRun = tasks.get(id);
+      if (taskForRun) {
+        taskForRun.status = 'running';
+        persistence.updateTask(id, { status: 'running' });
+      }
 
       const result = await orchestrate(prompt, { agent });
 
-      if (result.error) {
-        task.status = 'failed';
-        task.error = result.error;
-      } else {
-        task.status = 'completed';
-        task.result = result.content;
+      const currentTask = tasks.get(id);
+      if (currentTask) {
+        if (result.error) {
+          currentTask.status = 'failed';
+          currentTask.error = result.error;
+          persistence.updateTask(id, { status: 'failed', error: result.error, completedAt: Date.now() });
+        } else {
+          currentTask.status = 'completed';
+          currentTask.result = result.content;
+          persistence.updateTask(id, { status: 'completed', result: result.content, model: result.model, completedAt: Date.now() });
+        }
+        currentTask.model = result.model;
       }
-      task.model = result.model;
-      task.completedAt = Date.now();
+      return result;
     });
 
-    return { id, status: 'pending' };
+    return { id, status: 'queued', queuePosition: taskQueue.metrics.pending };
   });
 
   // Get task status
   fastify.get<{ Params: { id: string } }>('/task/:id', async (request, reply) => {
     const { id } = request.params;
-    const task = tasks.get(id);
+
+    // Try cache first
+    let task = tasks.get(id);
+
+    // Fallback to database if not in cache
+    if (!task) {
+      const dbTask = persistence.getTask(id);
+      if (dbTask) {
+        syncTaskToCache(id, dbTask);
+        task = dbTask;
+      }
+    }
 
     if (!task) {
       return reply.status(404).send({ error: 'task not found' });
@@ -109,14 +173,23 @@ export async function startServer(options: ServerOptions): Promise<void> {
     return {
       id,
       ...task,
-      duration: task.completedAt ? task.completedAt - task.startedAt : Date.now() - task.startedAt
+      duration: task.completedAt ? task.completedAt - task.startedAt : Date.now() - task.startedAt,
+      queueMetrics: taskQueue.metrics,
     };
   });
 
   // SSE stream for task
   fastify.get<{ Params: { id: string } }>('/task/:id/stream', async (request, reply) => {
     const { id } = request.params;
-    const task = tasks.get(id);
+
+    let task = tasks.get(id);
+    if (!task) {
+      const dbTask = persistence.getTask(id);
+      if (dbTask) {
+        syncTaskToCache(id, dbTask);
+        task = dbTask;
+      }
+    }
 
     if (!task) {
       return reply.status(404).send({ error: 'task not found' });
@@ -133,7 +206,14 @@ export async function startServer(options: ServerOptions): Promise<void> {
     };
 
     const interval = setInterval(() => {
-      const current = tasks.get(id)!;
+      const current = tasks.get(id);
+      if (!current) {
+        sendEvent('error', { id, error: 'Task not found' });
+        clearInterval(interval);
+        reply.raw.end();
+        return;
+      }
+
       if (current.status === 'completed') {
         sendEvent('complete', { id, result: current.result, model: current.model });
         clearInterval(interval);

@@ -264,6 +264,32 @@ function runMigrations(database: Database.Database): void {
 
     database.prepare("UPDATE metadata SET value = '4' WHERE key = 'schema_version'").run();
   }
+
+  // Migration 5: Add api_tasks table for API task persistence
+  if (currentVersion < 5) {
+    database.exec(`
+      -- API tasks table for persisting task state across server restarts
+      CREATE TABLE IF NOT EXISTS api_tasks (
+        id TEXT PRIMARY KEY,
+        prompt TEXT NOT NULL,
+        agent TEXT,
+        status TEXT NOT NULL CHECK(status IN ('queued', 'running', 'completed', 'failed')),
+        result TEXT,
+        error TEXT,
+        model TEXT,
+        started_at INTEGER NOT NULL,
+        completed_at INTEGER,
+        updated_at INTEGER NOT NULL
+      );
+
+      -- Indexes for efficient querying
+      CREATE INDEX IF NOT EXISTS idx_api_tasks_status ON api_tasks(status);
+      CREATE INDEX IF NOT EXISTS idx_api_tasks_started ON api_tasks(started_at DESC);
+      CREATE INDEX IF NOT EXISTS idx_api_tasks_updated ON api_tasks(updated_at DESC);
+    `);
+
+    database.prepare("UPDATE metadata SET value = '5' WHERE key = 'schema_version'").run();
+  }
 }
 
 /**

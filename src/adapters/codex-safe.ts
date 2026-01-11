@@ -124,7 +124,7 @@ export const codexSafeAdapter: Adapter & {
       }
 
       // Join all content parts
-      const content = contentParts.join('\n');
+      let content = contentParts.join('\n');
 
       // Detect file changes by comparing current files with backups
       const fileChanges: FileChange[] = [];
