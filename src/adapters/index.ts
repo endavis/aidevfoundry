@@ -8,6 +8,25 @@ import { ollamaAdapter } from './ollama';
 import { mistralAdapter } from './mistral';
 import { factoryAdapter } from './factory';
 import { crushAdapter } from './crush';
+import { factoryDroidAdapter } from './factory-ai-droid';
+import { charmCrushAdapter } from './charm-crush';
+import {
+  type GameState,
+  type GameOptions,
+  type GameAdapter,
+  type GameSession,
+  createGameSession,
+  getActiveSession,
+  getSession,
+  listGameSessions,
+  updateGameSession,
+  endGameSession,
+  deleteGameSession,
+  clearInactiveSessions,
+  cleanupOldSessions,
+  getGameSessionStats,
+  runGameCommand
+} from './base-game-adapter';
 
 export const adapters: Record<string, Adapter> = {
   claude: claudeAdapter,
@@ -16,7 +35,9 @@ export const adapters: Record<string, Adapter> = {
   ollama: ollamaAdapter,
   mistral: mistralAdapter,
   factory: factoryAdapter,
-  crush: crushAdapter
+  crush: crushAdapter,
+  'factory-ai-droid': factoryDroidAdapter,
+  'charm-crush': charmCrushAdapter
 };
 
 export async function getAvailableAdapters(): Promise<Adapter[]> {
@@ -29,4 +50,31 @@ export async function getAvailableAdapters(): Promise<Adapter[]> {
   return available;
 }
 
-export { claudeAdapter, geminiAdapter, geminiSafeAdapter, codexAdapter, codexSafeAdapter, ollamaAdapter, mistralAdapter, factoryAdapter, crushAdapter };
+export {
+  claudeAdapter,
+  geminiAdapter,
+  geminiSafeAdapter,
+  codexAdapter,
+  codexSafeAdapter,
+  ollamaAdapter,
+  mistralAdapter,
+  factoryAdapter,
+  crushAdapter,
+  factoryDroidAdapter,
+  charmCrushAdapter,
+  type GameState,
+  type GameOptions,
+  type GameAdapter,
+  type GameSession,
+  createGameSession,
+  getActiveSession,
+  getSession,
+  listGameSessions,
+  updateGameSession,
+  endGameSession,
+  deleteGameSession,
+  clearInactiveSessions,
+  cleanupOldSessions,
+  getGameSessionStats,
+  runGameCommand
+};

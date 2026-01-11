@@ -45,6 +45,7 @@ import {
   whoamiCommand
 } from './commands/login';
 import { tasksCommand } from './commands/tasks';
+import { gameCommand } from './commands/game';
 import { startTUI } from '../tui';
 import { readFileSync } from 'fs';
 import { join, dirname } from 'path';
@@ -366,6 +367,9 @@ program
     limit: parseInt(opts.limit, 10),
     wait: opts.wait
   }));
+
+// Game commands
+gameCommand(program);
 
 // If no arguments, launch TUI; otherwise parse commands
 if (process.argv.length <= 2) {
