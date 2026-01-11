@@ -23,7 +23,7 @@ import {
   anyDependencyFailed,
   type ExecutionContext
 } from './context';
-import { adapters } from '../adapters';
+import { adapters, runInteractive } from '../adapters';
 import { routeTask, isRouterAvailable } from '../router/router';
 import { getConfig } from '../lib/config';
 import { assembleStepContext, inferStepRole } from '../context/injection';

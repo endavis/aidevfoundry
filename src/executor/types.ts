@@ -51,6 +51,11 @@ export interface PlanStep {
   outputAs?: string;               // Variable name to store result
   injectionRules?: InjectionRule[]; // Custom context injection rules (Phase 7)
   role?: StepRole;                 // Semantic role for default injection rules
+  // Interactive mode options
+  interactive?: boolean;           // Run in interactive mode (pk-puzldai responds to prompts)
+  planContext?: string;            // Context for the AI responder (defaults to prompt)
+  responderAgent?: AgentName;      // Agent for generating responses (default: ollama)
+  maxInteractions?: number;        // Max interactions in interactive mode
 }
 
 // Semantic role for default injection rules

@@ -11,6 +11,8 @@ import { crushAdapter } from './crush';
 import { factoryDroidAdapter } from './factory-ai-droid';
 import { charmCrushAdapter } from './charm-crush';
 import { GameStateParser } from './base-game-adapter';
+import { createInteractiveAdapter, runInteractive } from './interactive-adapter';
+import type { InteractiveRunOptions } from './interactive-adapter';
 
 export const adapters: Record<string, Adapter> = {
   claude: claudeAdapter,
@@ -46,5 +48,10 @@ export {
   crushAdapter,
   factoryDroidAdapter,
   charmCrushAdapter,
-  GameStateParser
+  GameStateParser,
+  // Interactive mode support
+  createInteractiveAdapter,
+  runInteractive,
 };
+
+export type { InteractiveRunOptions };
