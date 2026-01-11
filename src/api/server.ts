@@ -5,6 +5,7 @@ import { orchestrate } from '../orchestrator';
 import { adapters, getAvailableAdapters } from '../adapters';
 import { TaskQueue, TaskStatus, MAX_CONCURRENT_TASKS } from './task-queue';
 import * as persistence from './task-persistence';
+import { logger, createLogger, generateRequestId, apiLogger } from '../lib/logger';
 
 interface ServerOptions {
   port: number;
@@ -43,7 +44,7 @@ function evictFromCache(id: string): void {
   const task = tasks.get(id);
   if (task && (task.status === 'completed' || task.status === 'failed')) {
     tasks.delete(id);
-    console.log(`[server] Evicted task ${id} from cache (status: ${task.status})`);
+    apiLogger.info({ taskId: id, status: task.status }, 'Evicted task from cache');
   }
 }
 
@@ -64,6 +65,17 @@ setInterval(() => {
 export async function startServer(options: ServerOptions): Promise<void> {
   const fastify = Fastify({ logger: false });
 
+  // Add request ID tracing middleware
+  fastify.addHook('onRequest', async (request, reply) => {
+    const requestId = request.headers['x-request-id'] as string || generateRequestId();
+    request.requestId = requestId;
+    request.log = createLogger({ module: 'api', requestId });
+    reply.header('x-request-id', requestId);
+  });
+
+  // Structured logging for server startup
+  apiLogger.info({ port: options.port, host: options.host }, 'Starting PuzldAI API server');
+
   // Restore active tasks from database on startup
   const activeTasks = persistence.loadActiveTasks();
   let restoredCount = 0;
@@ -82,7 +94,7 @@ export async function startServer(options: ServerOptions): Promise<void> {
           try {
             persistence.updateTask(taskId, { status: 'running' });
           } catch (dbError) {
-            console.error(`[server] Failed to update task status in DB:`, dbError);
+            apiLogger.error({ taskId, error: dbError }, 'Failed to update task status in DB');
           }
         }
 
@@ -98,7 +110,7 @@ export async function startServer(options: ServerOptions): Promise<void> {
               try {
                 persistence.updateTask(taskId, { status: 'failed', error: result.error, completedAt: Date.now() });
               } catch (dbError) {
-                console.error(`[server] Failed to persist task failure:`, dbError);
+                apiLogger.error({ taskId, error: dbError }, 'Failed to persist task failure');
               }
             } else {
               currentTask.status = 'completed';
@@ -107,7 +119,7 @@ export async function startServer(options: ServerOptions): Promise<void> {
               try {
                 persistence.updateTask(taskId, { status: 'completed', result: result.content, model: result.model, completedAt: Date.now() });
               } catch (dbError) {
-                console.error(`[server] Failed to persist task completion:`, dbError);
+                apiLogger.error({ taskId, error: dbError }, 'Failed to persist task completion');
               }
             }
 
@@ -121,7 +133,7 @@ export async function startServer(options: ServerOptions): Promise<void> {
             ? orchestrateError.message
             : 'Unknown orchestrate error';
 
-          console.error(`[server] Orchestrate error for task ${taskId}:`, errorMessage);
+          apiLogger.error({ taskId, error: errorMessage }, 'Orchestrate error');
 
           const currentTask = tasks.get(taskId);
           if (currentTask) {
@@ -134,7 +146,7 @@ export async function startServer(options: ServerOptions): Promise<void> {
                 completedAt: Date.now()
               });
             } catch (dbError) {
-              console.error(`[server] Failed to persist orchestrate error:`, dbError);
+              apiLogger.error({ taskId, error: dbError }, 'Failed to persist orchestrate error');
             }
 
             // Fix #4: Evict failed tasks from cache
@@ -154,14 +166,14 @@ export async function startServer(options: ServerOptions): Promise<void> {
           completedAt: Date.now(),
         });
       } catch (dbError) {
-        console.error(`[server] Failed to mark running task as failed:`, dbError);
+        apiLogger.error({ taskId, error: dbError }, 'Failed to mark running task as failed');
       }
       failedCount++;
     }
   }
 
   if (restoredCount > 0 || failedCount > 0) {
-    console.log(`[server] Restored ${restoredCount} queued tasks, ${failedCount} running tasks marked failed`);
+    apiLogger.info({ restoredCount, failedCount }, 'Restored tasks on startup');
   }
 
   // Serve static web UI
@@ -218,7 +230,7 @@ export async function startServer(options: ServerOptions): Promise<void> {
         try {
           persistence.updateTask(id, { status: 'running' });
         } catch (dbError) {
-          console.error(`[server] Failed to update task status in DB:`, dbError);
+          apiLogger.error({ taskId: id, error: dbError }, 'Failed to update task status in DB');
         }
       }
 
@@ -236,7 +248,7 @@ export async function startServer(options: ServerOptions): Promise<void> {
               persistence.updateTask(id, { status: 'failed', error: result.error, completedAt: Date.now() });
               evictFromCache(id); // ✅ Only evict after successful DB update
             } catch (dbError) {
-              console.error(`[server] Failed to persist task failure:`, dbError);
+              apiLogger.error({ taskId: id, error: dbError }, 'Failed to persist task failure');
               // Keep in cache so user can still see it
             }
           } else {
@@ -248,7 +260,7 @@ export async function startServer(options: ServerOptions): Promise<void> {
               persistence.updateTask(id, { status: 'completed', result: result.content, model: result.model, completedAt: Date.now() });
               evictFromCache(id); // ✅ Only evict after successful DB update
             } catch (dbError) {
-              console.error(`[server] Failed to persist task completion:`, dbError);
+              apiLogger.error({ taskId: id, error: dbError }, 'Failed to persist task completion');
               // Keep in cache so user can still see it
             }
           }
@@ -260,7 +272,7 @@ export async function startServer(options: ServerOptions): Promise<void> {
           ? orchestrateError.message
           : 'Unknown orchestrate error';
 
-        console.error(`[server] Orchestrate error for task ${id}:`, errorMessage);
+        apiLogger.error({ taskId: id, error: errorMessage }, 'Orchestrate error');
 
         const currentTask = tasks.get(id);
         if (currentTask) {
@@ -275,7 +287,7 @@ export async function startServer(options: ServerOptions): Promise<void> {
             });
             evictFromCache(id); // ✅ Only evict after successful DB update
           } catch (dbError) {
-            console.error(`[server] Failed to persist orchestrate error:`, dbError);
+            apiLogger.error({ taskId: id, error: dbError }, 'Failed to persist orchestrate error');
             // Keep in cache so user can still see it
           }
         }
@@ -367,12 +379,12 @@ export async function startServer(options: ServerOptions): Promise<void> {
     // Fix #5: Handle client disconnect to prevent resource leaks
     reply.raw.on('close', () => {
       clearInterval(interval);
-      console.log(`[server] SSE client disconnected for task ${id}`);
+      apiLogger.info({ taskId: id }, 'SSE client disconnected');
     });
 
     reply.raw.on('error', (err) => {
       clearInterval(interval);
-      console.error(`[server] SSE error for task ${id}:`, err);
+      apiLogger.error({ taskId: id, error: err }, 'SSE error');
     });
   });
 

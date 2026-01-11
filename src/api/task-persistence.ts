@@ -6,6 +6,7 @@
  */
 
 import { getDatabase } from '../memory/database';
+import { persistenceLogger, createLogger } from '../lib/logger';
 
 export interface TaskEntry {
   prompt: string;
@@ -17,6 +18,9 @@ export interface TaskEntry {
   startedAt: number;
   completedAt?: number;
 }
+
+// Create module-specific logger
+const logger = createLogger({ module: 'persistence' });
 
 // Prepared statements for performance
 let saveTaskStmt: Database.Statement | null = null;
@@ -99,7 +103,7 @@ export function saveTask(id: string, entry: TaskEntry, queuePosition?: number): 
       queuePosition: validatedQueuePosition,
     });
   } catch (error) {
-    console.error(`[task-persistence] Failed to save task ${id}:`, error);
+    logger.error({ taskId: id, error }, 'Failed to save task');
     throw error;
   }
 }
@@ -126,7 +130,7 @@ export function updateTask(
       updatedAt: now,
     });
   } catch (error) {
-    console.error(`[task-persistence] Failed to update task ${id}:`, error);
+    logger.error({ taskId: id, error }, 'Failed to update task');
     throw error;
   }
 }
@@ -141,7 +145,7 @@ export function getTask(id: string): TaskEntry | null {
     const row = getTaskStmt!.get(id) as Database.Row | undefined;
     return row ? mapRowToTaskEntry(row) : null;
   } catch (error) {
-    console.error(`[task-persistence] Failed to get task ${id}:`, error);
+    logger.error({ taskId: id, error }, 'Failed to get task');
     return null;
   }
 }
@@ -156,7 +160,7 @@ export function getAllTasks(): TaskEntry[] {
     const rows = getAllTasksStmt!.all() as Database.Row[];
     return rows.map(mapRowToTaskEntry);
   } catch (error) {
-    console.error('[task-persistence] Failed to get all tasks:', error);
+    logger.error({ error }, 'Failed to get all tasks');
     return [];
   }
 }
