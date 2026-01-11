@@ -11,6 +11,19 @@ export interface ModelResponse {
   state?: unknown;
 }
 
+export interface RalphWiggumOptions {
+  /** Enable Ralph Wiggum loop (keep retrying until task is done) */
+  enabled?: boolean;
+  /** Maximum number of iterations (default: 10) */
+  maxIterations?: number;
+  /** Completion criteria phrase that signals success (e.g., "task completed", "all tests pass") */
+  completionCriteria?: string | string[];
+  /** Callback for each iteration */
+  onIteration?: (iteration: number, result: ModelResponse) => void;
+  /** Whether to require explicit completion promise (default: true) */
+  requireCompletionPromise?: boolean;
+}
+
 export interface RunOptions {
   signal?: AbortSignal;
   onChunk?: (chunk: string) => void;
@@ -20,6 +33,8 @@ export interface RunOptions {
   disableTools?: boolean;
   /** Game state for game adapters (resumable gameplay) */
   state?: unknown;
+  /** Ralph Wiggum loop options for persistent retry until completion */
+  ralphWiggum?: RalphWiggumOptions;
 }
 
 export interface Adapter {

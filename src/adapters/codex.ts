@@ -65,24 +65,37 @@ export const codexAdapter: Adapter = {
       // Parse JSONL output - each line is a separate JSON object
       try {
         const lines = stdout.trim().split('\n');
-        let content = '';
+        const contentParts: string[] = [];
         let inputTokens = 0;
         let outputTokens = 0;
 
         for (const line of lines) {
-          const json = JSON.parse(line);
+          try {
+            const json = JSON.parse(line);
 
-          // Extract agent message content
-          if (json.type === 'item.completed' && json.item?.type === 'agent_message') {
-            content = json.item.text || '';
-          }
+            // Extract agent message content (accumulate all parts)
+            if (json.type === 'item.completed' && json.item?.type === 'agent_message') {
+              const text = json.item.text;
+              if (text) {
+                contentParts.push(text);
+              }
+            }
 
-          // Extract token usage from turn.completed
-          if (json.type === 'turn.completed' && json.usage) {
-            inputTokens = json.usage.input_tokens || 0;
-            outputTokens = json.usage.output_tokens || 0;
+            // Extract token usage from turn.completed (accumulate all turns)
+            if (json.type === 'turn.completed' && json.usage) {
+              inputTokens += json.usage.input_tokens || 0;
+              outputTokens += json.usage.output_tokens || 0;
+            }
+          } catch (lineErr) {
+            // Skip malformed JSON lines but continue parsing
+            if (config.logLevel === 'debug') {
+              console.warn(`[codex] Failed to parse JSONL line: ${(lineErr as Error).message}`);
+            }
           }
         }
+
+        // Join all content parts
+        const content = contentParts.join('\n');
 
         return {
           content,
@@ -94,7 +107,7 @@ export const codexAdapter: Adapter = {
           } : undefined
         };
       } catch {
-        // Fallback if JSONL parsing fails
+        // Fallback if JSONL parsing completely fails
         return {
           content: stdout || '',
           model: modelName,

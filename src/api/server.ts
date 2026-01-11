@@ -3,6 +3,7 @@ import fastifyStatic from '@fastify/static';
 import { resolve } from 'path';
 import { orchestrate } from '../orchestrator';
 import { adapters, getAvailableAdapters } from '../adapters';
+import { TaskQueue, TaskStatus, MAX_CONCURRENT_TASKS } from './task-queue';
 
 interface ServerOptions {
   port: number;
@@ -12,7 +13,7 @@ interface ServerOptions {
 interface TaskEntry {
   prompt: string;
   agent?: string;
-  status: 'pending' | 'running' | 'completed' | 'failed';
+  status: 'queued' | 'running' | 'completed' | 'failed';
   result?: string;
   error?: string;
   model?: string;
@@ -21,6 +22,7 @@ interface TaskEntry {
 }
 
 const tasks: Map<string, TaskEntry> = new Map();
+const taskQueue = new TaskQueue();
 
 function generateId(): string {
   return `task_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;

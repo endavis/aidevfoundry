@@ -38,12 +38,11 @@ export const factoryAdapter: Adapter = {
         args.push('--model', model);
       }
 
-      // Add autonomy level (default to low for safety)
-      const autonomy = factoryConfig?.autonomy || 'low';
-      if (autonomy && autonomy !== 'low') {
+      // Add autonomy level if specified
+      // If not specified, no --auto flag = read-only (default behavior)
+      const autonomy = factoryConfig?.autonomy;
+      if (autonomy) {
         args.push('--auto', autonomy);
-      } else if (autonomy === 'low') {
-        args.push('--auto', 'low');
       }
 
       // Add reasoning effort if specified

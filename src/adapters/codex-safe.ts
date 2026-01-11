@@ -95,7 +95,7 @@ export const codexSafeAdapter: Adapter & {
       });
 
       // Parse response for content and tokens
-      let content = '';
+      const contentParts: string[] = [];
       let inputTokens = 0;
       let outputTokens = 0;
 
@@ -105,17 +105,26 @@ export const codexSafeAdapter: Adapter & {
           try {
             const json = JSON.parse(line);
             if (json.type === 'item.completed' && json.item?.type === 'agent_message') {
-              content = json.item.text || '';
+              const text = json.item.text;
+              if (text) {
+                contentParts.push(text);
+              }
             }
             if (json.type === 'turn.completed' && json.usage) {
-              inputTokens = json.usage.input_tokens || 0;
-              outputTokens = json.usage.output_tokens || 0;
+              inputTokens += json.usage.input_tokens || 0;
+              outputTokens += json.usage.output_tokens || 0;
             }
-          } catch {
-            // Skip invalid JSON lines
+          } catch (lineErr) {
+            // Skip invalid JSON lines but continue parsing
+            if (config.logLevel === 'debug') {
+              console.warn(`[codex-safe] Failed to parse JSONL line: ${(lineErr as Error).message}`);
+            }
           }
         }
       }
+
+      // Join all content parts
+      const content = contentParts.join('\n');
 
       // Detect file changes by comparing current files with backups
       const fileChanges: FileChange[] = [];

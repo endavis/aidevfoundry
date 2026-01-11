@@ -38,9 +38,10 @@ export const claudeAdapter: Adapter & {
     const disableTools = options?.disableTools ?? true; // Default: disable tools
 
     try {
-      // claude -p "prompt" for non-interactive output
-      // --output-format stream-json for faster response (requires --verbose)
-      const args = ['-p', prompt, '--output-format', 'stream-json', '--verbose'];
+      // claude -p --output-format stream-json --verbose "prompt" for non-interactive output
+      // -p is shorthand for --print (print without interactive mode)
+      // Prompt must come AFTER the flags
+      const args = ['-p', '--output-format', 'stream-json', '--verbose'];
 
       // Disable native tools for agentic mode (LLM returns JSON, we apply files)
       if (disableTools) {
@@ -50,6 +51,9 @@ export const claudeAdapter: Adapter & {
       if (model) {
         args.push('--model', model);
       }
+
+      // Prompt must come last
+      args.push(prompt);
 
       const { stdout, stderr } = await execa(
         config.adapters.claude.path,

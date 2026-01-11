@@ -36,9 +36,9 @@ export const geminiAdapter: Adapter = {
       const args: string[] = ['--output-format', 'json'];
 
       // Add approval mode flag based on option
-      if (geminiApprovalMode === 'yolo') {
-        args.push('--yolo');
-      } else if (geminiApprovalMode === 'auto_edit') {
+      // Note: Gemini CLI does NOT have a --yolo flag
+      // Use --approval-mode with 'auto_edit' for both 'yolo' and 'auto_edit'
+      if (geminiApprovalMode === 'yolo' || geminiApprovalMode === 'auto_edit') {
         args.push('--approval-mode', 'auto_edit');
       }
       // 'default' or undefined = no flag (read-only mode)

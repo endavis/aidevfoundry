@@ -31,8 +31,9 @@ export const crushAdapter: Adapter = {
     const model = options?.model ?? crushConfig?.model;
 
     try {
-      // Crush uses 'run' subcommand for non-interactive execution
-      const args: string[] = ['run'];
+      // Crush doesn't have a 'run' subcommand - pass prompt directly
+      // For non-interactive execution, use: crush [flags] "prompt"
+      const args: string[] = [];
 
       // Add working directory if specified
       if (crushConfig?.cwd) {
@@ -41,7 +42,7 @@ export const crushAdapter: Adapter = {
 
       // Enable auto-accept (yolo mode) if configured
       if (crushConfig?.autoAccept) {
-        args.push('-y');
+        args.push('--yolo');
       }
 
       // Enable debug mode if configured

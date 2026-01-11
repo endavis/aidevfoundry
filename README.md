@@ -14,10 +14,11 @@
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/npm/v/pk-puzldai?color=blue" alt="npm">
+  <img src="https://img.shields.io/npm/v/puzldai?color=blue" alt="npm">
   <img src="https://img.shields.io/badge/license-AGPL--3.0-green" alt="license">
   <img src="https://img.shields.io/badge/agents-Claude%20%7C%20Gemini%20%7C%20Codex%20%7C%20Ollama%20%7C%20Mistral-purple" alt="agents">
   <img src="https://img.shields.io/badge/models-sonnet%20%7C%20opus%20%7C%20gemini--pro%20%7C%20devstral-orange" alt="models">
+  <img src="https://github.com/kingkillery/Puzld.ai/workflows/CI/badge.svg" alt="CI">
 </p>
 
 ---

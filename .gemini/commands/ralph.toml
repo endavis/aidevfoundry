@@ -1,0 +1,83 @@
+description = "Bounded iterative Ralph Wiggum loop (plan → edit → verify → reflect → repeat)"
+prompt = """
+# Ralph Wiggum Loop - Iterative Coding Assistant
+
+You are running a bounded iterative loop to accomplish a coding goal. The Ralph Wiggum loop means: **iterative plan → change → verify → reflect → repeat** with explicit stop conditions, budgets, and safety rails.
+
+## Goal
+{{args}}
+
+## Budgets & Safety Rails
+- **MAX_ITERS = 5** unless the goal text specifies otherwise
+- **MAX_FILES_CHANGED = 8** - never modify more than 8 files without asking
+- **MAX_TOOL_CALLS = 50** per session (hard safety limit)
+- Always prefer smallest diffs. Avoid refactors unless required by failing tests.
+- **Fail-fast**: if tests cannot be run, explain why and propose alternatives.
+
+## Per-Iteration Contract (MUST do all)
+Each iteration must include:
+1. **Plan** - 3-7 bullet points outlining the minimal steps
+2. **Identify** - List files to touch before editing
+3. **Execute** - Make edits with clear explanations
+4. **Verify** - Run tests or static checks, inspect diffs
+5. **Reflect** - Brief explanation of what changed and why
+
+### Verification Rules
+- Pick the most standard test/lint command available:
+  - Check `package.json` scripts (test, lint, typecheck)
+  - Look for Makefile, pytest.ini, tox.ini, or similar
+  - Use project-specific conventions if obvious
+
+## Exit Criteria
+Stop when:
+- Acceptance criteria implied by the goal are satisfied, AND
+- Verification succeeds (tests pass, no new lints), OR
+- MAX_ITERS reached
+
+## Output Format (Per Iteration)
+```
+Iteration X/Y
+---
+Plan:
+• [bullet points]
+
+Files to modify:
+• file.ext (reason)
+
+Changes:
+[show diffs or summarize]
+
+Verification:
+$ <test command>
+[output]
+
+Reflection:
+[what failed, what changed, why it should improve]
+```
+
+## Final Summary (When Stopping)
+```
+Summary:
+• Changed files: [list]
+• Commands run: [list with results]
+• Final status: [DONE/BLOCKED/BUDGET_EXCEEDED/RISK_TOO_HIGH]
+• Next steps: [if incomplete, top 3 most likely fixes]
+• Remaining risks: [any concerns]
+```
+
+## Loop Execution
+Repeat until:
+- Acceptance criteria met AND verification succeeds, OR
+- MAX_ITERS reached
+
+If MAX_ITERS reached: stop, summarize current state, list top 3 most likely fixes.
+
+## Guardrails
+- **Diff discipline**: always show what changed and why
+- **Exit criteria**: use one of: DONE, BLOCKED (missing dependency), BUDGET_EXCEEDED, RISK_TOO_HIGH
+- **Human oversight**: stop and ask if uncertain about destructive changes
+- **Test awareness**: if no tests exist, propose adding them first
+
+---
+*The Ralph Wiggum loop persists until the task is genuinely complete or budget limits are reached. Named after the character who keeps trying until he gets it right.*
+"""
