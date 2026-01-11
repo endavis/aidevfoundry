@@ -3,7 +3,7 @@
  * Integration tests for the PuzldAI REST API.
  */
 
-import { describe, it, expect, beforeEach, afterAll } from 'bun:test';
+import { describe, it, expect, beforeEach, afterEach } from 'bun:test';
 import Fastify from 'fastify';
 
 describe('API Server', () => {
