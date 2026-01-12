@@ -139,6 +139,8 @@ export interface RouteResult {
   taskType?: string;
   /** Human-readable reason why fallback occurred (if taskType === 'fallback') */
   fallbackReason?: string;
+  /** Suggested harness for complex tasks (pkpoet, codereason, discover, etc.) */
+  suggestedHarness?: string;
 }
 
 export interface CheckResult {

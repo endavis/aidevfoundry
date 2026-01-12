@@ -141,9 +141,13 @@ async function attachPdf(filePath: string, options: AttachOptions): Promise<Atta
 
   console.log(pc.dim(`Reading PDF: ${filePath}...`));
 
-  // Try to use pdf-parse if available
+  // Try to use pdf-parse if available (optional dependency)
   try {
-    const pdfParse = await import('pdf-parse');
+    // Dynamic import with type assertion for optional dependency
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    const pdfParse = (await import(/* webpackIgnore: true */ 'pdf-parse' as string)) as {
+      default: (buffer: Buffer) => Promise<{ text: string; numpages: number; info: Record<string, unknown> }>;
+    };
     const buffer = await readFile(filePath);
     const data = await pdfParse.default(buffer);
 

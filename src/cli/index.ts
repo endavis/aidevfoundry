@@ -3,6 +3,7 @@ import { Command } from 'commander';
 import { runCommand } from './commands/run';
 import { pipeCommand } from './commands/pipe';
 import { checkCommand } from './commands/check';
+import { auditCommand } from './commands/audit';
 import { serveCommand } from './commands/serve';
 import { mcpStatusCommand } from './commands/mcp-status';
 import { agentCommand } from './commands/agent';
@@ -68,6 +69,9 @@ import {
 import { tasksCommand } from './commands/tasks';
 import { gameCommand } from './commands/game';
 import { orchestrateCommand } from './commands/orchestrate';
+import { puzzleCommand } from './commands/puzzle';
+import { arenaCommand } from './commands/arena';
+import { loopCommand } from './commands/loop';
 import { spawnCommand } from './commands/spawn';
 import { continuePlanCommand } from './commands/continue-plan';
 import { startTUI } from '../tui';
@@ -169,6 +173,18 @@ program
   .command('check')
   .description('Check available agents and dependencies')
   .action(checkCommand);
+
+program
+  .command('audit')
+  .description('Comprehensive system audit for pk-puzldai')
+  .option('-j, --json', 'Output as JSON')
+  .option('-v, --verbose', 'Show detailed diagnostics')
+  .option('-f, --fix', 'Auto-fix configuration issues where possible')
+  .action((opts) => auditCommand({
+    json: opts.json,
+    verbose: opts.verbose,
+    fix: opts.fix,
+  }));
 
 program
   .command('serve')
@@ -554,6 +570,64 @@ program
   .argument('<task>', 'The feature to implement')
   .option('--verify <command>', 'Verification command')
   .action((task, opts) => featureCommand(task, { verify: opts.verify }));
+
+// Puzzle Assembly - state-of-the-art multi-agent orchestration
+program
+  .command('puzzle')
+  .description('Multi-agent puzzle assembly (MoA + GoT + Self-Refine)')
+  .argument('<task>', 'The task to solve')
+  .option('-p, --proposers <n>', 'Number of proposer agents', '2')
+  .option('-r, --refine <n>', 'Refinement rounds', '2')
+  .option('--verify <strategy>', 'Verification: triangulation|test-generation|cross-check', 'cross-check')
+  .option('-n, --dry-run', 'Show plan without executing')
+  .option('-v, --verbose', 'Verbose output')
+  .action((task, opts) => puzzleCommand(task, {
+    proposers: parseInt(opts.proposers, 10),
+    refine: parseInt(opts.refine, 10),
+    verify: opts.verify,
+    dryRun: opts.dryRun,
+    verbose: opts.verbose
+  }));
+
+// Arena - self-referential configuration testing
+program
+  .command('arena')
+  .description('Test orchestration configurations against each other')
+  .option('-f, --full', 'Run full tournament')
+  .option('-c, --configs <configs>', 'Comma-separated config IDs')
+  .option('-t, --tasks <tasks>', 'Comma-separated task IDs')
+  .option('-j, --judge <model>', 'Judge model: codex|claude|gemini', 'gemini')
+  .option('-v, --verbose', 'Verbose output')
+  .option('-l, --list', 'List available configs and tasks')
+  .action((opts) => arenaCommand({
+    full: opts.full,
+    configs: opts.configs,
+    tasks: opts.tasks,
+    judge: opts.judge,
+    verbose: opts.verbose,
+    list: opts.list
+  }));
+
+// Feedback Loop - evolutionary config optimization
+program
+  .command('loop')
+  .description('Evolutionary feedback loop for config optimization')
+  .option('-g, --generations <n>', 'Number of generations', '3')
+  .option('-v, --verbose', 'Verbose output')
+  .option('-r, --reset', 'Reset to seed configurations')
+  .option('--ab <configs>', 'Quick A/B test: configA,configB')
+  .option('-s, --status', 'Show current loop state')
+  .option('-j, --judge <model>', 'Judge model: codex|claude|gemini', 'gemini')
+  .option('-p, --parallel', 'Test parallel model configurations')
+  .action((opts) => loopCommand({
+    generations: parseInt(opts.generations, 10),
+    verbose: opts.verbose,
+    reset: opts.reset,
+    ab: opts.ab,
+    status: opts.status,
+    judge: opts.judge,
+    parallel: opts.parallel
+  }));
 
 // Memory commands
 program

@@ -1,4 +1,3 @@
 Agentic smoke test fixture.
 Do not edit outside the fixture directory.
-
 agentic-smoke: updated

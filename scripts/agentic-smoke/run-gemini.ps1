@@ -9,7 +9,7 @@ Write-Host "Prompt:"
 Write-Host $prompt
 
 if (Get-Command gemini -ErrorAction SilentlyContinue) {
-  & gemini --approval-mode auto_edit --output-format json $prompt
+  & gemini --approval-mode auto_edit --output-format json -- $prompt
 } else {
   Write-Host "Gemini CLI not found. Install and rerun."
 }
@@ -50,7 +50,7 @@ if (-not $summaryOk -and (Get-Command gemini -ErrorAction SilentlyContinue)) {
   $fixPrompt = @"
 Overwrite scripts/agentic-smoke/fixture/summary.txt with EXACT content {"sum":6}. Use write_file. Do not use markdown. The quotes around "sum" are required. Write exactly 9 characters: {"sum":6}. ASCII bytes: 7B 22 73 75 6D 22 3A 36 7D. Include DONE.
 "@
-  & gemini --approval-mode auto_edit --output-format json $fixPrompt
+  & gemini --approval-mode auto_edit --output-format json -- $fixPrompt
   $summaryContent = Get-Content -Raw -Path $summary
   Write-Host ("summary.txt correct after retry: " + ($summaryContent.Trim() -eq '{"sum":6}'))
 }

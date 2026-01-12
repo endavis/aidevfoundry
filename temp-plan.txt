@@ -1,0 +1,104 @@
+# Remaining Integration Tasks
+# Updated: 2026-01-11
+
+## Summary
+
+Most TUI/CLI enhancements are **fully implemented** as standalone modules.
+What remains is **integration** - wiring these modules into the interactive agent mode.
+
+---
+
+## Completed Implementations
+
+| Feature | File | Status |
+|---------|------|--------|
+| Unified CLI Layer | `src/lib/unified-cli.ts` | COMPLETE |
+| Persona Modes | `src/lib/personas.ts` + `src/cli/commands/persona.ts` | COMPLETE |
+| ASCII Tables | `src/display/tables.ts` | COMPLETE |
+| Mermaid ASCII | `src/display/mermaid-ascii.ts` | COMPLETE |
+| Plan Tree UI | `src/display/plan-tree.ts` | COMPLETE |
+| Magic Attach | `src/cli/commands/attach.ts` | COMPLETE |
+| Context Tracker | `src/context/context-tracker.ts` | COMPLETE |
+| Agent Spawn | `src/cli/commands/spawn.ts` | COMPLETE |
+| Interactive UI | `src/display/interactive-ui.ts` | COMPLETE |
+| Claude Adapter Upgrades | `src/adapters/claude.ts` | COMPLETE |
+
+---
+
+## Remaining: Integration Tasks
+
+### 1) Wire Rich Artifact Rendering into Output
+
+**Location:** `src/cli/commands/agent.ts` or output renderer
+
+**Task:** Call `transformTables()` and `transformMermaid()` on LLM responses before display.
+
+```typescript
+import { transformTables } from '../../display/tables';
+import { transformMermaid } from '../../display/mermaid-ascii';
+
+// In output handler:
+const renderedContent = transformMermaid(transformTables(response.content));
+console.log(renderedContent);
+```
+
+**Files to modify:**
+- `src/cli/commands/agent.ts` - Apply transforms to streamed/final output
+
+---
+
+### 2) Wire Active Context Display into Agent Mode
+
+**Location:** `src/cli/commands/agent.ts`
+
+**Task:** Show active files in the prompt/status line using `formatActiveFiles()`.
+
+```typescript
+import { formatActiveFiles, contextTracker } from '../../context/context-tracker';
+
+// In prompt rendering or status line:
+const contextDisplay = formatActiveFiles(3);
+console.log(contextDisplay);
+
+// Track file access when tools are used:
+contextTracker.access(filePath);
+```
+
+**Files to modify:**
+- `src/cli/commands/agent.ts` - Add status line with context
+- Hook into tool results to track accessed files
+
+---
+
+### 3) File Path Autocomplete in Agent Input
+
+**Location:** `src/cli/commands/agent.ts`
+
+**Task:** Add autocomplete for file paths when user types `./` or `/add `.
+
+**Approach:**
+- Use `readline` tab completion or extend with `inquirer-autocomplete-prompt`
+- Trigger on patterns: `./`, `../`, or `/add-dir `
+- Use `glob` to find matching files
+- Cache file list with debounced refresh
+
+**Files to modify:**
+- `src/cli/commands/agent.ts` - Add readline completer function
+
+---
+
+## Verification Checklist
+
+- [ ] Tables in LLM output render as ASCII boxes
+- [ ] Mermaid diagrams in LLM output render as ASCII
+- [ ] Active files appear in agent mode status line
+- [ ] Typing `./src/` shows file autocomplete suggestions
+- [ ] `/persona brief` changes response style
+
+---
+
+## Notes
+
+- All core modules are tested and working
+- Integration is straightforward - just import and call
+- No architectural changes needed

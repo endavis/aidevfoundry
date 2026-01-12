@@ -190,7 +190,7 @@ export function deleteOldTasks(olderThanMs: number): number {
   try {
     const result = deleteOldTasksStmt!.run(cutoff);
     const deleted = result.changes ?? 0;
-    if (deleted > 0) {
+    if (deleted > 0 && process.env.NODE_ENV !== 'test') {
       logger.info({ deleted, olderThanMs }, 'Cleaned up old tasks');
     }
     return deleted;

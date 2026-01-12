@@ -2,6 +2,7 @@ import * as readline from 'readline';
 import { spawn } from 'child_process';
 import { readFile, stat } from 'fs/promises';
 import { join } from 'path';
+import { globSync } from 'glob';
 import pc from 'picocolors';
 import { orchestrate } from '../../orchestrator';
 import { discoverAgents, getAgent, formatAgentList } from '../../lib/agent-discovery';
@@ -17,11 +18,53 @@ import {
   type UnifiedCLIOptions,
 } from '../../lib/unified-cli';
 import type { AgentName } from '../../executor/types';
+import { transformTables, transformMermaid } from '../../display';
+import { formatActiveFiles, createContextStatusBar } from '../../context/context-tracker';
 
 interface AgentCommandOptions {
   agent?: string;
   model?: string;
   stream?: boolean;
+}
+
+/**
+ * Create readline completer for file paths and slash commands
+ */
+function createCompleter(): readline.Completer {
+  const commands = [
+    '/help', '/agent', '/model', '/fast', '/best',
+    '/stream', '/new', '/persona', '/status', '/auto',
+    '/extract', '/agents', '/spawn', '/continue-plan', '/context'
+  ];
+
+  return function completer(line: string): [string[], string] {
+    // Slash command completion
+    if (line.startsWith('/')) {
+      const matches = commands.filter(c => c.startsWith(line));
+      return [matches.length ? matches : commands, line];
+    }
+
+    // File path completion for ./ or ../
+    const words = line.split(/\s+/);
+    const partial = words[words.length - 1];
+
+    if (partial.startsWith('./') || partial.startsWith('../')) {
+      try {
+        const pattern = partial + '*';
+        const matches = globSync(pattern, {
+          nodir: false,
+          cwd: process.cwd(),
+          mark: true // Add trailing / for directories
+        });
+        // Return matches relative to the partial path
+        return [matches.length ? matches : [], partial];
+      } catch {
+        return [[], partial];
+      }
+    }
+
+    return [[], line];
+  };
 }
 
 /**
@@ -36,7 +79,8 @@ export async function agentCommand(options: AgentCommandOptions): Promise<void> 
   const rl = readline.createInterface({
     input: process.stdin,
     output: process.stdout,
-    terminal: true
+    terminal: true,
+    completer: createCompleter()
   });
 
   // Session state
@@ -54,6 +98,11 @@ export async function agentCommand(options: AgentCommandOptions): Promise<void> 
   console.log(pc.bold(pc.cyan('╚══════════════════════════════════════╝')));
   console.log('');
   console.log(pc.dim(`Agent: ${currentAgent} | Model: ${currentModel} | Stream: ${streamMode ? 'on' : 'off'}`));
+  // Display active context if available
+  const contextBar = createContextStatusBar(60);
+  if (contextBar) {
+    console.log(contextBar);
+  }
   console.log(pc.dim('Type /help for commands, exit to quit\n'));
 
   const prompt = () => {
@@ -89,7 +138,8 @@ export async function agentCommand(options: AgentCommandOptions): Promise<void> 
           console.log(pc.bold('Session:'));
           console.log(pc.dim('  /new               - Start fresh session (clear context)'));
           console.log(pc.dim('  /persona <style>   - Set persona (borris, dax, brief, teacher)'));
-          console.log(pc.dim('  /status            - Show session stats (tokens, cost)'));
+          console.log(pc.dim('  /status            - Show session stats (tokens, cost, files)'));
+          console.log(pc.dim('  /context           - Show detailed active files list'));
           console.log('');
           console.log(pc.bold('Agents & Tasks:'));
           console.log(pc.dim('  /agents            - List custom agents (.claude/agents/)'));
@@ -212,7 +262,18 @@ export async function agentCommand(options: AgentCommandOptions): Promise<void> 
           console.log(pc.dim(`Agent: ${currentAgent} | Model: ${currentModel}`));
           console.log(pc.dim(`Stream: ${streamMode ? 'on' : 'off'} | Session: ${sessionId ? sessionId.slice(0, 8) + '...' : 'ephemeral'}`));
           console.log(pc.dim(`Tokens: ${totalTokens.input} in / ${totalTokens.output} out`));
-          console.log(pc.dim(`Cost: $${totalCost.toFixed(4)}\n`));
+          console.log(pc.dim(`Cost: $${totalCost.toFixed(4)}`));
+          // Show active files
+          console.log(formatActiveFiles(5));
+          console.log('');
+          prompt();
+          return;
+        }
+
+        // /context - show detailed context info
+        if (cmd === 'context') {
+          const { formatActiveFilesList } = await import('../../context/context-tracker');
+          console.log('\n' + formatActiveFilesList() + '\n');
           prompt();
           return;
         }
@@ -372,7 +433,11 @@ export async function agentCommand(options: AgentCommandOptions): Promise<void> 
             if (result.error) {
               console.error(pc.red(`\nError: ${result.error}`));
             } else {
-              console.log(result.content);
+              // Transform tables and mermaid diagrams to ASCII
+              let displayContent = result.content;
+              displayContent = transformTables(displayContent);
+              displayContent = transformMermaid(displayContent);
+              console.log(displayContent);
             }
 
             if (result.usage) {

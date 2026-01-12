@@ -9,7 +9,7 @@ Write-Host "Prompt:"
 Write-Host $prompt
 
 if (Get-Command claude -ErrorAction SilentlyContinue) {
-  & claude -p $prompt --permission-mode bypassPermissions
+  & claude -p --permission-mode bypassPermissions $prompt
 } else {
   Write-Host "Claude CLI not found. Install and rerun."
 }
@@ -54,7 +54,7 @@ Fix only these files under scripts/agentic-smoke/fixture:
 3) Run: node -e \"console.log('agentic smoke ok')\" and include output.
 Include DONE when fixed and <promise>COMPLETE</promise> when finished.
 "@
-  & claude -p $fixPrompt --permission-mode bypassPermissions
+  & claude -p --permission-mode bypassPermissions $fixPrompt
   $notesContent = Get-Content -Raw -Path $notes
   Write-Host ("notes.txt updated after retry: " + ($notesContent -match "agentic-smoke: updated") -and ($notesContent -notmatch "agentic-smoke:$"))
   $summaryContent = Get-Content -Raw -Path $summary

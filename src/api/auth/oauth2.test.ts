@@ -1,8 +1,14 @@
 import { describe, expect, it, beforeAll, afterAll } from 'bun:test';
+import { mkdtempSync, rmSync } from 'fs';
+import { join } from 'path';
+import { tmpdir } from 'os';
 import { createServer } from '../server';
 import * as persistence from './persistence';
-import { getDatabase, closeDatabase } from '../../memory/database';
+import { closeDatabase } from '../../memory/database';
 import { hashRefreshToken } from './service';
+
+const testDbDir = mkdtempSync(join(tmpdir(), 'puzldai-test-'));
+process.env.PUZLDAI_DB_PATH = join(testDbDir, 'puzldai.db');
 
 describe('OAuth2 Refresh Token Flow', () => {
   let app: any;
@@ -19,6 +25,8 @@ describe('OAuth2 Refresh Token Flow', () => {
       await app.close();
     }
     closeDatabase();
+    rmSync(testDbDir, { recursive: true, force: true });
+    delete process.env.PUZLDAI_DB_PATH;
   });
 
   const testUser = {

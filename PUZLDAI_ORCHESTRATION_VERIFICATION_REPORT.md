@@ -118,16 +118,17 @@ if (parsed.confidence < config.confidenceThreshold) {
 // Disables native tools for agentic mode
 const disableTools = options?.disableTools ?? true;
 if (disableTools) {
-  args.push('--tools', '');
+  args.push('--tools=');
 }
 
 // Dry-run mode for safe exploration
 async dryRun(prompt: string, options?: RunOptions) {
   const args = [
-    '-p', prompt,
+    '-p',
     '--output-format', 'stream-json',
     '--verbose',
-    '--permission-mode', 'default'  // Respects permission prompts
+    '--permission-mode', 'default',  // Respects permission prompts
+    prompt
   ];
 }
 ```

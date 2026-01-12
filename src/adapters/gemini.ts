@@ -29,6 +29,8 @@ export const geminiAdapter: Adapter = {
     const startTime = Date.now();
     const model = options?.model ?? config.adapters.gemini.model;
     const geminiApprovalMode = options?.geminiApprovalMode;
+    const maxPromptChars = 30000;
+    const usePromptStdin = prompt.length > maxPromptChars;
 
     try {
       // Gemini CLI uses -m for model selection, --output-format json for token usage
@@ -47,6 +49,10 @@ export const geminiAdapter: Adapter = {
         args.push('-m', model);
       }
 
+      if (!usePromptStdin) {
+        args.push('--', prompt);
+      }
+
       const { stdout, stderr, exitCode } = await execa(
         config.adapters.gemini.path,
         args,
@@ -54,8 +60,8 @@ export const geminiAdapter: Adapter = {
           timeout: config.timeout,
           cancelSignal: options?.signal,
           reject: false,
-          input: prompt,
-          stdin: 'pipe'
+          input: usePromptStdin ? prompt : undefined,
+          stdin: usePromptStdin ? 'pipe' : 'ignore'
         }
       );
 

@@ -65,6 +65,8 @@ export const geminiSafeAdapter: Adapter & {
     const model = options?.model ?? config.adapters.gemini.model;
     const modelName = model ? `gemini/${model}` : 'gemini';
     const cwd = process.cwd();
+    const maxPromptChars = 30000;
+    const usePromptStdin = prompt.length > maxPromptChars;
 
     // Create backup directory
     const backupDir = join(tmpdir(), `puzldai-gemini-backup-${Date.now()}`);
@@ -85,12 +87,16 @@ export const geminiSafeAdapter: Adapter & {
         args.push('-m', model);
       }
 
+      if (!usePromptStdin) {
+        args.push('--', prompt);
+      }
+
       const { stdout, stderr } = await execa(config.adapters.gemini.path, args, {
         timeout: config.timeout,
         cancelSignal: options?.signal,
         reject: false,
-        input: prompt,
-        stdin: 'pipe',
+        input: usePromptStdin ? prompt : undefined,
+        stdin: usePromptStdin ? 'pipe' : 'ignore',
         cwd
       });
 

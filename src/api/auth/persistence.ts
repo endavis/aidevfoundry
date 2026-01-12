@@ -139,3 +139,13 @@ export function cleanupExpiredTokens(): void {
     logger.error({ error }, 'Failed to cleanup expired tokens');
   }
 }
+
+export function resetStatements(): void {
+  createUserStmt = null;
+  getUserByIdStmt = null;
+  getUserByUsernameStmt = null;
+  createRefreshTokenStmt = null;
+  getRefreshTokenStmt = null;
+  revokeRefreshTokenStmt = null;
+  deleteExpiredTokensStmt = null;
+}

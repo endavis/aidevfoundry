@@ -32,6 +32,8 @@ PuzldAI is a multi-LLM orchestration framework with agentic execution, memory/RA
    - Making architectural changes
    - Changing timelines or dependencies
 
+**Exception:** Read-only audits or reviews that do not change code or architecture do not require plan.md updates; note the audit outcome in your final summary instead.
+
 3. **Add change log entries** to `plan.md` with:
    - Date of change
    - Tasks started/completed

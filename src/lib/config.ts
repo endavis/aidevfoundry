@@ -1,6 +1,6 @@
 import { readFileSync, writeFileSync, existsSync, mkdirSync } from 'fs';
 import { join } from 'path';
-import { homedir } from 'os';
+import { homedir, tmpdir } from 'os';
 import type { OrchestrationConfig } from '../orchestrator/profiles';
 import { getDefaultOrchestrationConfig } from '../orchestrator/profiles';
 
@@ -65,6 +65,7 @@ export interface PulzdConfig {
 
 const CONFIG_DIR = join(homedir(), '.puzldai');
 const CONFIG_PATH = join(CONFIG_DIR, 'config.json');
+const TEST_CONFIG_DIR = join(tmpdir(), 'puzldai-test-config');
 const OLD_CONFIG_DIR = join(homedir(), '.pulzdai');
 const OLD_CONFIG_PATH = join(OLD_CONFIG_DIR, 'config.json');
 
@@ -108,30 +109,39 @@ const DEFAULT_CONFIG: PulzdConfig = {
 };
 
 export function getConfigDir(): string {
+  if (process.env.PUZLDAI_CONFIG_DIR) {
+    return process.env.PUZLDAI_CONFIG_DIR;
+  }
+  if (process.env.NODE_ENV === 'test') {
+    return TEST_CONFIG_DIR;
+  }
   return CONFIG_DIR;
 }
 
 export function getConfigPath(): string {
-  return CONFIG_PATH;
+  return join(getConfigDir(), 'config.json');
 }
 
 export function loadConfig(): PulzdConfig {
   // Migrate from old config path if new one doesn't exist
-  if (!existsSync(CONFIG_PATH) && existsSync(OLD_CONFIG_PATH)) {
-    mkdirSync(CONFIG_DIR, { recursive: true });
+  const configPath = getConfigPath();
+  const configDir = getConfigDir();
+
+  if (!existsSync(configPath) && existsSync(OLD_CONFIG_PATH)) {
+    mkdirSync(configDir, { recursive: true });
     const oldConfig = readFileSync(OLD_CONFIG_PATH, 'utf-8');
-    writeFileSync(CONFIG_PATH, oldConfig);
+    writeFileSync(configPath, oldConfig);
     console.log('Migrated config from ~/.pulzdai to ~/.puzldai');
   }
 
-  if (!existsSync(CONFIG_PATH)) {
-    mkdirSync(CONFIG_DIR, { recursive: true });
-    writeFileSync(CONFIG_PATH, JSON.stringify(DEFAULT_CONFIG, null, 2));
+  if (!existsSync(configPath)) {
+    mkdirSync(configDir, { recursive: true });
+    writeFileSync(configPath, JSON.stringify(DEFAULT_CONFIG, null, 2));
     return DEFAULT_CONFIG;
   }
 
   try {
-    const raw = readFileSync(CONFIG_PATH, 'utf-8');
+    const raw = readFileSync(configPath, 'utf-8');
     return { ...DEFAULT_CONFIG, ...JSON.parse(raw) };
   } catch {
     console.warn('Invalid config file, using defaults');
@@ -140,8 +150,8 @@ export function loadConfig(): PulzdConfig {
 }
 
 export function saveConfig(config: PulzdConfig): void {
-  mkdirSync(CONFIG_DIR, { recursive: true });
-  writeFileSync(CONFIG_PATH, JSON.stringify(config, null, 2));
+  mkdirSync(getConfigDir(), { recursive: true });
+  writeFileSync(getConfigPath(), JSON.stringify(config, null, 2));
 }
 
 let configInstance: PulzdConfig | null = null;

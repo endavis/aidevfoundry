@@ -123,6 +123,19 @@ describe('StreamParser', () => {
     }
   });
 
+  test('parses stream_event delta text', () => {
+    const parser = new StreamParser();
+    const line = '{"type":"stream_event","event":{"delta":{"text":"Hello"}}}';
+
+    const events = parser.parseLine(line);
+
+    expect(events).toHaveLength(1);
+    expect(events[0].type).toBe('text');
+    if (events[0].type === 'text') {
+      expect(events[0].text).toBe('Hello');
+    }
+  });
+
   test('parses final result', () => {
     const parser = new StreamParser();
     const line = '{"type":"result","subtype":"success","result":"Final answer","usage":{"input_tokens":100,"output_tokens":50}}';

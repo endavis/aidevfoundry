@@ -155,7 +155,21 @@ interface RawResultMessage {
   }>;
 }
 
-type RawMessage = RawSystemMessage | RawAssistantMessage | RawUserMessage | RawResultMessage;
+interface RawStreamEventMessage {
+  type: 'stream_event';
+  event?: {
+    delta?: {
+      text?: string;
+    };
+  };
+}
+
+type RawMessage =
+  | RawSystemMessage
+  | RawAssistantMessage
+  | RawUserMessage
+  | RawResultMessage
+  | RawStreamEventMessage;
 
 // ============================================================================
 // Stream Parser
@@ -201,9 +215,20 @@ function parseMessage(msg: RawMessage, state: StreamParserState): StreamEvent[] 
       return parseUserMessage(msg, state);
     case 'result':
       return [parseResultMessage(msg)];
+    case 'stream_event':
+      return parseStreamEventMessage(msg);
     default:
       return [];
   }
+}
+
+function parseStreamEventMessage(msg: RawStreamEventMessage): StreamEvent[] {
+  const text = msg.event?.delta?.text;
+  if (!text) return [];
+  return [{
+    type: 'text',
+    text
+  }];
 }
 
 function parseSystemMessage(msg: RawSystemMessage, state: StreamParserState): InitEvent {

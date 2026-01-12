@@ -170,9 +170,44 @@ function buildPipelineStepPrompt(step: PipelineStep, index: number): string {
 
   const prevRef = index > 0 ? `\n\nPrevious step output:\n{{step${index - 1}_output}}` : '';
 
-  switch (step.action) {
-    case 'analyze':
-      return `Analyze the following task and provide insights:
+  switch (step.action.toLowerCase()) {
+    // Planning actions
+    case 'plan':
+      return `Create a detailed implementation plan for the following task. Break it down into clear, actionable steps:
+
+{{prompt}}${prevRef}`;
+
+    case 'architect':
+      return `Design the architecture for the following. Consider patterns, components, and their relationships:
+
+{{prompt}}${prevRef}`;
+
+    // Validation actions
+    case 'validate':
+      return `Validate and critique the following. Identify potential issues, gaps, or improvements needed:
+
+{{prompt}}${prevRef}`;
+
+    case 'verify':
+      return `Verify the correctness and completeness of the following. Check for errors, edge cases, and missing elements:
+
+{{prompt}}${prevRef}`;
+
+    // Decomposition actions
+    case 'decompose':
+    case 'breakdown':
+      return `Break down the following into smaller, independent subtasks that can be worked on separately:
+
+{{prompt}}${prevRef}`;
+
+    case 'subtasks':
+      return `Convert the following plan into specific, actionable subtasks. Each subtask should be self-contained:
+
+{{prompt}}${prevRef}`;
+
+    // Implementation actions
+    case 'implement':
+      return `Implement the following. Write production-ready code with proper error handling:
 
 {{prompt}}${prevRef}`;
 
@@ -181,23 +216,47 @@ function buildPipelineStepPrompt(step: PipelineStep, index: number): string {
 
 {{prompt}}${prevRef}`;
 
-    case 'review':
-      return `Review the following and suggest improvements:
-
-{{prompt}}${prevRef}`;
-
     case 'fix':
       return `Fix any issues in the following:
 
 {{prompt}}${prevRef}`;
 
+    // Analysis actions
+    case 'analyze':
+      return `Analyze the following task and provide insights:
+
+{{prompt}}${prevRef}`;
+
+    case 'research':
+      return `Research and gather information about the following. Provide relevant context and findings:
+
+{{prompt}}${prevRef}`;
+
+    // Review actions
+    case 'review':
+      return `Review the following and suggest improvements:
+
+{{prompt}}${prevRef}`;
+
+    case 'critique':
+      return `Critically evaluate the following. Identify weaknesses and suggest concrete improvements:
+
+{{prompt}}${prevRef}`;
+
+    // Testing actions
     case 'test':
       return `Write tests for the following:
 
 {{prompt}}${prevRef}`;
 
+    // Output actions
     case 'summarize':
       return `Summarize the following concisely:
+
+{{prompt}}${prevRef}`;
+
+    case 'refine':
+      return `Refine and improve the following. Make it cleaner, more efficient, and production-ready:
 
 {{prompt}}${prevRef}`;
 

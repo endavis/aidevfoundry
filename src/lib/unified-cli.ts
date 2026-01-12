@@ -70,6 +70,8 @@ export interface UnifiedCLIOptions {
   signal?: AbortSignal;
   /** Agent name (Claude only) */
   agent?: string;
+  /** Internal: send prompt via stdin instead of positional args */
+  promptViaStdin?: boolean;
 }
 
 /**
@@ -98,6 +100,8 @@ interface CLIConfig {
   parseStreamEvent: (line: string) => StreamEvent | null;
   parseResult: (stdout: string) => UnifiedResult;
 }
+
+const GEMINI_MAX_PROMPT_CHARS = 30000;
 
 /**
  * Claude CLI configuration
@@ -284,8 +288,10 @@ const geminiConfig: CLIConfig = {
       args.push('--approval-mode', 'auto_edit');
     }
 
-    // Prompt flag
-    args.push('-p', prompt);
+    // Positional prompt (Gemini -p is deprecated)
+    if (!options.promptViaStdin) {
+      args.push('--', prompt);
+    }
 
     return args;
   },
@@ -388,13 +394,20 @@ export async function runUnified(
   const cli = getCliConfig(agent);
   const startTime = Date.now();
 
-  const args = cli.buildArgs(prompt, options);
+  const usePromptStdin =
+    (agent === 'gemini' || agent === 'gemini-safe') &&
+    prompt.length > GEMINI_MAX_PROMPT_CHARS;
+  const args = cli.buildArgs(prompt, {
+    ...options,
+    promptViaStdin: options.promptViaStdin ?? usePromptStdin
+  });
 
   const { stdout, stderr } = await execa(cli.command, args, {
     timeout: options.timeout || 120000,
     cancelSignal: options.signal,
     reject: false,
-    stdin: 'ignore',
+    input: usePromptStdin ? prompt : undefined,
+    stdin: usePromptStdin ? 'pipe' : 'ignore',
   });
 
   if (stderr && !stdout) {
@@ -431,13 +444,20 @@ export function streamUnified(
     outputFormat: 'stream-json' as const,
   };
 
-  const args = cli.buildArgs(prompt, streamOptions);
+  const usePromptStdin =
+    (agent === 'gemini' || agent === 'gemini-safe') &&
+    prompt.length > GEMINI_MAX_PROMPT_CHARS;
+  const args = cli.buildArgs(prompt, {
+    ...streamOptions,
+    promptViaStdin: streamOptions.promptViaStdin ?? usePromptStdin
+  });
 
   const proc = execa(cli.command, args, {
     timeout: options.timeout || 120000,
     cancelSignal: options.signal,
     reject: false,
-    stdin: 'ignore',
+    input: usePromptStdin ? prompt : undefined,
+    stdin: usePromptStdin ? 'pipe' : 'ignore',
     stdout: 'pipe',
     stderr: 'pipe',
   });

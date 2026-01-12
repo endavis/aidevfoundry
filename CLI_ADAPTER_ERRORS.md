@@ -4,6 +4,9 @@
 
 After comparing PuzldAI's CLI adapter implementations against official documentation, **5 critical errors** were identified across different adapters that could cause incorrect behavior, failures, or unexpected results.
 
+## Status Update (2026-01-11)
+Errors 1, 2, 4, and 5 have been resolved in the current adapters. Error 3 remains an optional improvement (validation only). The corrected usage examples below reflect the current, best-practice behavior.
+
 ---
 
 ## Error 1: Claude Code Adapter - Missing `--print` Flag
@@ -12,13 +15,16 @@ After comparing PuzldAI's CLI adapter implementations against official documenta
 **File:** `src/adapters/claude.ts`  
 **Line:** 78
 
-### Current Implementation
+### Current Implementation (fixed)
 ```typescript
-const args = ['-p', prompt, '--output-format', 'stream-json', '--verbose'];
+const args = ['-p', '--output-format', 'stream-json', '--verbose', prompt];
 ```
 
-### Issue
-The adapter uses `-p` flag which is ** shorthand for `--print`**, not for providing a prompt. According to [Claude Code CLI Reference](https://docs.claude.com/en/docs/claude-code/cli-reference):
+### Status
+Resolved. The adapter now places the prompt last and uses `--tools=` when disabling tools, matching Claude CLI requirements.
+
+### Historical Issue
+The adapter previously used `-p` with the prompt in the wrong position. According to [Claude Code CLI Reference](https://docs.claude.com/en/docs/claude-code/cli-reference):
 
 - `-p, --print` - Print response without interactive mode
 - To pass a prompt in print mode, use: `claude -p "query"` (prompt comes AFTER the flag)
@@ -29,9 +35,9 @@ const args = ['-p', '--output-format', 'stream-json', '--verbose', prompt];
 ```
 
 ### Impact
-- **Severity:** HIGH  
-- **Effect:** The prompt is likely being interpreted as a flag instead of content, causing the LLM to receive no prompt or malformed input  
-- **Current Behavior:** May work but is syntactically incorrect
+- **Severity:** HIGH
+- **Effect:** The prompt is likely being interpreted as a flag instead of content, causing the LLM to receive no prompt or malformed input
+- **Current Behavior:** Fixed (prompt is positional and tools are disabled safely)
 
 ---
 
@@ -41,18 +47,20 @@ const args = ['-p', '--output-format', 'stream-json', '--verbose', prompt];
 **File:** `src/adapters/gemini.ts`  
 **Line:** 42-44
 
-### Current Implementation
+### Current Implementation (fixed)
 ```typescript
 // Add approval mode flag based on option
-if (geminiApprovalMode === 'yolo') {
-  args.push('--yolo');
-} else if (geminiApprovalMode === 'auto_edit') {
+if (geminiApprovalMode === 'yolo' || geminiApprovalMode === 'auto_edit') {
   args.push('--approval-mode', 'auto_edit');
 }
+// 'default' or undefined = no flag (read-only mode)
 ```
 
-### Issue
-According to the [Gemini CLI documentation](https://geminicli.com/docs/cli/commands/), there is **no `--yolo` flag** for Gemini CLI. 
+### Status
+Resolved. Gemini now uses `--approval-mode auto_edit` for both `yolo` and `auto_edit`.
+
+### Historical Issue
+According to the [Gemini CLI documentation](https://geminicli.com/docs/cli/commands/), there is **no `--yolo` flag** for Gemini CLI.
 
 The correct flags for Gemini are:
 - **`--approval-mode`** with values: `default`, `auto_edit`, `confirm_all`
@@ -68,9 +76,9 @@ if (geminiApprovalMode === 'yolo' || geminiApprovalMode === 'auto_edit') {
 ```
 
 ### Impact
-- **Severity:** MEDIUM  
-- **Effect:** Using `--yolo` flag will cause Gemini CLI to fail with unknown flag error  
-- **Current Behavior:** Breaks when `geminiApprovalMode` is set to `'yolo'`
+- **Severity:** MEDIUM
+- **Effect:** Using `--yolo` flag will cause Gemini CLI to fail with unknown flag error
+- **Current Behavior:** Fixed (no invalid `--yolo` flag)
 
 ---
 
@@ -119,18 +127,19 @@ args.push('--sandbox', 'workspace-write'); // This is correct
 **File:** `src/adapters/factory.ts`  
 **Line:** 40-46
 
-### Current Implementation
+### Current Implementation (fixed)
 ```typescript
-// Add autonomy level (default to low for safety)
-const autonomy = factoryConfig?.autonomy || 'low';
-if (autonomy && autonomy !== 'low') {
+// Add autonomy level if specified
+const autonomy = factoryConfig?.autonomy;
+if (autonomy) {
   args.push('--auto', autonomy);
-} else if (autonomy === 'low') {
-  args.push('--auto', 'low');
 }
 ```
 
-### Issue
+### Status
+Resolved. Factory now omits `--auto` when unset (read-only default).
+
+### Historical Issue
 According to [Factory CLI Reference](https://docs.factory.ai/reference/cli-reference):
 
 - The `--auto` flag expects: `low`, `medium`, `high`  
@@ -148,9 +157,9 @@ if (autonomy) {
 ```
 
 ### Impact
-- **Severity:** MEDIUM  
-- **Effect:** Forces low autonomy even when user didn't specify any, preventing read-only mode  
-- **Current Behavior:** Can't use read-only mode
+- **Severity:** MEDIUM
+- **Effect:** Forces low autonomy even when user didn't specify any, preventing read-only mode
+- **Current Behavior:** Fixed (read-only supported when no autonomy set)
 
 ---
 
@@ -160,13 +169,16 @@ if (autonomy) {
 **File:** `src/adapters/crush.ts`  
 **Line:** 33
 
-### Current Implementation
+### Current Implementation (fixed)
 ```typescript
-// Crush uses 'run' subcommand for non-interactive execution
-const args: string[] = ['run'];
+// Crush doesn't have a run subcommand - pass prompt directly
+const args: string[] = [];
 ```
 
-### Issue
+### Status
+Resolved. Crush now invokes the CLI directly without a non-existent subcommand.
+
+### Historical Issue
 According to the [Crush GitHub README](https://github.com/charmbracelet/crush):
 
 - **There is NO `crush run` subcommand**  
@@ -210,9 +222,9 @@ const { stdout, stderr } = await execa(
 ```
 
 ### Impact
-- **Severity:** HIGH  
-- **Effect:** Using non-existent `run` subcommand will cause Crush to fail  
-- **Current Behavior:** Completely broken - will fail with "unknown command" error
+- **Severity:** HIGH
+- **Effect:** Using non-existent `run` subcommand will cause Crush to fail
+- **Current Behavior:** Fixed (direct invocation works)
 
 ---
 
@@ -220,11 +232,11 @@ const { stdout, stderr } = await execa(
 
 | Adapter | Error | Severity | Status |
 |---------|-------|----------|--------|
-| Claude | Missing `--print` flag, incorrect argument order | HIGH | Needs Fix |
-| Gemini | Non-existent `--yolo` flag | MEDIUM | Needs Fix |
+| Claude | Missing `--print` flag, incorrect argument order | HIGH | Fixed |
+| Gemini | Non-existent `--yolo` flag | MEDIUM | Fixed |
 | Codex | Minor: lacks sandbox validation | LOW | Optional |
-| Factory | Forces low autonomy, can't use read-only | MEDIUM | Needs Fix |
-| Crush | Uses non-existent `run` subcommand | HIGH | Needs Fix |
+| Factory | Forces low autonomy, can't use read-only | MEDIUM | Fixed |
+| Crush | Uses non-existent `run` subcommand | HIGH | Fixed |
 
 ---
 

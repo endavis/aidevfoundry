@@ -21,6 +21,9 @@ let db: any | null = null;
  * Get database file path
  */
 export function getDatabasePath(): string {
+  if (process.env.PUZLDAI_DB_PATH) {
+    return process.env.PUZLDAI_DB_PATH;
+  }
   return join(getConfigDir(), 'puzldai.db');
 }
 
@@ -96,6 +99,12 @@ export function getDatabase(): any {
 export function closeDatabase(): void {
   if (db) {
     db.close();
+    try {
+      const { resetStatements: resetAuthStatements } = require('../api/auth/persistence');
+      resetAuthStatements();
+    } catch {
+      // Ignore failures to reset auth statements during shutdown.
+    }
     db = null;
   }
 }

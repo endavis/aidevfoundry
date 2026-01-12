@@ -6,7 +6,11 @@
       "Bash(git commit:*)",
       "WebSearch",
       "Bash(Get-ChildItem -Path \".claude/agents\" -Name)",
-      "Bash(node -e:*)"
+      "Bash(node -e:*)",
+      "Bash(npm run typecheck:*)",
+      "Bash(node dist/cli/index.js audit:*)",
+      "Bash(node dist/cli/index.js:*)",
+      "Bash(git add:*)"
     ]
   }
 }

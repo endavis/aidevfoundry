@@ -12,7 +12,7 @@ export function usePersistentState<T>(key: string, initialValue: T) {
 
 const setValue = useCallback((value: T | ((val: T) => T)) => {
     try {
-      const valueToStore = val instanceof Function ? val(storedValue) : val;
+      const valueToStore = value instanceof Function ? value(storedValue) : value;
       localStorage?.setItem(key, JSON.stringify(valueToStore));
       setStoredValue(valueToStore);
     } catch {

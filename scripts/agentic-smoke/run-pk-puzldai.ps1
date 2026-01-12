@@ -37,7 +37,7 @@ if ($agent -like "gemini*") {
   if (Get-Command gemini -ErrorAction SilentlyContinue) {
     $geminiPromptPath = Join-Path $root "prompts\\agentic-smoke-gemini.txt"
     $geminiPrompt = Get-Content -Raw -Path $geminiPromptPath
-    & gemini --approval-mode auto_edit --output-format json $geminiPrompt
+    & gemini --approval-mode auto_edit --output-format json -- $geminiPrompt       
   } else {
     Write-Host "Gemini CLI not found. Install and rerun."
   }
@@ -113,7 +113,7 @@ if ((-not $notesOk) -or (-not $summaryOk) -or (-not $calcOk)) {
       Write-Host "Falling back to Gemini CLI to complete fixture updates..."
       $geminiPromptPath = Join-Path $root "prompts\\agentic-smoke-gemini.txt"
       $geminiPrompt = Get-Content -Raw -Path $geminiPromptPath
-      & gemini --approval-mode auto_edit --output-format json $geminiPrompt
+      & gemini --approval-mode auto_edit --output-format json -- $geminiPrompt     
       if (Test-Path $notes) {
         $notesLines = Get-Content -Path $notes
         $updatedCount = ($notesLines | Where-Object { $_ -eq "agentic-smoke: updated" }).Count

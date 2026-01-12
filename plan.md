@@ -1914,6 +1914,7 @@ To work on a task from this plan:
 
 - Injected a test-only `getAvailableAdapters` override so `/agents` tests avoid slow adapter availability checks.
 - Suppressed expected auth error logs in the orchestrate dry-run test.
+- Routed OAuth2 auth tests to a temp SQLite DB via `PUZLDAI_DB_PATH`.
 
 ### 2026-01-11: Game System + Validation Fixes
 
