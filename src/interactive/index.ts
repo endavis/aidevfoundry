@@ -25,6 +25,20 @@ export {
   extractChoices,
 } from './responder';
 
+// Prompt detection with pattern registry
+export {
+  PromptDetector,
+  createPromptDetector,
+  containsPrompt,
+  CLAUDE_PATTERNS,
+  CODEX_PATTERNS,
+  FACTORY_PATTERNS,
+  GENERIC_PATTERNS,
+  type PromptPattern,
+  type ToolPatternConfig,
+  type PromptDetectorOptions,
+} from './prompt-detector';
+
 export {
   CLI_TOOL_CONFIGS,
   type CLIToolConfig,
