@@ -1,6 +1,6 @@
 # PuzldAI - Game System Implementation Plan
 
-**Last Updated:** 2026-01-11
+**Last Updated:** 2026-01-12
 **Status:** In Progress
 **Completion:** 10/13 tasks (Game system); 6/6 tasks (CLI orchestration); 4/4 tasks (Ralph/Poet CLI) ✅
 
@@ -1887,12 +1887,32 @@ To work on a task from this plan:
 - ✅ All aliases: Visible and functional in CLI help
 - ✅ Telemetry: Automatically logging all adapter runs
 
+### 2026-01-11: Headless CLI usage audit
+
+- Updated `CLI_ADAPTER_ERRORS.md` to reflect fixed adapter flag usage and current best practices.
+- Corrected Claude CLI snippets in `PUZLDAI_ORCHESTRATION_VERIFICATION_REPORT.md` to use `--tools=` and positional prompts.
+- Adjusted Gemini and Claude agentic smoke scripts to keep prompts positional and flags before prompts (Gemini no longer uses deprecated `-p`).
+- Refined `cli-headless-mode` skill guidance (Gemini positional prompts, Claude stream flags, Windows shell notes).
+- Added a read-only audit exception to plan update rules in `AGENTS.md`.
+- Updated `src/lib/unified-cli.ts` to use positional prompts for Gemini (avoids deprecated `-p`).
+- Normalized Gemini adapter usage and references to positional prompts (updated gemini adapters and skill references).
+- Added Gemini prompt-length fallback to stdin and StreamParser support for Claude stream_event deltas.
+
+### 2026-01-11: Claude CLI stability fix
+
+- Switched non-tool Claude adapter runs to `--output-format json` by default to avoid Bun stream-json crashes.
+- Added JSON parsing fallback in the Claude adapter while preserving stream-json parsing when tool events are needed.
+
 ### 2026-01-12: Ralph/Poet CLI Orchestration Plan
 
 - Added Phase 9 to the roadmap with concrete tasks for the Ralph Wiggum planning loop, Poetiq/PK-Poet activation, agentic harness smoke tests, and telemetry/docs handoff.
 - Captured the question-first, iteration-aware contract for the CLI so every `pk-puzldai` run can begin with plan clarity and stop only when budgets or acceptance criteria are satisfied.
 - Documented the need to expose `ralph`, `poetic`, `poetiq`, `pk-poet`, `self-discover`, and `adversary` commands alongside zipped `functiongemma` reasoning assets and renewed observation telemetry before handing the work to the next agent.
 - Noted that Gemini CLI, Claude Code, and pk-puzldai must all prove their agentic capabilities (via `scripts/agentic-smoke`) before this phase can be considered complete.
+
+### 2026-01-12: Test speed hardening
+
+- Injected a test-only `getAvailableAdapters` override so `/agents` tests avoid slow adapter availability checks.
 
 ### 2026-01-11: Game System + Validation Fixes
 

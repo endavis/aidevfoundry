@@ -6,6 +6,7 @@ import fastifyJwt from '@fastify/jwt';
 import { resolve } from 'path';
 import { orchestrate } from '../orchestrator';
 import { adapters, getAvailableAdapters } from '../adapters';
+import type { Adapter } from '../lib/types';
 import { TaskQueue, TaskStatus, MAX_CONCURRENT_TASKS } from './task-queue';
 import * as persistence from './task-persistence';
 import { authRoutes } from './auth/routes';
@@ -36,6 +37,7 @@ interface ServerOptions {
 export interface CreateServerOptions extends Partial<ServerOptions> {
   restoreTasks?: boolean;
   redisUrl?: string;
+  getAvailableAdapters?: () => Promise<Adapter[]>;
 }
 
 let taskCache: IAsyncCache<TaskEntry>;
@@ -73,6 +75,7 @@ setInterval(() => {
 
 export async function createServer(options: CreateServerOptions = {}): Promise<ReturnType<typeof Fastify>> {
   const fastify = Fastify({ logger: false });
+  const getAvailableAdaptersFn = options.getAvailableAdapters ?? getAvailableAdapters;
 
   // Initialize Cache
   taskCache = createAsyncCache<TaskEntry>({ redisUrl: options.redisUrl });
@@ -252,7 +255,7 @@ export async function createServer(options: CreateServerOptions = {}): Promise<R
 
   // List agents
   fastify.get('/agents', async () => {
-    const available = await getAvailableAdapters();
+    const available = await getAvailableAdaptersFn();
     return {
       agents: Object.keys(adapters),
       available: available.map(a => a.name)

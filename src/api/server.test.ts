@@ -11,7 +11,10 @@ describe('API Server', () => {
   let fastify: FastifyInstance;
 
   beforeEach(async () => {
-    fastify = await createServer({ restoreTasks: false });
+    fastify = await createServer({
+      restoreTasks: false,
+      getAvailableAdapters: async () => []
+    });
   });
 
   afterEach(async () => {
