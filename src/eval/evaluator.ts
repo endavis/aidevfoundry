@@ -123,6 +123,20 @@ export function classifyTask(task: string): string {
     return 'implement';
   }
 
+  // Check analyze before fix to allow "review error handling" to be analyzed
+  // rather than classified as a fix task
+  if (
+    lower.includes('analyze') ||
+    lower.includes('review') ||
+    lower.includes('understand') ||
+    lower.includes('investigate') ||
+    lower.includes('find') ||
+    lower.includes('search') ||
+    lower.includes('look at')
+  ) {
+    return 'analyze';
+  }
+
   if (
     lower.includes('fix') ||
     lower.includes('bug') ||
@@ -143,18 +157,6 @@ export function classifyTask(task: string): string {
     lower.includes('restructure')
   ) {
     return 'refactor';
-  }
-
-  if (
-    lower.includes('analyze') ||
-    lower.includes('review') ||
-    lower.includes('understand') ||
-    lower.includes('investigate') ||
-    lower.includes('find') ||
-    lower.includes('search') ||
-    lower.includes('look at')
-  ) {
-    return 'analyze';
   }
 
   if (

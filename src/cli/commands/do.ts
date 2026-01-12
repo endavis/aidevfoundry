@@ -57,6 +57,20 @@ function classifyTask(task: string): TaskType {
     return 'implement';
   }
 
+  // Analysis keywords - check before fix to allow "review error handling" to be analyzed
+  // rather than classified as a fix task
+  if (
+    lower.includes('analyze') ||
+    lower.includes('review') ||
+    lower.includes('understand') ||
+    lower.includes('investigate') ||
+    lower.includes('find') ||
+    lower.includes('search') ||
+    lower.includes('look at')
+  ) {
+    return 'analyze';
+  }
+
   // Fix keywords
   if (
     lower.includes('fix') ||
@@ -79,19 +93,6 @@ function classifyTask(task: string): TaskType {
     lower.includes('restructure')
   ) {
     return 'refactor';
-  }
-
-  // Analysis keywords
-  if (
-    lower.includes('analyze') ||
-    lower.includes('review') ||
-    lower.includes('understand') ||
-    lower.includes('investigate') ||
-    lower.includes('find') ||
-    lower.includes('search') ||
-    lower.includes('look at')
-  ) {
-    return 'analyze';
   }
 
   // Explain keywords

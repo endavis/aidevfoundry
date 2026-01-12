@@ -19,8 +19,7 @@ describe('run command dry-run', () => {
       console.log = originalLog;
     }
 
-    const output = logs.join('
-');
+    const output = logs.join('\n');
     expect(output).toContain('Plan ID');
     expect(output).toContain('Mode: pipeline');
   });

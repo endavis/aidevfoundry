@@ -15,7 +15,9 @@ describe('OAuth2 Refresh Token Flow', () => {
   });
 
   afterAll(async () => {
-    await app.close();
+    if (app) {
+      await app.close();
+    }
     closeDatabase();
   });
 

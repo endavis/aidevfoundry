@@ -11,14 +11,32 @@ const BORDER = 'gray';
 const GRAY = 'gray';
 
 // Generate ASCII art banner for PK-puzld using figlet with Small font
-function generateBannerArt(): { pkLines: string[]; puzldLines: string[] } {
-  const pkArt = figlet.textSync('PK', { font: 'Small' });
-  const puzldArt = figlet.textSync('puzld', { font: 'Small' });
+// Returns lines that are already interleaved for side-by-side display
+function generateBannerArt(): string[] {
+  const pkArt = figlet.textSync('PK', { font: 'Small', horizontalLayout: 'full' });
+  const puzldArt = figlet.textSync('puzld', { font: 'Small', horizontalLayout: 'full' });
 
-  return {
-    pkLines: pkArt.split('\n'),
-    puzldLines: puzldArt.split('\n')
-  };
+  const pkLines = pkArt.split('\n');
+  const puzldLines = puzldArt.split('\n');
+
+  // Ensure both arrays have the same length by padding shorter one
+  const maxLines = Math.max(pkLines.length, puzldLines.length);
+  while (pkLines.length < maxLines) pkLines.push('');
+  while (puzldLines.length < maxLines) puzldLines.push('');
+
+  // Calculate max widths for proper alignment
+  const maxPkWidth = Math.max(...pkLines.map(l => l.length));
+  const maxPuzldWidth = Math.max(...puzldLines.map(l => l.length));
+
+  // Interleave lines: PK in white, puzld in red, properly padded
+  const lines: string[] = [];
+  for (let i = 0; i < maxLines; i++) {
+    const pkLine = pkLines[i].padEnd(maxPkWidth);
+    const puzldLine = puzldLines[i];
+    lines.push(pkLine + '  ' + puzldLine); // PK + 2 spaces + puzld
+  }
+
+  return lines;
 }
 
 // Box drawing characters - rounded corners
@@ -184,29 +202,26 @@ export function Banner({ version = '0.1.0', minimal = false, agents = [], change
 
       {/* ASCII Art Logo section using figlet */}
       {(() => {
-        const { pkLines, puzldLines } = generateBannerArt();
-        const maxPkWidth = Math.max(...pkLines.map(l => l.length));
-        const maxPuzldWidth = Math.max(...puzldLines.map(l => l.length));
-        const totalWidth = maxPkWidth + maxPuzldWidth;
-        const logoPadLeft = Math.floor((INNER_WIDTH - totalWidth) / 2);
+        const bannerLines = generateBannerArt();
+        const logoWidth = bannerLines[0]?.length || 0;
+        const logoPadLeft = Math.floor((INNER_WIDTH - logoWidth) / 2);
 
         return (
           <>
-            {pkLines.map((line, index) => (
-              <Box key={`pk-${index}`}>
+            {bannerLines.map((line, index) => (
+              <Box key={`logo-${index}`}>
                 <Text color={BORDER}>{BOX.v}</Text>
-                <Text>{' '.repeat(logoPadLeft)}</Text>
-                <Text bold color="white">{line}</Text>
-                <Text>{' '.repeat(maxPuzldWidth)}</Text>
-                <Text color={BORDER}>{BOX.v}</Text>
-              </Box>
-            ))}
-            {puzldLines.map((line, index) => (
-              <Box key={`puzld-${index}`}>
-                <Text color={BORDER}>{BOX.v}</Text>
-                <Text>{' '.repeat(logoPadLeft)}</Text>
-                <Text>{' '.repeat(maxPkWidth)}</Text>
-                <Text bold color={RED}>{line}</Text>
+                <Text>{' '.repeat(Math.max(0, logoPadLeft))}</Text>
+                {/* Split line into PK (white) and puzld (red) parts */}
+                {line.includes('  ') ? (
+                  <>
+                    <Text bold color="white">{line.split('  ')[0]}</Text>
+                    <Text>{'  '}</Text>
+                    <Text bold color={RED}>{line.split('  ')[1]}</Text>
+                  </>
+                ) : (
+                  <Text bold color="white">{line}</Text>
+                )}
                 <Text color={BORDER}>{BOX.v}</Text>
               </Box>
             ))}

@@ -37,25 +37,28 @@ const STATUS = {
 
 /**
  * Render PK-puzld ASCII art banner with colors
- * Uses figlet with Small font for compact display
+ * Uses figlet with Small font for compact side-by-side display
  */
 export async function renderBanner(): Promise<string[]> {
-  const lines: string[] = [];
+  // Generate ASCII art for PK and puzld side-by-side
+  const pkArt = figlet.textSync('PK', { font: 'Small', horizontalLayout: 'full' });
+  const puzldArt = figlet.textSync('puzld', { font: 'Small', horizontalLayout: 'full' });
 
-  // Generate ASCII art for PK and puzld
-  const pkArt = figlet.textSync('PK', { font: 'Small' });
-  const puzldArt = figlet.textSync('puzld', { font: 'Small' });
-
-  // Split into lines and apply colors
+  // Split into lines
   const pkLines = pkArt.split('\n');
   const puzldLines = puzldArt.split('\n');
 
-  // Print PK in white, puzld in red
-  for (const line of pkLines) {
-    lines.push(chalk.white(line));
-  }
-  for (const line of puzldLines) {
-    lines.push(chalk.red(line));
+  // Ensure both arrays have the same length by padding shorter one
+  const maxLines = Math.max(pkLines.length, puzldLines.length);
+  while (pkLines.length < maxLines) pkLines.push('');
+  while (puzldLines.length < maxLines) puzldLines.push('');
+
+  // Interleave lines side-by-side: PK in white, puzld in red
+  const lines: string[] = [];
+  for (let i = 0; i < maxLines; i++) {
+    const pkLine = pkLines[i].padEnd(pkLines.reduce((w, l) => Math.max(w, l.length), 0));
+    const puzldLine = puzldLines[i];
+    lines.push(chalk.white(pkLine) + '  ' + chalk.red(puzldLine));
   }
 
   return lines;

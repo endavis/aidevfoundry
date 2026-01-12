@@ -181,12 +181,15 @@ export const claudeAdapter: Adapter & {
     const startTime = Date.now();
     const model = options?.model ?? config.adapters.claude.model;
     const disableTools = options?.disableTools ?? true; // Default: disable tools
+    const outputFormat: 'text' | 'json' | 'stream-json' =
+      options?.onToolEvent ? 'stream-json' : 'json';
 
     try {
       const args = buildClaudeArgs({
         prompt,
         model,
         disableTools,
+        outputFormat,
       });
 
       const { stdout, stderr } = await execa(
@@ -196,7 +199,9 @@ export const claudeAdapter: Adapter & {
           timeout: config.timeout,
           cancelSignal: options?.signal,
           reject: false,
-          stdin: 'ignore'
+          stdin: 'ignore',
+          stdout: 'pipe',
+          stderr: 'pipe'
         }
       );
 
@@ -211,45 +216,75 @@ export const claudeAdapter: Adapter & {
         };
       }
 
-      // Parse stream-json response using StreamParser
-      try {
-        const parser = new StreamParser();
+      if (outputFormat === 'stream-json') {
+        // Parse stream-json response using StreamParser
+        try {
+          const parser = new StreamParser();
 
-        // Subscribe to tool events if callback provided
-        if (options?.onToolEvent) {
-          parser.onEvent(options.onToolEvent);
+          // Subscribe to tool events if callback provided
+          if (options?.onToolEvent) {
+            parser.onEvent(options.onToolEvent);
+          }
+
+          // Parse all lines (emits events to subscribers)
+          parser.parseAll(stdout);
+
+          // Get final result
+          const resultEvent = parser.getResult();
+          const result: ResultEvent = resultEvent ?? {
+            type: 'result',
+            subtype: 'success',
+            result: '',
+            isError: false
+          };
+
+          return {
+            content: result.result,
+            model: modelName,
+            duration: Date.now() - startTime,
+            tokens: result.usage ? {
+              input: result.usage.input_tokens,
+              output: result.usage.output_tokens
+            } : undefined,
+            error: result.isError ? result.result : undefined
+          };
+        } catch {
+          // Fallback if parsing fails
+          return {
+            content: stdout || '',
+            model: modelName,
+            duration: Date.now() - startTime
+          };
         }
-
-        // Parse all lines (emits events to subscribers)
-        parser.parseAll(stdout);
-
-        // Get final result
-        const resultEvent = parser.getResult();
-        const result: ResultEvent = resultEvent ?? {
-          type: 'result',
-          subtype: 'success',
-          result: '',
-          isError: false
-        };
-
-        return {
-          content: result.result,
-          model: modelName,
-          duration: Date.now() - startTime,
-          tokens: result.usage ? {
-            input: result.usage.input_tokens,
-            output: result.usage.output_tokens
-          } : undefined,
-          error: result.isError ? result.result : undefined
-        };
-      } catch {
-        // Fallback if parsing fails
-        return {
-          content: stdout || '',
-          model: modelName,
-          duration: Date.now() - startTime
-        };
       }
+
+      if (outputFormat === 'json') {
+        try {
+          const parsed = JSON.parse(stdout);
+          return {
+            content: parsed.result || '',
+            model: modelName,
+            duration: Date.now() - startTime,
+            tokens: parsed.usage ? {
+              input: parsed.usage.input_tokens,
+              output: parsed.usage.output_tokens
+            } : undefined,
+            error: parsed.is_error ? parsed.result : undefined
+          };
+        } catch {
+          return {
+            content: stdout || '',
+            model: modelName,
+            duration: Date.now() - startTime
+          };
+        }
+      }
+
+      return {
+        content: stdout || '',
+        model: modelName,
+        duration: Date.now() - startTime
+      };
     } catch (err: unknown) {
       const error = err as Error;
       const modelName = model ? `claude/${model}` : 'claude';
@@ -294,7 +329,9 @@ export const claudeAdapter: Adapter & {
           timeout: config.timeout,
           cancelSignal: options?.signal,
           reject: false,
-          stdin: 'ignore'
+          stdin: 'ignore',
+          stdout: 'pipe',
+          stderr: 'pipe'
         }
       );
 
@@ -399,7 +436,9 @@ export const claudeAdapter: Adapter & {
         timeout: config.timeout,
         cancelSignal: options?.signal,
         reject: false,
-        stdin: 'ignore'
+        stdin: 'ignore',
+        stdout: 'pipe',
+        stderr: 'pipe'
       }
     );
 
@@ -459,7 +498,9 @@ export const claudeAdapter: Adapter & {
         timeout: options?.timeout ?? config.timeout,
         cancelSignal: options?.signal,
         reject: false,
-        stdin: 'ignore'
+        stdin: 'ignore',
+        stdout: 'pipe',
+        stderr: 'pipe'
       }
     );
 
@@ -536,7 +577,9 @@ export const claudeAdapter: Adapter & {
         timeout: config.timeout,
         cancelSignal: options?.signal,
         reject: false,
-        stdin: 'ignore'
+        stdin: 'ignore',
+        stdout: 'pipe',
+        stderr: 'pipe'
       }
     );
 

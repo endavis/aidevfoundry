@@ -16,7 +16,8 @@ describe('profile orchestrator selection', () => {
     });
 
     expect(result.mode).toBe('single');
-    expect(result.primaryAgent).toBe('gemini');
+    // gemini is redirected to gemini-safe for safety
+    expect(result.primaryAgent).toBe('gemini-safe');
   });
 
   it('selects consensus when confidence is low and profile allows it', async () => {
