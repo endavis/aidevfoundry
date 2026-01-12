@@ -1,5 +1,5 @@
 {
-  "name": "pk-puzldai",
+  "name": "pk-puzzlai",
   "version": "0.3.0",
   "description": "Multi-LLM orchestration framework with agentic execution, memory/RAG, and training data generation",
   "type": "module",

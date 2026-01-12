@@ -9,12 +9,12 @@ const RED = '#fc3855';
 const BORDER = 'gray';
 const GRAY = 'gray';
 
-// Compact 3-line PUZLd banner - each full line = 35 chars
+// 3-line text banner "PK-Puzld" (white 'PK-Puzl' + red 'd'), each full line = 35 chars
 const LOGO_WIDTH = 35;
 const BANNER_RAW = [
-  { puzl: '█████▄ ██  ██ ██████ ██     ', d: '▄▄▄▄  ' },
-  { puzl: '██▄▄█▀ ██  ██  ▄▄▀▀  ██     ', d: '██▀██ ' },
-  { puzl: '██     ▀████▀ ██████ ██████ ', d: '████▀ ' },
+  { puzl: '             PK-Puzl              ', d: 'd' },
+  { puzl: '                                  ', d: ' ' },
+  { puzl: '                                  ', d: ' ' },
 ];
 // Pad/truncate to make total exactly LOGO_WIDTH
 const BANNER = BANNER_RAW.map(line => {
@@ -95,9 +95,7 @@ export function Banner({ version = '0.1.0', minimal = false, agents = [], change
   if (minimal) {
     return (
       <Box marginBottom={1}>
-        <Text bold color="white">PUZL</Text>
-        <Text bold color={RED}>d</Text>
-        <Text bold color="white">AI</Text>
+        <Text bold color="white">PK-Puzld</Text>
         <Text dimColor> v{version}</Text>
       </Box>
     );
@@ -177,9 +175,9 @@ export function Banner({ version = '0.1.0', minimal = false, agents = [], change
       {/* Top border with version tag */}
       <Box>
         <Text color={BORDER}>{BOX.tl + BOX.h.repeat(3)}</Text>
-        <Text color={RED}> Puzld</Text>
+        <Text color={RED}> PK-Puzld</Text>
         <Text dimColor> v{version} </Text>
-        <Text color={BORDER}>{BOX.h.repeat(INNER_WIDTH - 3 - ` Puzld v${version} `.length) + BOX.tr}</Text>
+        <Text color={BORDER}>{BOX.h.repeat(INNER_WIDTH - 3 - ` PK-Puzld v${version} `.length) + BOX.tr}</Text>
       </Box>
 
       {/* Empty padding line */}
