@@ -85,3 +85,15 @@ export {
   type CredentialPattern,
   type CredentialFilterOptions,
 } from './security';
+
+// Session management with concurrency limits
+export {
+  SessionManager,
+  ManagedSession,
+  getSessionManager,
+  createManagedSession,
+  type SessionMetadata,
+  type SessionManagerConfig,
+  type SessionRequest,
+  type SessionManagerEvents,
+} from './session-manager';
