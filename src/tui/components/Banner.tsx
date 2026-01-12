@@ -1,27 +1,25 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import { Box, Text } from 'ink';
 import { readFileSync } from 'fs';
 import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
+import figlet from 'figlet';
 
 // Logo colors
 const RED = '#fc3855';
 const BORDER = 'gray';
 const GRAY = 'gray';
 
-// 3-line text banner "PK-Puzld" (white 'PK-Puzl' + red 'd'), each full line = 35 chars
-const LOGO_WIDTH = 35;
-const BANNER_RAW = [
-  { puzl: '             PK-Puzl              ', d: 'd' },
-  { puzl: '                                  ', d: ' ' },
-  { puzl: '                                  ', d: ' ' },
-];
-// Pad/truncate to make total exactly LOGO_WIDTH
-const BANNER = BANNER_RAW.map(line => {
-  const combined = line.puzl + line.d;
-  const padded = (combined + ' '.repeat(LOGO_WIDTH)).slice(0, LOGO_WIDTH);
-  return { puzl: padded.slice(0, line.puzl.length), d: padded.slice(line.puzl.length) };
-});
+// Generate ASCII art banner for PK-puzld using figlet with Small font
+function generateBannerArt(): { pkLines: string[]; puzldLines: string[] } {
+  const pkArt = figlet.textSync('PK', { font: 'Small' });
+  const puzldArt = figlet.textSync('puzld', { font: 'Small' });
+
+  return {
+    pkLines: pkArt.split('\n'),
+    puzldLines: puzldArt.split('\n')
+  };
+}
 
 // Box drawing characters - rounded corners
 const BOX = {
@@ -110,9 +108,6 @@ export function Banner({ version = '0.1.0', minimal = false, agents = [], change
     ? agentOrder.map(name => agents.find(a => a.name === name) || { name, ready: false })
     : agentOrder.map(name => ({ name, ready: false }));
 
-  // Logo padding for centering
-  const logoPadLeft = Math.floor((INNER_WIDTH - LOGO_WIDTH) / 2);
-
   const versionLine = `v${version} - Multi-LLM Orchestrator`;
   const versionPadded = center(versionLine, INNER_WIDTH);
 
@@ -187,21 +182,37 @@ export function Banner({ version = '0.1.0', minimal = false, agents = [], change
         <Text color={BORDER}>{BOX.v}</Text>
       </Box>
 
-      {/* Logo section */}
-      {BANNER.map((line, index) => {
-        const contentLen = line.puzl.length + line.d.length;
-        const rightPad = INNER_WIDTH - logoPadLeft - contentLen;
+      {/* ASCII Art Logo section using figlet */}
+      {(() => {
+        const { pkLines, puzldLines } = generateBannerArt();
+        const maxPkWidth = Math.max(...pkLines.map(l => l.length));
+        const maxPuzldWidth = Math.max(...puzldLines.map(l => l.length));
+        const totalWidth = maxPkWidth + maxPuzldWidth;
+        const logoPadLeft = Math.floor((INNER_WIDTH - totalWidth) / 2);
+
         return (
-          <Box key={index}>
-            <Text color={BORDER}>{BOX.v}</Text>
-            <Text>{' '.repeat(logoPadLeft)}</Text>
-            <Text bold color="white">{line.puzl}</Text>
-            <Text bold color={RED}>{line.d}</Text>
-            <Text>{' '.repeat(Math.max(0, rightPad))}</Text>
-            <Text color={BORDER}>{BOX.v}</Text>
-          </Box>
+          <>
+            {pkLines.map((line, index) => (
+              <Box key={`pk-${index}`}>
+                <Text color={BORDER}>{BOX.v}</Text>
+                <Text>{' '.repeat(logoPadLeft)}</Text>
+                <Text bold color="white">{line}</Text>
+                <Text>{' '.repeat(maxPuzldWidth)}</Text>
+                <Text color={BORDER}>{BOX.v}</Text>
+              </Box>
+            ))}
+            {puzldLines.map((line, index) => (
+              <Box key={`puzld-${index}`}>
+                <Text color={BORDER}>{BOX.v}</Text>
+                <Text>{' '.repeat(logoPadLeft)}</Text>
+                <Text>{' '.repeat(maxPkWidth)}</Text>
+                <Text bold color={RED}>{line}</Text>
+                <Text color={BORDER}>{BOX.v}</Text>
+              </Box>
+            ))}
+          </>
         );
-      })}
+      })()}
 
       {/* Version line */}
       <Box>

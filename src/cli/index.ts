@@ -68,6 +68,8 @@ import {
 import { tasksCommand } from './commands/tasks';
 import { gameCommand } from './commands/game';
 import { orchestrateCommand } from './commands/orchestrate';
+import { spawnCommand } from './commands/spawn';
+import { continuePlanCommand } from './commands/continue-plan';
 import { startTUI } from '../tui';
 import { readFileSync } from 'fs';
 import { join, dirname } from 'path';
@@ -199,6 +201,31 @@ program
   .option('-a, --agent <agent>', 'Force specific agent (claude, gemini, codex, ollama)', 'auto')
   .option('-m, --model <model>', 'Override model for the agent')
   .action((opts) => agentCommand({ agent: opts.agent, model: opts.model }));
+
+program
+  .command('spawn [agents...]')
+  .description('Spawn custom agents from .claude/agents/')
+  .option('-l, --list', 'List available agents')
+  .option('-p, --parallel', 'Run multiple agents in parallel')
+  .option('-m, --model <model>', 'Override model for agents')
+  .action((agents, opts) => spawnCommand(agents || [], {
+    list: opts.list,
+    parallel: opts.parallel,
+    model: opts.model
+  }));
+
+program
+  .command('continue-plan')
+  .alias('cp')
+  .description('Execute temp-plan.txt with parallel PK-Poet agents')
+  .option('-s, --sequential', 'Run agents sequentially instead of parallel')
+  .option('-a, --agent <name>', 'Run only a specific agent')
+  .option('-n, --dry-run', 'Show what would be executed without running')
+  .action((opts) => continuePlanCommand({
+    sequential: opts.sequential,
+    agent: opts.agent,
+    dryRun: opts.dryRun
+  }));
 
 program
   .command('tui')

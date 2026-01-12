@@ -6,11 +6,19 @@
  */
 
 import { createSpinner } from 'nanospinner';
-import pc from 'picocolors';
 import { runInteractiveSession } from '../../interactive';
 import type { AgentName } from '../../executor/types';
 import { adapters } from '../../adapters';
 import { resolveInteractiveAgent } from '../../lib/agent-selection';
+import {
+  renderSessionHeader,
+  renderStatusPanel,
+  renderInteraction,
+  renderSessionSummary,
+  renderHistorySummary,
+  renderBanner,
+  printDivider,
+} from '../../display';
 
 interface InteractiveCommandOptions {
   agent?: string;
@@ -26,7 +34,6 @@ export async function interactiveCommand(
   options: InteractiveCommandOptions
 ): Promise<void> {
   const spinner = createSpinner('Starting interactive session...').start();
-  let statusSpinner: ReturnType<typeof createSpinner> | null = null;
   let interactionIndex = 0;
 
   try {
@@ -38,7 +45,7 @@ export async function interactiveCommand(
     // Validate agent
     const selection = resolveInteractiveAgent(agent);
     if (selection.notice) {
-      console.log(pc.yellow(selection.notice));
+      console.log(selection.notice);
     }
 
     const adapter = adapters[selection.agent];
@@ -49,21 +56,31 @@ export async function interactiveCommand(
 
     spinner.success({ text: 'Session initialized' });
 
+    // Render PK-puzld ASCII art banner
     console.log('');
-    console.log(pc.bold(pc.cyan('=== Interactive Mode ===')));
-    console.log(pc.dim('pk-puzldai will respond to prompts from the CLI tool'));
-    console.log('');
-    console.log(pc.dim('Agent:'), selection.agent);
-    console.log(pc.dim('Responder:'), responder);
-    console.log(pc.dim('Max Interactions:'), maxInteractions);
-    console.log(pc.dim('Timeout:'), `${timeout / 1000}s`);
-    console.log('');
-    console.log(pc.dim('Initial Prompt:'), prompt);
-    console.log('');
-    console.log(pc.dim('─'.repeat(50)));
+    for (const line of await renderBanner()) {
+      console.log(line);
+    }
     console.log('');
 
-    statusSpinner = createSpinner(pc.dim('Waiting for prompt...')).start();
+    // Render polished session header
+    const headerLines = renderSessionHeader({
+      agent: selection.agent,
+      responder,
+      maxInteractions,
+      timeout,
+      prompt,
+    });
+    for (const line of headerLines) {
+      console.log(line);
+    }
+    console.log('');
+
+    // Render initial status panel
+    for (const line of renderStatusPanel('running', 0, maxInteractions)) {
+      console.log(line);
+    }
+    console.log('');
 
     const result = await runInteractiveSession({
       agent: selection.agent as AgentName,
@@ -74,67 +91,47 @@ export async function interactiveCommand(
       sessionTimeout: timeout,
       model: options.model,
       onInteraction: (p, r) => {
-        // Always show interactions with progress counter
         interactionIndex += 1;
-        const progress = pc.dim(`[${interactionIndex}/${maxInteractions}]`);
-        console.log(pc.yellow(`\n${progress} ◀ [${p.type}] ${p.text.slice(0, 150)}${p.text.length > 150 ? '...' : ''}`));
-        console.log(pc.green(`▶ Response: ${r.response}`));
-        if (options.verbose && r.reasoning) {
-          console.log(pc.dim(`  Reasoning: ${r.reasoning}`));
+
+        // Clear status panel and show interaction
+        for (const line of renderInteraction(interactionIndex, maxInteractions, p, r)) {
+          console.log(line);
         }
+
+        // Show updated status
+        console.log('');
+        for (const line of renderStatusPanel(r.shouldEnd ? 'completed' : 'running', interactionIndex, maxInteractions)) {
+          console.log(line);
+        }
+        console.log('');
       },
       onStateChange: (state) => {
-        if (!statusSpinner) return;
-        if (state === 'responding') {
-          statusSpinner.update({ text: pc.cyan('Generating response...') });
-        } else if (state === 'running' || state === 'waiting_for_input') {
-          statusSpinner.update({ text: pc.dim('Waiting for prompt...') });
-        }
+        // Status updates are shown in onInteraction
       },
       onOutput: (chunk) => {
-        // Always show output - treat pk-puzldai like using the CLI directly
         process.stdout.write(chunk);
       },
     });
 
-    if (statusSpinner) {
-      if (result.success) {
-        statusSpinner.success({ text: 'Session completed' });
-      } else {
-        statusSpinner.error({ text: 'Session failed' });
+    // Render final summary
+    for (const line of renderSessionSummary({
+      success: result.success,
+      state: result.state,
+      interactions: result.interactions,
+      duration: result.duration,
+      error: result.error,
+    })) {
+      console.log(line);
+    }
+
+    // Render history if not verbose
+    if (!options.verbose && result.history.length > 0) {
+      for (const line of renderHistorySummary(result.history)) {
+        console.log(line);
       }
     }
 
-    console.log('');
-    console.log(pc.dim('─'.repeat(50)));
-    console.log('');
-    console.log(pc.bold('=== Session Complete ==='));
-    console.log(pc.dim('Status:'), result.success ? pc.green('Success') : pc.red('Failed'));
-    console.log(pc.dim('Interactions:'), result.interactions);
-    console.log(pc.dim('Duration:'), `${(result.duration / 1000).toFixed(1)}s`);
-
-    if (result.error) {
-      console.log(pc.dim('Error:'), pc.red(result.error));
-    }
-
-    if (!options.verbose && result.output) {
-      console.log('');
-      console.log(pc.dim('Output:'));
-      console.log(result.output);
-    }
-
-    if (result.history.length > 0) {
-      console.log('');
-      console.log(pc.dim('Interaction History:'));
-      result.history.forEach((h, i) => {
-        console.log(pc.dim(`  ${i + 1}.`), `[${h.prompt.type}]`, pc.cyan(h.response.response));
-      });
-    }
-
   } catch (error) {
-    if (statusSpinner) {
-      statusSpinner.error({ text: 'Session failed' });
-    }
     spinner.error({ text: `Session failed: ${(error as Error).message}` });
     process.exit(1);
   }

@@ -19,6 +19,8 @@ import {
   errorResponseSchema
 } from './schema';
 import { AppError, ValidationError, NotFoundError, DatabaseError } from './errors';
+import { type IAsyncCache, createAsyncCache } from '../memory/cache';
+import type { TaskEntry } from './task-persistence';
 
 declare module 'fastify' {
   interface FastifyInstance {
@@ -36,7 +38,7 @@ export interface CreateServerOptions extends Partial<ServerOptions> {
   redisUrl?: string;
 }
 
-let taskCache: ICache<TaskEntry>;
+let taskCache: IAsyncCache<TaskEntry>;
 const taskQueue = new TaskQueue();
 
 function generateId(): string {
@@ -73,7 +75,7 @@ export async function createServer(options: CreateServerOptions = {}): Promise<R
   const fastify = Fastify({ logger: false });
 
   // Initialize Cache
-  taskCache = createCache<TaskEntry>({ redisUrl: options.redisUrl });
+  taskCache = createAsyncCache<TaskEntry>({ redisUrl: options.redisUrl });
 
   // Add request ID tracing middleware
   fastify.addHook('onRequest', async (request, reply) => {
@@ -100,13 +102,14 @@ export async function createServer(options: CreateServerOptions = {}): Promise<R
         code: error.code,
         details: error.details,
       });
-    } else if (error.validation) {
+    } else if (error && typeof error === 'object' && 'validation' in error) {
       // Fastify validation error
+      const validationError = error as { validation: unknown };
       log.warn({ error, requestId }, 'Validation Error');
       reply.status(400).send({
         error: 'Validation Error',
         code: 'VALIDATION_ERROR',
-        details: error.validation,
+        details: validationError.validation,
       });
     } else {
       // Unknown error

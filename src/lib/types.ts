@@ -94,6 +94,8 @@ export interface RalphWiggumOptions {
 export interface RunOptions {
   /** Signal to abort the operation */
   signal?: AbortSignal;
+  /** Timeout in milliseconds */
+  timeout?: number;
   /** Callback for streaming response chunks */
   onChunk?: (chunk: string) => void;
   /** Callback for tool use events */

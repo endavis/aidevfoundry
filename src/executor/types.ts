@@ -6,6 +6,7 @@
 
 // Agent types - includes both LLM providers and external CLI coding tools
 export type AgentName =
+  | 'auto'  // Auto-routing based on task analysis
   | 'claude'
   | 'gemini'
   | 'gemini-safe'

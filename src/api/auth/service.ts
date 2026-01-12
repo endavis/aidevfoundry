@@ -28,7 +28,7 @@ export function hashRefreshToken(token: string): string {
 export async function registerUser(username: string, password: string): Promise<User> {
   const existing = persistence.getUserByUsername(username);
   if (existing) {
-    throw new AppError('Username already exists', 'USER_EXISTS', 409);
+    throw new AppError('Username already exists', 409, 'USER_EXISTS');
   }
 
   const passwordHash = await hashPassword(password);
@@ -48,7 +48,7 @@ export async function registerUser(username: string, password: string): Promise<
 export async function loginUser(username: string, password: string, fastify: FastifyInstance): Promise<AuthTokens> {
   const user = persistence.getUserByUsername(username);
   if (!user || !(await verifyPassword(password, user.passwordHash))) {
-    throw new AppError('Invalid username or password', 'INVALID_CREDENTIALS', 401);
+    throw new AppError('Invalid username or password', 401, 'INVALID_CREDENTIALS');
   }
 
   return generateTokens(user, fastify);
@@ -59,16 +59,16 @@ export async function refreshTokens(refreshToken: string, fastify: FastifyInstan
   const storedToken = persistence.getRefreshToken(tokenHash);
 
   if (!storedToken) {
-    throw new AppError('Invalid refresh token', 'INVALID_TOKEN', 401);
+    throw new AppError('Invalid refresh token', 401, 'INVALID_TOKEN');
   }
 
   if (storedToken.revoked) {
     // Revoked token usage - potential theft!
-    throw new AppError('Token revoked', 'TOKEN_REVOKED', 401);
+    throw new AppError('Token revoked', 401, 'TOKEN_REVOKED');
   }
 
   if (Date.now() > storedToken.expiresAt) {
-    throw new AppError('Token expired', 'TOKEN_EXPIRED', 401);
+    throw new AppError('Token expired', 401, 'TOKEN_EXPIRED');
   }
 
   // Revoke the used refresh token (Rotation)
@@ -76,7 +76,7 @@ export async function refreshTokens(refreshToken: string, fastify: FastifyInstan
 
   const user = persistence.getUserById(storedToken.userId);
   if (!user) {
-    throw new AppError('User not found', 'USER_NOT_FOUND', 404);
+    throw new AppError('User not found', 404, 'USER_NOT_FOUND');
   }
 
   return generateTokens(user, fastify);
