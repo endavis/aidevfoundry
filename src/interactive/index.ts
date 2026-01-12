@@ -97,3 +97,14 @@ export {
   type SessionRequest,
   type SessionManagerEvents,
 } from './session-manager';
+
+// Watchdog for hung session detection
+export {
+  Watchdog,
+  getWatchdog,
+  createWatchdog,
+  resetWatchdog,
+  type WatchdogConfig,
+  type WatchdogStats,
+  type WatchdogEvents,
+} from './watchdog';
