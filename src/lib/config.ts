@@ -3,6 +3,23 @@ import { join } from 'path';
 import { homedir, tmpdir } from 'os';
 import type { OrchestrationConfig } from '../orchestrator/profiles';
 import { getDefaultOrchestrationConfig } from '../orchestrator/profiles';
+import type { PermissionPolicy } from '../interactive/permission-router';
+
+export interface InteractiveConfig {
+  enabled: boolean;
+  timeout: number;
+  maxConcurrentSessions: number;
+  maxQueueSize: number;
+  watchdogTimeout: number;
+  permissionPolicy: PermissionPolicy;
+  adapters: {
+    claude: { enabled: boolean };
+    gemini: { enabled: boolean };
+    codex: { enabled: boolean };
+    factory: { enabled: boolean };
+    crush: { enabled: boolean };
+  };
+}
 
 export interface PulzdConfig {
   defaultAgent:
@@ -42,7 +59,7 @@ export interface PulzdConfig {
       enabled: boolean;
       path: string;
       model?: string;
-      autoAccept?: boolean;  // -y flag for yolo mode
+      autoAccept?: boolean;
       debug?: boolean;
       cwd?: string;
     };
@@ -50,16 +67,15 @@ export interface PulzdConfig {
   api: { port: number; host: string };
   ttyd: { port: number; enabled: boolean };
   orchestration: OrchestrationConfig;
-  // MCP Cloud integration
+  interactive?: InteractiveConfig;
   cloud?: {
-    endpoint: string;      // MCP server URL
-    token?: string;        // JWT from login
-    machineId?: string;    // Generated on first registration
+    endpoint: string;
+    token?: string;
+    machineId?: string;
   };
-  // MCP Bridge settings
   mcp?: {
-    port: number;          // Local bridge port (default: 9234)
-    host: string;          // Local bridge host (default: 127.0.0.1)
+    port: number;
+    host: string;
   };
 }
 
@@ -68,6 +84,22 @@ const CONFIG_PATH = join(CONFIG_DIR, 'config.json');
 const TEST_CONFIG_DIR = join(tmpdir(), 'puzldai-test-config');
 const OLD_CONFIG_DIR = join(homedir(), '.pulzdai');
 const OLD_CONFIG_PATH = join(OLD_CONFIG_DIR, 'config.json');
+
+const DEFAULT_INTERACTIVE: InteractiveConfig = {
+  enabled: true,
+  timeout: 120000,
+  maxConcurrentSessions: 5,
+  maxQueueSize: 10,
+  watchdogTimeout: 60000,
+  permissionPolicy: 'ask',
+  adapters: {
+    claude: { enabled: true },
+    gemini: { enabled: true },
+    codex: { enabled: true },
+    factory: { enabled: true },
+    crush: { enabled: true },
+  },
+};
 
 const DEFAULT_CONFIG: PulzdConfig = {
   defaultAgent: 'auto',
@@ -99,6 +131,7 @@ const DEFAULT_CONFIG: PulzdConfig = {
   api: { port: 3000, host: '0.0.0.0' },
   ttyd: { port: 3001, enabled: true },
   orchestration: getDefaultOrchestrationConfig(),
+  interactive: DEFAULT_INTERACTIVE,
   cloud: {
     endpoint: 'https://api.puzld.cc'
   },
@@ -123,7 +156,6 @@ export function getConfigPath(): string {
 }
 
 export function loadConfig(): PulzdConfig {
-  // Migrate from old config path if new one doesn't exist
   const configPath = getConfigPath();
   const configDir = getConfigDir();
 

@@ -80,12 +80,45 @@ Task: `;
 }
 
 function extractJson(content: string): RalphPlan {
+  // Try to find JSON in code block first
+  const codeBlockMatch = content.match(/```json\s*([\s\S]*?)\s*```/);
+  if (codeBlockMatch) {
+    try {
+      return JSON.parse(codeBlockMatch[1]) as RalphPlan;
+    } catch {
+      // Continue to try other methods
+    }
+  }
+
+  // Find the first { and try to parse progressively
   const start = content.indexOf('{');
-  const end = content.lastIndexOf('}');
-  if (start === -1 || end === -1 || end <= start) {
+  if (start === -1) {
     throw new Error('No JSON object found in response');
   }
-  return JSON.parse(content.slice(start, end + 1)) as RalphPlan;
+
+  // Try to find matching closing brace by counting nesting
+  let depth = 0;
+  let end = -1;
+  for (let i = start; i < content.length; i++) {
+    if (content[i] === '{') depth++;
+    if (content[i] === '}') {
+      depth--;
+      if (depth === 0) {
+        end = i;
+        break;
+      }
+    }
+  }
+
+  if (end === -1) {
+    throw new Error('No complete JSON object found in response');
+  }
+
+  try {
+    return JSON.parse(content.slice(start, end + 1)) as RalphPlan;
+  } catch (err) {
+    throw new Error(`Failed to parse JSON: ${(err as Error).message}`);
+  }
 }
 
 async function pickAgent(

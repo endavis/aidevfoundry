@@ -20,7 +20,7 @@
       "priority": 1,
       "complexity": "low",
       "dependsOn": [],
-      "passes": false
+      "passes": true
     },
     {
       "id": "INT-002",
@@ -44,7 +44,7 @@
         "Windows lacks SIGTERM - use taskkill /T /F",
         "ConPTY not available on Windows < 1809 - error with guidance"
       ],
-      "passes": false
+      "passes": true
     },
     {
       "id": "INT-003",
@@ -61,7 +61,7 @@
       "priority": 3,
       "complexity": "medium",
       "dependsOn": ["INT-002"],
-      "passes": false
+      "passes": true
     },
     {
       "id": "INT-004",
@@ -84,7 +84,7 @@
         "Non-ASCII characters in output - handle encoding",
         "CLI tool updates prompt format - log warning, continue"
       ],
-      "passes": false
+      "passes": true
     },
     {
       "id": "INT-005",
@@ -101,7 +101,7 @@
       "priority": 5,
       "complexity": "low",
       "dependsOn": [],
-      "passes": false
+      "passes": true
     },
     {
       "id": "INT-006",
@@ -125,7 +125,7 @@
         "Session timeout during user prompt - extend timeout",
         "Manager shutdown with active sessions - graceful close all"
       ],
-      "passes": false
+      "passes": true
     },
     {
       "id": "INT-007",
@@ -143,7 +143,7 @@
       "priority": 7,
       "complexity": "medium",
       "dependsOn": ["INT-006"],
-      "passes": false
+      "passes": true
     },
     {
       "id": "INT-008",
@@ -179,7 +179,7 @@
       "priority": 9,
       "complexity": "medium",
       "dependsOn": [],
-      "passes": false
+      "passes": true
     },
     {
       "id": "INT-010",
@@ -198,7 +198,7 @@
       "priority": 10,
       "complexity": "high",
       "dependsOn": ["INT-002", "INT-004", "INT-005", "INT-006"],
-      "passes": false
+      "passes": true
     },
     {
       "id": "INT-011",
@@ -216,7 +216,7 @@
       "priority": 11,
       "complexity": "high",
       "dependsOn": ["INT-002", "INT-004", "INT-005", "INT-006"],
-      "passes": false
+      "passes": true
     },
     {
       "id": "INT-012",
@@ -257,7 +257,7 @@
       "priority": 13,
       "complexity": "medium",
       "dependsOn": ["INT-001", "INT-004"],
-      "passes": false
+      "passes": true
     },
     {
       "id": "INT-014",
@@ -276,7 +276,7 @@
       "priority": 14,
       "complexity": "low",
       "dependsOn": [],
-      "passes": false
+      "passes": true
     },
     {
       "id": "INT-015",
@@ -365,7 +365,7 @@
       "priority": 19,
       "complexity": "medium",
       "dependsOn": [],
-      "passes": false
+      "passes": true
     },
     {
       "id": "INT-020",

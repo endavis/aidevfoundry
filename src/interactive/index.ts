@@ -126,3 +126,12 @@ export {
   type VersionInfo,
   type VersionResult,
 } from './version-detector';
+
+// Permission routing with policy engine
+export {
+  PermissionRouter,
+  createPermissionRouter,
+  type PermissionPolicy,
+  type PermissionDecision,
+  type PermissionRouterConfig,
+} from './permission-router';
