@@ -147,6 +147,7 @@ export function buildPipelinePlan(
   const steps: PlanStep[] = options.steps.map((step, i) => ({
     id: generateStepId(i),
     agent: step.agent,
+    model: step.model,  // Pass model override to step
     action: 'prompt',
     prompt: buildPipelineStepPrompt(step, i),
     dependsOn: i > 0 ? [generateStepId(i - 1)] : undefined,
@@ -210,14 +211,62 @@ function buildPipelineStepPrompt(step: PipelineStep, index: number): string {
 /**
  * Parse pipeline string into PipelineOptions
  *
- * Format: "agent:action,agent:action,..."
- * Example: "gemini:analyze,claude:code,ollama:review"
+ * Supported formats:
+ * - Comma-separated: "gemini:analyze,claude:code,ollama:review"
+ * - Arrow-separated: "gemini:analyze -> claude:code -> ollama:review"
+ * - Mixed: "gemini:analyze, claude:code -> ollama:review"
+ * - With models: "gemini:analyze -> Droid [glm-4.7]:coding -> claude:review"
+ *
+ * Agent name formats:
+ * - "agent:action" - standard format
+ * - "agent [model]:action" - agent with model specification
+ * - "agent:action [model]" - agent with model suffix
+ * - "agent : action" - flexible spacing
  */
 export function parsePipelineString(pipeline: string): PipelineOptions {
-  const steps: PipelineStep[] = pipeline.split(',').map(part => {
-    const [agentStr, action = 'prompt'] = part.trim().split(':');
-    const agent = agentStr.trim() as AgentName | 'auto';
-    return { agent, action: action.trim() };
+  // Split by arrows (->) or commas, supporting mixed separators
+  const stepStrings = pipeline
+    .split(/\s*->\s*|\s*,\s*/)
+    .map(s => s.trim())
+    .filter(s => s.length > 0);
+
+  const steps: PipelineStep[] = stepStrings.map(stepStr => {
+    // Extract model specification if present (e.g., "Droid [glm-4.7]" or "Droid [glm-4.7]:coding")
+    let agentAction = stepStr;
+    let model: string | undefined;
+
+    // Pattern 1: "Agent [model]:action"
+    const bracketMatch = stepStr.match(/^(\w+)\s*\[([^\]]+)\]:(.+)$/);
+    if (bracketMatch) {
+      const [, agent, modelStr, action] = bracketMatch;
+      return {
+        agent: agent as AgentName | 'auto',
+        action: action.trim(),
+        model: modelStr.trim()
+      };
+    }
+
+    // Pattern 2: "Agent:action [model]"
+    const suffixMatch = stepStr.match(/^(.+?)\s*\[([^\]]+)\]$/);
+    if (suffixMatch) {
+      agentAction = suffixMatch[1].trim();
+      model = suffixMatch[2].trim();
+    }
+
+    // Now parse "agent:action" or just "agent"
+    const colonIndex = agentAction.indexOf(':');
+    if (colonIndex !== -1) {
+      const agent = agentAction.slice(0, colonIndex).trim() as AgentName | 'auto';
+      const action = agentAction.slice(colonIndex + 1).trim() || 'prompt';
+      return { agent, action, model };
+    } else {
+      // Just agent name, default to prompt action
+      return {
+        agent: agentAction as AgentName | 'auto',
+        action: 'prompt',
+        model
+      };
+    }
   });
 
   return { steps };

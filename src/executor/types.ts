@@ -156,6 +156,7 @@ export interface PipelineOptions {
 export interface PipelineStep {
   agent: AgentName | 'auto';
   action: string;                  // e.g., "analyze", "code", "review"
+  model?: string;                  // Optional model override (e.g., "glm-4.7")
   promptTemplate?: string;         // Override default prompt
 }
 

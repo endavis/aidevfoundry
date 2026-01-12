@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 import { Command } from 'commander';
 import { runCommand } from './commands/run';
+import { pipeCommand } from './commands/pipe';
 import { checkCommand } from './commands/check';
 import { serveCommand } from './commands/serve';
 import { mcpStatusCommand } from './commands/mcp-status';
