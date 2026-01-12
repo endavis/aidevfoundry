@@ -1913,6 +1913,7 @@ To work on a task from this plan:
 ### 2026-01-12: Test speed hardening
 
 - Injected a test-only `getAvailableAdapters` override so `/agents` tests avoid slow adapter availability checks.
+- Suppressed expected auth error logs in the orchestrate dry-run test.
 
 ### 2026-01-11: Game System + Validation Fixes
 
