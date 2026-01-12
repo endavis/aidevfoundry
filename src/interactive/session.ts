@@ -39,10 +39,20 @@ export class InteractiveSession extends EventEmitter {
   private history: Array<{ prompt: DetectedPrompt; response: GeneratedResponse }> = [];
   private promptCheckTimer: NodeJS.Timeout | null = null;
   private sessionTimer: NodeJS.Timeout | null = null;
+  private outputTimer: NodeJS.Timeout | null = null;
+  private idleTimeouts = 0;
   private lastOutputTime = 0;
   private config: InteractiveSessionConfig;
   private toolConfig: CLIToolConfig;
   private resolveSession: ((result: InteractiveSessionResult) => void) | null = null;
+
+  /**
+   * Set state and notify callback
+   */
+  private setState(newState: InteractiveSessionState): void {
+    this.state = newState;
+    this.config.onStateChange?.(newState);
+  }
 
   constructor(config: InteractiveSessionConfig) {
     super();
@@ -98,7 +108,9 @@ export class InteractiveSession extends EventEmitter {
    */
   private start(): void {
     this.startTime = Date.now();
-    this.state = 'running';
+    this.setState('running');
+    this.lastOutputTime = Date.now();
+    this.resetOutputTimeout();
 
     const appConfig = getConfig();
     const adapterConfig = appConfig.adapters[this.config.agent as keyof typeof appConfig.adapters];
@@ -131,6 +143,8 @@ export class InteractiveSession extends EventEmitter {
       const chunk = data.toString();
       this.outputBuffer += chunk;
       this.lastOutputTime = Date.now();
+      this.idleTimeouts = 0;
+      this.resetOutputTimeout();
 
       this.config.onOutput?.(chunk);
       this.emit('output', chunk);
@@ -144,6 +158,8 @@ export class InteractiveSession extends EventEmitter {
       const chunk = data.toString();
       this.outputBuffer += chunk;
       this.lastOutputTime = Date.now();
+      this.idleTimeouts = 0;
+      this.resetOutputTimeout();
 
       this.config.onOutput?.(chunk);
       this.emit('output', chunk);
@@ -155,8 +171,8 @@ export class InteractiveSession extends EventEmitter {
     this.process.on('exit', (code) => {
       this.cleanup();
 
-      if (this.state !== 'completed') {
-        this.state = code === 0 ? 'completed' : 'failed';
+      if (this.state !== 'completed' && this.state !== 'timeout' && this.state !== 'failed') {
+        this.setState(code === 0 ? 'completed' : 'failed');
       }
 
       this.finishSession(code === 0 ? undefined : `Process exited with code ${code}`);
@@ -165,19 +181,92 @@ export class InteractiveSession extends EventEmitter {
     // Handle process error
     this.process.on('error', (err) => {
       this.cleanup();
-      this.state = 'failed';
+      this.setState('failed');
       this.finishSession(err.message);
     });
 
     // Set session timeout
     this.sessionTimer = setTimeout(() => {
       this.cleanup();
-      this.state = 'timeout';
+      this.setState('timeout');
       this.finishSession('Session timeout');
     }, this.config.sessionTimeout!);
 
     // Initial prompt check after short delay
     setTimeout(() => this.checkForPrompt(), 500);
+  }
+
+  /**
+   * Reset output timeout timer
+   */
+  private resetOutputTimeout(): void {
+    if (!this.config.outputTimeout) return;
+    if (this.outputTimer) {
+      clearTimeout(this.outputTimer);
+    }
+    this.outputTimer = setTimeout(
+      () => void this.handleOutputTimeout(),
+      this.config.outputTimeout
+    );
+  }
+
+  /**
+   * Handle output timeout - try to respond or send keepalive
+   */
+  private async handleOutputTimeout(): Promise<void> {
+    if (!this.config.outputTimeout) return;
+    if (this.state === 'completed' || this.state === 'failed' || this.state === 'timeout') {
+      return;
+    }
+    // If responding, just reset the timer
+    if (this.state === 'responding') {
+      this.resetOutputTimeout();
+      return;
+    }
+
+    const idleTime = Date.now() - this.lastOutputTime;
+    if (idleTime < this.config.outputTimeout) {
+      this.resetOutputTimeout();
+      return;
+    }
+
+    // Try to detect and respond to any pending prompt
+    const promptText = this.extractPromptText();
+    if (promptText && this.shouldRespond(promptText)) {
+      try {
+        await this.respondToPrompt(promptText);
+      } catch (error) {
+        this.setState('failed');
+        this.finishSession(
+          `Responder failed after output timeout: ${(error as Error).message}`
+        );
+        return;
+      }
+      this.resetOutputTimeout();
+      return;
+    }
+
+    // Track consecutive idle timeouts
+    this.idleTimeouts += 1;
+    if (this.idleTimeouts >= 2) {
+      this.setState('timeout');
+      this.finishSession(
+        `Output timeout after ${this.config.outputTimeout}ms without activity`
+      );
+      return;
+    }
+
+    // Send empty keepalive to potentially wake up the CLI
+    try {
+      await this.sendResponse('');
+    } catch (error) {
+      this.setState('failed');
+      this.finishSession(
+        `Failed to send keepalive: ${(error as Error).message}`
+      );
+      return;
+    }
+    this.resetOutputTimeout();
   }
 
   /**
@@ -206,7 +295,7 @@ export class InteractiveSession extends EventEmitter {
     for (const pattern of this.toolConfig.endPatterns) {
       if (pattern.test(this.outputBuffer)) {
         console.log('[interactive] Detected end pattern, completing session');
-        this.state = 'completed';
+        this.setState('completed');
         this.finishSession();
         return;
       }
@@ -285,7 +374,7 @@ export class InteractiveSession extends EventEmitter {
       return;
     }
 
-    this.state = 'responding';
+    this.setState('responding');
 
     // Detect prompt type and extract choices
     const promptType = detectPromptType(promptText);
@@ -322,7 +411,7 @@ export class InteractiveSession extends EventEmitter {
 
     // Check if we should end
     if (response.shouldEnd) {
-      this.state = 'completed';
+      this.setState('completed');
       this.finishSession();
       return;
     }
@@ -332,7 +421,7 @@ export class InteractiveSession extends EventEmitter {
 
     // Clear the buffer after responding (keep last bit for context)
     this.outputBuffer = this.outputBuffer.slice(-500);
-    this.state = 'running';
+    this.setState('running');
   }
 
   /**
@@ -382,6 +471,11 @@ export class InteractiveSession extends EventEmitter {
       this.sessionTimer = null;
     }
 
+    if (this.outputTimer) {
+      clearTimeout(this.outputTimer);
+      this.outputTimer = null;
+    }
+
     if (this.process && !this.process.killed) {
       this.process.kill();
     }
@@ -422,7 +516,7 @@ export class InteractiveSession extends EventEmitter {
    * Abort the session
    */
   abort(): void {
-    this.state = 'failed';
+    this.setState('failed');
     this.finishSession('Aborted by user');
   }
 

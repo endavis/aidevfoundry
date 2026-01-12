@@ -100,6 +100,22 @@ function parseResponderOutput(output: string): GeneratedResponse {
 }
 
 /**
+ * Ensure response is non-empty, falling back to heuristics if needed
+ */
+function ensureNonEmptyResponse(
+  response: GeneratedResponse,
+  prompt: DetectedPrompt
+): GeneratedResponse {
+  if (!response.response || !response.response.trim()) {
+    return {
+      ...generateHeuristicResponse(prompt),
+      reasoning: 'Fallback after empty responder output',
+    };
+  }
+  return response;
+}
+
+/**
  * Generate a response to a CLI prompt using AI
  */
 export async function generateResponse(
@@ -112,7 +128,7 @@ export async function generateResponse(
     const orResult = await runOpenRouter(prompt);
 
     if (!orResult.error && orResult.content) {
-      return parseResponderOutput(orResult.content);
+      return ensureNonEmptyResponse(parseResponderOutput(orResult.content), options.prompt);
     }
   } catch {
     // Fall through to adapter fallback
@@ -141,7 +157,7 @@ export async function generateResponse(
       return generateHeuristicResponse(options.prompt);
     }
 
-    return parseResponderOutput(result.content);
+    return ensureNonEmptyResponse(parseResponderOutput(result.content), options.prompt);
   } catch {
     return generateHeuristicResponse(options.prompt);
   }
@@ -150,8 +166,44 @@ export async function generateResponse(
 /**
  * Generate a response using simple heuristics when AI is not available
  */
-function generateHeuristicResponse(prompt: DetectedPrompt): GeneratedResponse {
+export function generateHeuristicResponse(prompt: DetectedPrompt): GeneratedResponse {
   const text = prompt.text.toLowerCase();
+
+  // Claude-specific permission patterns (Allow Read, Allow Write, Allow Edit, etc.)
+  if (
+    text.includes('allow read') ||
+    text.includes('allow write') ||
+    text.includes('allow edit') ||
+    text.includes('allow bash') ||
+    text.includes('allow execute') ||
+    text.includes('allow this') ||
+    text.includes('allow all') ||
+    text.includes('allow in directory')
+  ) {
+    return {
+      response: 'y',
+      reasoning: 'Heuristic: approving Claude permission request',
+      shouldEnd: false,
+      confidence: 0.85,
+    };
+  }
+
+  // Claude-specific file operation prompts
+  if (
+    text.includes('create file') ||
+    text.includes('modify file') ||
+    text.includes('delete file') ||
+    text.includes('overwrite') ||
+    text.includes('run command') ||
+    text.includes('execute command')
+  ) {
+    return {
+      response: 'y',
+      reasoning: 'Heuristic: approving file/command operation',
+      shouldEnd: false,
+      confidence: 0.8,
+    };
+  }
 
   // Yes/No detection
   if (

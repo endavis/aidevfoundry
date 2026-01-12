@@ -26,6 +26,8 @@ export async function interactiveCommand(
   options: InteractiveCommandOptions
 ): Promise<void> {
   const spinner = createSpinner('Starting interactive session...').start();
+  let statusSpinner: ReturnType<typeof createSpinner> | null = null;
+  let interactionIndex = 0;
 
   try {
     const agent = (options.agent || 'gemini') as AgentName;
@@ -61,6 +63,8 @@ export async function interactiveCommand(
     console.log(pc.dim('─'.repeat(50)));
     console.log('');
 
+    statusSpinner = createSpinner(pc.dim('Waiting for prompt...')).start();
+
     const result = await runInteractiveSession({
       agent: selection.agent as AgentName,
       initialPrompt: prompt,
@@ -70,20 +74,36 @@ export async function interactiveCommand(
       sessionTimeout: timeout,
       model: options.model,
       onInteraction: (p, r) => {
-        if (options.verbose) {
-          console.log(pc.yellow(`\n◀ Detected (${p.type}): ${p.text.slice(0, 100)}...`));
-          console.log(pc.green(`▶ Response: ${r.response}`));
-          if (r.reasoning) {
-            console.log(pc.dim(`  Reasoning: ${r.reasoning}`));
-          }
+        // Always show interactions with progress counter
+        interactionIndex += 1;
+        const progress = pc.dim(`[${interactionIndex}/${maxInteractions}]`);
+        console.log(pc.yellow(`\n${progress} ◀ [${p.type}] ${p.text.slice(0, 150)}${p.text.length > 150 ? '...' : ''}`));
+        console.log(pc.green(`▶ Response: ${r.response}`));
+        if (options.verbose && r.reasoning) {
+          console.log(pc.dim(`  Reasoning: ${r.reasoning}`));
+        }
+      },
+      onStateChange: (state) => {
+        if (!statusSpinner) return;
+        if (state === 'responding') {
+          statusSpinner.update({ text: pc.cyan('Generating response...') });
+        } else if (state === 'running' || state === 'waiting_for_input') {
+          statusSpinner.update({ text: pc.dim('Waiting for prompt...') });
         }
       },
       onOutput: (chunk) => {
-        if (options.verbose) {
-          process.stdout.write(pc.dim(chunk));
-        }
+        // Always show output - treat pk-puzldai like using the CLI directly
+        process.stdout.write(chunk);
       },
     });
+
+    if (statusSpinner) {
+      if (result.success) {
+        statusSpinner.success({ text: 'Session completed' });
+      } else {
+        statusSpinner.error({ text: 'Session failed' });
+      }
+    }
 
     console.log('');
     console.log(pc.dim('─'.repeat(50)));
@@ -112,6 +132,9 @@ export async function interactiveCommand(
     }
 
   } catch (error) {
+    if (statusSpinner) {
+      statusSpinner.error({ text: 'Session failed' });
+    }
     spinner.error({ text: `Session failed: ${(error as Error).message}` });
     process.exit(1);
   }

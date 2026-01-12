@@ -71,6 +71,8 @@ export interface InteractiveSessionConfig {
   promptPatterns?: RegExp[];
   /** Callback for each interaction */
   onInteraction?: (prompt: DetectedPrompt, response: GeneratedResponse) => void;
+  /** Callback when session state changes */
+  onStateChange?: (state: InteractiveSessionState) => void;
   /** Callback for output chunks */
   onOutput?: (chunk: string) => void;
   /** Working directory for the CLI */
@@ -170,10 +172,22 @@ export const CLI_TOOL_CONFIGS: Record<string, CLIToolConfig> = {
       /\?\s*$/m,
       /:\s*$/m,
       /\(y\/n\)\s*$/im,
+      // Claude-specific permission prompts
+      /Allow Read/i,
+      /Allow Write/i,
+      /Allow Edit/i,
+      /Allow Bash/i,
+      /Allow this/i,
+      /Allow all/i,
+      /Allow in directory/i,
+      /Create file/i,
+      /Modify file/i,
+      /Run command/i,
     ],
     endPatterns: [
       /goodbye/i,
       /session ended/i,
+      /Task completed/i,
     ],
   },
   codex: {
