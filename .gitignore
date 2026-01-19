@@ -40,3 +40,6 @@ hello.js
 
 # Local Claude/agent scratch files
 tmpclaude-*
+.claude/settings.local.json
+handoff.txt
+nul
