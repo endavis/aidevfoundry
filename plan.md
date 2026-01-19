@@ -1,6 +1,6 @@
 # PuzldAI - Game System Implementation Plan
 
-**Last Updated:** 2026-01-12
+**Last Updated:** 2026-01-18
 **Status:** In Progress
 **Completion:** 10/13 tasks (Game system); 6/6 tasks (CLI orchestration); 4/4 tasks (Ralph/Poet CLI) ✅
 
@@ -1669,6 +1669,14 @@ Phase 7 (Docs) can run independently after Phase 2
 
 ## 🔄 Change Log
 
+### 2026-01-18: Smart-efficient orchestration profile
+
+- Added smart-efficient profile with explicit pipeline steps (Codex/Claude planning, Minimax implementation, GLM refine).
+- Added pipelineSteps support to orchestration profiles and validation to enforce step structure.
+- Updated profile selection to honor custom pipeline steps.
+- Set smart-efficient as the default orchestration profile.
+- Added migration to update existing profiles.json default from speed to smart-efficient.
+
 ### 2025-12-24
 - Documentation consolidation completed:
   - Aligned CLI command names (`pk-puzldai` across all docs)
@@ -1840,16 +1848,10 @@ To work on a task from this plan:
 
 - [AGENTS.md](./AGENTS.md) - Agent integration guide
 - [GAME_INTEGRATION.md](./GAME_INTEGRATION.md) - Game system overview
-- [CLAUDE.md](./CLAUDE.md) - Complete project guide
-- [README.md](./README.md) - Getting started
-
----
-
-## 📝 Change Log
 
 ### 2026-01-11: Ralph/Poet CLI Orchestration Implementation
 
-**Phase 9 Completed** ✅
+**Phase 9 Completed** 
 
 - Enhanced `ralph` command with proper budget tracking (MAX_ITERS=5, MAX_FILES_CHANGED=8, MAX_TOOL_CALLS=50)
 - Added iteration state tracking and final summary reporting

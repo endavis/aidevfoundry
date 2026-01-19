@@ -1,4 +1,4 @@
-import type { AgentName, PlanMode } from '../executor/types';
+import type { AgentName, PipelineStep, PlanMode } from '../executor/types';
 
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'fs';
 import { join } from 'path';
@@ -13,6 +13,7 @@ export interface OrchestrationProfile {
   consensusRounds: number;
   requireReview: boolean;
   allowAgents: AgentName[];
+  pipelineSteps?: PipelineStep[];
   useContextCompression: boolean;
   timeoutBudgetMs: number;
 }
@@ -84,6 +85,22 @@ const DEFAULT_PROFILES: Record<string, OrchestrationProfile> = {
     allowAgents: ['claude', 'gemini', 'codex', 'mistral'],
     useContextCompression: true,
     timeoutBudgetMs: 180000
+  },
+  'smart-efficient': {
+    name: 'smart-efficient',
+    preferredModes: ['pipeline'],
+    maxConcurrency: 2,
+    consensusRounds: 1,
+    requireReview: false,
+    allowAgents: ['claude', 'factory'],
+    pipelineSteps: [
+      { agent: 'factory', action: 'plan', model: 'gpt-5.2-codex' },
+      { agent: 'claude', action: 'plan', model: 'opus-4.5' },
+      { agent: 'factory', action: 'code', model: 'minimax-m2.1' },
+      { agent: 'factory', action: 'refine', model: 'glm-4.7' }
+    ],
+    useContextCompression: true,
+    timeoutBudgetMs: 120000
   }
 };
 
@@ -93,7 +110,7 @@ export function getDefaultProfiles(): Record<string, OrchestrationProfile> {
 
 export function getDefaultOrchestrationConfig(): OrchestrationConfig {
   return {
-    defaultProfile: 'speed',
+    defaultProfile: 'smart-efficient',
     profiles: getDefaultProfiles()
   };
 }
@@ -132,6 +149,27 @@ export function validateProfile(profile: OrchestrationProfile): string[] {
     const unknownAgents = profile.allowAgents.filter(agent => !KNOWN_AGENTS.includes(agent));
     if (unknownAgents.length > 0) {
       errors.push('Unknown allowAgents: ' + unknownAgents.join(', '));
+    }
+  }
+
+  if (profile.pipelineSteps !== undefined) {
+    if (!Array.isArray(profile.pipelineSteps) || profile.pipelineSteps.length === 0) {
+      errors.push('pipelineSteps must be a non-empty array when provided.');
+    } else {
+      profile.pipelineSteps.forEach((step, index) => {
+        if (!step.agent || !KNOWN_AGENTS.includes(step.agent as AgentName)) {
+          errors.push(`pipelineSteps[${index}].agent must be a known agent.`);
+        }
+        if (!step.action || step.action.trim() === '') {
+          errors.push(`pipelineSteps[${index}].action must be a non-empty string.`);
+        }
+        if (step.model !== undefined && step.model.trim() === '') {
+          errors.push(`pipelineSteps[${index}].model must be a non-empty string when provided.`);
+        }
+        if (step.promptTemplate !== undefined && step.promptTemplate.trim() === '') {
+          errors.push(`pipelineSteps[${index}].promptTemplate must be a non-empty string when provided.`);
+        }
+      });
     }
   }
 
@@ -193,7 +231,12 @@ export function loadProfilesFile(): OrchestrationConfig | null {
   try {
     const raw = readFileSync(PROFILES_PATH, 'utf-8');
     const parsed = JSON.parse(raw) as OrchestrationConfig;
-    return normalizeOrchestrationConfig(parsed);
+    const normalized = normalizeOrchestrationConfig(parsed);
+    const migrated = migrateProfilesConfig(parsed, normalized);
+    if (migrated.didChange) {
+      saveProfilesFile(migrated.config);
+    }
+    return migrated.config;
   } catch {
     return null;
   }
@@ -202,6 +245,31 @@ export function loadProfilesFile(): OrchestrationConfig | null {
 export function saveProfilesFile(config: OrchestrationConfig): void {
   mkdirSync(PROFILE_DIR, { recursive: true });
   writeFileSync(PROFILES_PATH, JSON.stringify(config, null, 2));
+}
+
+function migrateProfilesConfig(
+  rawConfig: OrchestrationConfig,
+  normalized: OrchestrationConfig
+): { config: OrchestrationConfig; didChange: boolean } {
+  if (rawConfig.defaultProfile && rawConfig.defaultProfile !== 'speed') {
+    return { config: normalized, didChange: false };
+  }
+
+  if (normalized.defaultProfile === 'smart-efficient') {
+    return { config: normalized, didChange: false };
+  }
+
+  if (!normalized.profiles['smart-efficient']) {
+    return { config: normalized, didChange: false };
+  }
+
+  return {
+    config: {
+      ...normalized,
+      defaultProfile: 'smart-efficient'
+    },
+    didChange: true
+  };
 }
 
 export function normalizeOrchestrationConfig(

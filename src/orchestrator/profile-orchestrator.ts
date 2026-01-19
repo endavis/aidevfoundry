@@ -164,7 +164,7 @@ function buildPipelineSelection(
   reason: string
 ): ProfileSelectionResult {
   const agents = filterAgents(profile.allowAgents);
-  const steps = buildProfilePipelineSteps({
+  const steps = profile.pipelineSteps ?? buildProfilePipelineSteps({
     primaryAgent,
     allowAgents: agents,
     includeReview: profile.requireReview
