@@ -477,6 +477,83 @@ function runMigrations(database: any): void {
 
     database.prepare("UPDATE metadata SET value = '10' WHERE key = 'schema_version'").run();
   }
+
+  // Migration 11: Add enhanced campaign domain and criteria tracking tables
+  if (currentVersion < 11) {
+    database.exec(`
+      -- Domain progress tracking for parallel campaign execution
+      CREATE TABLE IF NOT EXISTS campaign_domains (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        project_id TEXT NOT NULL,
+        name TEXT NOT NULL,
+        status TEXT NOT NULL DEFAULT 'pending',
+        progress_percent REAL DEFAULT 0.0,
+        tasks_total INTEGER DEFAULT 0,
+        tasks_completed INTEGER DEFAULT 0,
+        tasks_failed INTEGER DEFAULT 0,
+        tasks_in_progress INTEGER DEFAULT 0,
+        file_patterns TEXT,
+        git_branch TEXT,
+        started_at INTEGER,
+        completed_at INTEGER,
+        created_at INTEGER NOT NULL,
+        updated_at INTEGER NOT NULL,
+        FOREIGN KEY (project_id) REFERENCES campaign_projects(id) ON DELETE CASCADE,
+        UNIQUE(project_id, name)
+      );
+
+      -- Entry/exit criteria validation results
+      CREATE TABLE IF NOT EXISTS campaign_criteria_results (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        task_id TEXT NOT NULL,
+        criteria_type TEXT NOT NULL CHECK(criteria_type IN ('entry', 'exit')),
+        criterion_description TEXT NOT NULL,
+        check_command TEXT,
+        passed INTEGER NOT NULL CHECK(passed IN (0, 1)),
+        error_message TEXT,
+        execution_ms INTEGER,
+        created_at INTEGER NOT NULL,
+        FOREIGN KEY (task_id) REFERENCES campaign_tasks(id) ON DELETE CASCADE
+      );
+
+      -- Domain metrics for analytics
+      CREATE TABLE IF NOT EXISTS campaign_domain_metrics (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        domain_id INTEGER NOT NULL,
+        metric_name TEXT NOT NULL,
+        metric_value REAL NOT NULL,
+        recorded_at INTEGER NOT NULL,
+        FOREIGN KEY (domain_id) REFERENCES campaign_domains(id) ON DELETE CASCADE
+      );
+
+      -- Indexes for efficient queries
+      CREATE INDEX IF NOT EXISTS idx_campaign_domains_project ON campaign_domains(project_id);
+      CREATE INDEX IF NOT EXISTS idx_campaign_domains_status ON campaign_domains(status);
+      CREATE INDEX IF NOT EXISTS idx_campaign_criteria_task ON campaign_criteria_results(task_id);
+      CREATE INDEX IF NOT EXISTS idx_campaign_criteria_type ON campaign_criteria_results(criteria_type);
+      CREATE INDEX IF NOT EXISTS idx_campaign_criteria_passed ON campaign_criteria_results(passed);
+      CREATE INDEX IF NOT EXISTS idx_campaign_domain_metrics_domain ON campaign_domain_metrics(domain_id);
+      CREATE INDEX IF NOT EXISTS idx_campaign_domain_metrics_name ON campaign_domain_metrics(metric_name);
+    `);
+
+    // Add domain column to campaign_tasks if not exists
+    try {
+      database.exec(`ALTER TABLE campaign_tasks ADD COLUMN domain TEXT;`);
+    } catch {
+      // Column may already exist
+    }
+
+    // Add timing columns to campaign_tasks
+    try {
+      database.exec(`ALTER TABLE campaign_tasks ADD COLUMN started_at INTEGER;`);
+      database.exec(`ALTER TABLE campaign_tasks ADD COLUMN completed_at INTEGER;`);
+      database.exec(`ALTER TABLE campaign_tasks ADD COLUMN duration_ms INTEGER;`);
+    } catch {
+      // Columns may already exist
+    }
+
+    database.prepare("UPDATE metadata SET value = '11' WHERE key = 'schema_version'").run();
+  }
 }
 
 /**

@@ -1,10 +1,22 @@
-import type { AgentName } from '../../executor/types.js';
+import type { AgentName, PlanMode, ExecutionPlan } from '../../executor/types.js';
 import type { CampaignTask } from './campaign-state.js';
+import type { EnhancedCampaignTask } from './campaign-types.js';
 import { runAdapter } from '../../lib/adapter-runner.js';
 import { runAgentLoop } from '../../agentic/agent-loop.js';
 import { adapters } from '../../adapters/index.js';
 import { resolveAgentForRole } from './campaign-agent.js';
 import { getGitStatus, getGitDiff, getStagedDiff, stageFile, commit, isGitRepo } from '../../lib/git.js';
+import { execute } from '../../executor/executor.js';
+import {
+  buildSingleAgentPlan,
+  buildComparePlan,
+  buildPipelinePlan,
+  buildCorrectionPlan,
+  buildDebatePlan,
+  buildConsensusPlan,
+  buildPickBuildPlan
+} from '../../executor/plan-builders.js';
+import { isEnhancedTask } from './campaign-types.js';
 
 export interface WorkerResult {
   taskId: string;
@@ -13,14 +25,44 @@ export interface WorkerResult {
   error?: string;
   artifacts: string[];
   gitDiff?: string;
+  /** Execution mode used */
+  executionMode?: PlanMode;
+}
+
+/** Options for worker execution */
+export interface WorkerOptions {
+  /** Working directory */
+  cwd: string;
+  /** Worker agent specs */
+  workers: string[];
+  /** Use agentic droid mode */
+  useDroid: boolean;
+  /** Force a specific execution mode (overrides task's execution_mode) */
+  forceMode?: PlanMode;
+  /** Agents for compare/debate modes */
+  compareAgents?: AgentName[];
+  /** Number of debate rounds */
+  debateRounds?: number;
+  /** Enable interactive mode for pickbuild */
+  interactive?: boolean;
 }
 
 export async function runWorkerTask(
-  task: CampaignTask,
+  task: CampaignTask | EnhancedCampaignTask,
   workers: string[],
   cwd: string,
-  useDroid: boolean
+  useDroid: boolean,
+  options?: Partial<WorkerOptions>
 ): Promise<WorkerResult> {
+  // Determine execution mode
+  const executionMode = options?.forceMode ??
+    (isEnhancedTask(task) ? task.execution_mode : undefined) ??
+    'single';
+
+  // Route to appropriate executor based on mode
+  if (executionMode !== 'single') {
+    return runModeBasedExecution(task, executionMode, cwd, options);
+  }
   // Select worker agent (round-robin through available workers)
   const workerSpec = workers[0] || 'droid:minimax-m2.1';
   const { agent, model } = await resolveAgentForRole('worker', workerSpec);
@@ -191,4 +233,148 @@ function extractArtifacts(content: string): string[] {
   }
 
   return artifacts;
+}
+
+// ============================================================================
+// Mode-Based Execution
+// ============================================================================
+
+/**
+ * Execute task using appropriate plan builder based on execution mode
+ */
+async function runModeBasedExecution(
+  task: CampaignTask | EnhancedCampaignTask,
+  mode: PlanMode,
+  cwd: string,
+  options?: Partial<WorkerOptions>
+): Promise<WorkerResult> {
+  const prompt = buildTaskPrompt(task, cwd);
+  const defaultAgents: AgentName[] = options?.compareAgents ?? ['claude', 'gemini'];
+
+  try {
+    // Build plan based on mode
+    const plan = buildPlanForMode(mode, prompt, defaultAgents, options);
+
+    // Execute the plan
+    const result = await execute(plan);
+
+    // Commit any changes
+    const artifacts = extractArtifactsFromResult(result.finalOutput || '');
+    const commitResult = await commitWorkerChanges(cwd, task, artifacts);
+
+    const summary = result.finalOutput
+      ? (commitResult?.hash
+          ? `${extractSummary(result.finalOutput)}\nCommit: ${commitResult.hash}`
+          : extractSummary(result.finalOutput))
+      : 'Execution completed';
+
+    return {
+      taskId: task.id,
+      success: result.status === 'completed',
+      summary,
+      error: result.status === 'failed' ? 'Execution failed' : undefined,
+      artifacts,
+      gitDiff: commitResult?.diff,
+      executionMode: mode
+    };
+  } catch (err) {
+    const gitDiff = await getWorkingDiff(cwd);
+    return {
+      taskId: task.id,
+      success: false,
+      summary: '',
+      error: (err as Error).message,
+      artifacts: [],
+      gitDiff,
+      executionMode: mode
+    };
+  }
+}
+
+/**
+ * Build execution plan based on mode
+ */
+function buildPlanForMode(
+  mode: PlanMode,
+  prompt: string,
+  agents: AgentName[],
+  options?: Partial<WorkerOptions>
+): ExecutionPlan {
+  switch (mode) {
+    case 'compare':
+      return buildComparePlan(prompt, {
+        agents,
+        pick: true
+      });
+
+    case 'pipeline':
+      // Simple 3-step pipeline: analyze, implement, review
+      return buildPipelinePlan(prompt, {
+        steps: [
+          { agent: agents[0] || 'claude', action: 'analyze' as const },
+          { agent: agents[0] || 'claude', action: 'code' as const },
+          { agent: agents[1] || 'ollama', action: 'review' as const }
+        ]
+      });
+
+    case 'correction':
+      return buildCorrectionPlan(prompt, {
+        producer: agents[0] || 'claude',
+        reviewer: agents[1] || 'gemini',
+        fixAfterReview: true
+      });
+
+    case 'debate':
+      return buildDebatePlan(prompt, {
+        agents,
+        moderator: 'auto',
+        rounds: options?.debateRounds ?? 2
+      });
+
+    case 'consensus':
+      return buildConsensusPlan(prompt, {
+        agents,
+        maxRounds: 3
+      });
+
+    case 'pickbuild':
+      return buildPickBuildPlan(prompt, {
+        agents,
+        picker: 'auto',
+        buildAgent: agents[0] || 'claude',
+        interactive: options?.interactive ?? false
+      });
+
+    case 'single':
+    default:
+      return buildSingleAgentPlan(prompt, agents[0] || 'auto');
+  }
+}
+
+/**
+ * Extract artifacts from execution result
+ */
+function extractArtifactsFromResult(output: string): string[] {
+  return extractArtifacts(output);
+}
+
+/**
+ * Run task with a specific execution mode
+ *
+ * @param task - The campaign task
+ * @param mode - The execution mode to use
+ * @param cwd - Working directory
+ * @param agents - Agents to use for multi-agent modes
+ * @returns WorkerResult
+ */
+export async function runTaskWithMode(
+  task: CampaignTask | EnhancedCampaignTask,
+  mode: PlanMode,
+  cwd: string,
+  agents?: AgentName[]
+): Promise<WorkerResult> {
+  return runWorkerTask(task, [], cwd, false, {
+    forceMode: mode,
+    compareAgents: agents
+  });
 }
