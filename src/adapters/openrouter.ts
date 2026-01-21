@@ -2,22 +2,47 @@
  * OpenRouter Adapter
  *
  * Uses the OpenRouter API to access various models including
- * smaller, faster models like Devstral for evaluation tasks.
+ * smaller, faster models like Gemini Flash, GPT-5-nano, etc.
  *
- * Default model: mistralai/devstral-2505 (fast, efficient coding model)
+ * Default model: google/gemini-2.0-flash-lite-001 (fast, efficient)
+ *
+ * Fast model presets:
+ *   - gemini-flash-lite: google/gemini-2.0-flash-lite-001
+ *   - gemini-flash: google/gemini-2.0-flash-001
+ *   - gpt-5-nano: openai/gpt-5-nano (when available)
+ *   - gpt-4o-mini: openai/gpt-4o-mini
+ *   - claude-haiku: anthropic/claude-3-5-haiku
+ *   - devstral: mistralai/devstral-2505
+ *   - llama-small: meta-llama/llama-3.2-3b-instruct
  */
 
 import type { Adapter, ModelResponse, RunOptions } from '../lib/types';
 import { getConfig } from '../lib/config';
 
-// Default model for evaluation/utility tasks
-const DEFAULT_MODEL = 'mistralai/devstral-2505';
+// Fast model presets for quick access
+export const FAST_MODELS = {
+  'gemini-flash-lite': 'google/gemini-2.0-flash-lite-001',
+  'gemini-flash': 'google/gemini-2.0-flash-001',
+  'gpt-5-nano': 'openai/gpt-5-nano',  // Placeholder - use when available
+  'gpt-4o-mini': 'openai/gpt-4o-mini',
+  'claude-haiku': 'anthropic/claude-3-5-haiku',
+  'devstral': 'mistralai/devstral-2505',
+  'llama-small': 'meta-llama/llama-3.2-3b-instruct',
+} as const;
+
+// Default model for evaluation/utility tasks (fast and cheap)
+const DEFAULT_MODEL = FAST_MODELS['gemini-flash-lite'];
 
 export interface OpenRouterConfig {
   enabled: boolean;
   apiKey?: string;  // Can also use OPENROUTER_API_KEY env var
-  model?: string;
+  model?: string;   // Can be a preset name or full model ID
   baseUrl?: string;
+}
+
+// Resolve model preset to full model ID
+function resolveModel(model: string): string {
+  return FAST_MODELS[model as keyof typeof FAST_MODELS] || model;
 }
 
 export const openrouterAdapter: Adapter = {
@@ -40,7 +65,8 @@ export const openrouterAdapter: Adapter = {
     const orConfig = (config.adapters as any).openrouter as OpenRouterConfig | undefined;
 
     const apiKey = orConfig?.apiKey || process.env.OPENROUTER_API_KEY;
-    const model = options?.model ?? orConfig?.model ?? DEFAULT_MODEL;
+    const rawModel = options?.model ?? orConfig?.model ?? DEFAULT_MODEL;
+    const model = resolveModel(rawModel); // Resolve preset names to full IDs
     const baseUrl = orConfig?.baseUrl || 'https://openrouter.ai/api/v1';
 
     if (!apiKey) {
@@ -127,12 +153,15 @@ export const openrouterAdapter: Adapter = {
  * without needing the full adapter interface.
  *
  * Used internally for evaluation and lightweight LLM calls.
+ * Model can be a preset name (e.g., 'gemini-flash-lite') or full ID.
  */
 export async function runOpenRouter(
   prompt: string,
-  model: string = DEFAULT_MODEL
-): Promise<{ content: string; error?: string }> {
+  model: string = 'gemini-flash-lite'
+): Promise<{ content: string; error?: string; duration?: number }> {
   const apiKey = process.env.OPENROUTER_API_KEY;
+  const startTime = Date.now();
+  const resolvedModel = resolveModel(model);
 
   if (!apiKey) {
     return { content: '', error: 'OPENROUTER_API_KEY not set' };
@@ -148,7 +177,7 @@ export async function runOpenRouter(
         'X-Title': 'PuzldAI'
       },
       body: JSON.stringify({
-        model,
+        model: resolvedModel,
         messages: [{ role: 'user', content: prompt }],
         temperature: 0.7,
         max_tokens: 4096,
@@ -156,15 +185,104 @@ export async function runOpenRouter(
     });
 
     if (!response.ok) {
-      return { content: '', error: `API error: ${response.status}` };
+      return { content: '', error: `API error: ${response.status}`, duration: Date.now() - startTime };
     }
 
     const data = await response.json() as {
       choices?: Array<{ message?: { content?: string } }>;
     };
 
-    return { content: data.choices?.[0]?.message?.content || '' };
+    return {
+      content: data.choices?.[0]?.message?.content || '',
+      duration: Date.now() - startTime
+    };
   } catch (err) {
-    return { content: '', error: (err as Error).message };
+    return { content: '', error: (err as Error).message, duration: Date.now() - startTime };
   }
+}
+
+/**
+ * Streaming version for real-time updates.
+ * Calls onChunk with each token as it arrives.
+ */
+export async function runOpenRouterStream(
+  prompt: string,
+  model: string = 'gemini-flash-lite',
+  onChunk?: (chunk: string) => void
+): Promise<{ content: string; error?: string; duration?: number }> {
+  const apiKey = process.env.OPENROUTER_API_KEY;
+  const startTime = Date.now();
+  const resolvedModel = resolveModel(model);
+
+  if (!apiKey) {
+    return { content: '', error: 'OPENROUTER_API_KEY not set' };
+  }
+
+  try {
+    const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${apiKey}`,
+        'Content-Type': 'application/json',
+        'HTTP-Referer': 'https://puzld.ai',
+        'X-Title': 'PuzldAI'
+      },
+      body: JSON.stringify({
+        model: resolvedModel,
+        messages: [{ role: 'user', content: prompt }],
+        temperature: 0.7,
+        max_tokens: 4096,
+        stream: true,
+      }),
+    });
+
+    if (!response.ok) {
+      return { content: '', error: `API error: ${response.status}`, duration: Date.now() - startTime };
+    }
+
+    const reader = response.body?.getReader();
+    if (!reader) {
+      return { content: '', error: 'No response body', duration: Date.now() - startTime };
+    }
+
+    const decoder = new TextDecoder();
+    let fullContent = '';
+
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+
+      const chunk = decoder.decode(value, { stream: true });
+      const lines = chunk.split('\n').filter(line => line.startsWith('data: '));
+
+      for (const line of lines) {
+        const data = line.slice(6); // Remove 'data: ' prefix
+        if (data === '[DONE]') continue;
+
+        try {
+          const parsed = JSON.parse(data) as {
+            choices?: Array<{ delta?: { content?: string } }>;
+          };
+          const content = parsed.choices?.[0]?.delta?.content || '';
+          if (content) {
+            fullContent += content;
+            onChunk?.(content);
+          }
+        } catch {
+          // Skip malformed JSON chunks
+        }
+      }
+    }
+
+    return { content: fullContent, duration: Date.now() - startTime };
+  } catch (err) {
+    return { content: '', error: (err as Error).message, duration: Date.now() - startTime };
+  }
+}
+
+/**
+ * Get list of available fast model presets
+ */
+export function listFastModels(): Array<{ name: string; model: string }> {
+  return Object.entries(FAST_MODELS).map(([name, model]) => ({ name, model }));
 }

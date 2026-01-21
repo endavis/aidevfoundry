@@ -15,7 +15,7 @@ import { ApprovalModePanel, type ApprovalMode } from './components/ApprovalModeP
 import { isDirectoryTrusted, trustDirectory, getParentDirectory, getTrustedDirectories, untrustDirectory } from '../trust';
 import { useHistory } from './hooks/useHistory';
 import { getCommandSuggestions } from './components/Autocomplete';
-import { StatusBar, type McpStatus } from './components/StatusBar';
+import { StatusBar, type McpStatus, type ApprovalMode as StatusBarApprovalMode } from './components/StatusBar';
 import {
   buildComparePlan,
   buildPipelinePlan,
@@ -75,7 +75,7 @@ import {
 } from '../agentic';
 import { ToolActivity, type ToolCallInfo } from './components/ToolActivity';
 import { PermissionPrompt } from './components/PermissionPrompt';
-import { AgentStatus } from './components/AgentStatus';
+import { AgentStatus, type AgentPhase } from './components/AgentStatus';
 import {
   startObservation,
   logResponse,
@@ -186,6 +186,7 @@ function App() {
   const [toolsExpanded, setToolsExpanded] = useState(false);
   const [loadingStartTime, setLoadingStartTime] = useState<number | undefined>();
   const [loadingAgent, setLoadingAgent] = useState<string>('');
+  const [agentPhase, setAgentPhase] = useState<AgentPhase>('thinking');
 
   // Permission prompt state
   const [pendingPermission, setPendingPermission] = useState<{
@@ -1248,6 +1249,8 @@ Keep your response concise and focused on the plan, not the implementation.`;
     setLoadingAgent(agentName);
     setLoadingStartTime(Date.now());
     setLoadingText(`${agentName} is thinking...`);
+    setAgentPhase('thinking');
+    setToolActivity([]); // Reset tool activity for new execution
 
     // Reset tool activity
     setToolActivity([]);
@@ -1405,28 +1408,34 @@ Keep your response concise and focused on the plan, not the implementation.`;
           const newCall = { id: call.id, name: call.name, args, status: 'pending' as const };
           toolActivityRef.current = [...toolActivityRef.current, newCall];
           setToolActivity(prev => [...prev, newCall]);
+          setAgentPhase('tool_pending');
         },
 
         // Tool started executing (after permission granted)
         onToolStart: (call: ToolCall) => {
+          const startTime = Date.now();
           toolActivityRef.current = toolActivityRef.current.map(t =>
-            t.id === call.id ? { ...t, status: 'running' as const } : t
+            t.id === call.id ? { ...t, status: 'running' as const, startTime } : t
           );
           setToolActivity(prev => prev.map(t =>
-            t.id === call.id ? { ...t, status: 'running' as const } : t
+            t.id === call.id ? { ...t, status: 'running' as const, startTime } : t
           ));
           setLoadingText(`${agentName}: ${call.name}...`);
+          setAgentPhase('tool_running');
         },
 
         // Tool finished
         onToolEnd: (call: ToolCall, result: ToolResult) => {
+          const endTime = Date.now();
           const updateFn = (t: ToolCallInfo) => t.id === call.id ? {
             ...t,
             status: result.isError ? 'error' as const : 'done' as const,
-            result: result.content.slice(0, 100)
+            result: result.content.slice(0, 100),
+            endTime
           } : t;
           toolActivityRef.current = toolActivityRef.current.map(updateFn);
           setToolActivity(prev => prev.map(updateFn));
+          setAgentPhase('analyzing');
         },
 
         // Iteration callback
@@ -3751,6 +3760,9 @@ ${result.finalSummary ? '\nSummary:\n' + result.finalSummary : ''}
               agentName={loadingAgent || 'Agent'}
               isLoading={loading}
               startTime={loadingStartTime}
+              phase={agentPhase}
+              toolCount={toolActivity.length}
+              iteration={toolIteration}
             />
           )}
 
@@ -3802,7 +3814,15 @@ ${result.finalSummary ? '\nSummary:\n' + result.finalSummary : ''}
 
       {/* Status Bar - hidden in collaboration/compare mode */}
       {mode !== 'collaboration' && mode !== 'compare' && (
-        <StatusBar agent={currentAgent} messageCount={messages.length} tokens={tokens} mcpStatus={mcpStatus} />
+        <StatusBar
+          agent={currentAgent}
+          messageCount={messages.length}
+          tokens={tokens}
+          mcpStatus={mcpStatus}
+          approvalMode={approvalMode as StatusBarApprovalMode}
+          sessionName={session?.name || session?.id?.slice(0, 8)}
+          isLoading={loading}
+        />
       )}
     </Box>
   );

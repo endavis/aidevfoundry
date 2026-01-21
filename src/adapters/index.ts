@@ -11,7 +11,7 @@ import { crushAdapter } from './crush';
 import { codexSafeCliAdapter, geminiSafeCliAdapter } from './safe-cli';
 import { factoryDroidAdapter } from './factory-ai-droid';
 import { charmCrushAdapter } from './charm-crush';
-import { openrouterAdapter, runOpenRouter } from './openrouter';
+import { openrouterAdapter, runOpenRouter, runOpenRouterStream, FAST_MODELS, listFastModels } from './openrouter';
 import { GameStateParser } from './base-game-adapter';
 import { createInteractiveAdapter, runInteractive } from './interactive-adapter';
 import { ixagentAdapter } from './ixagent';
@@ -95,6 +95,9 @@ export {
   charmCrushAdapter,
   openrouterAdapter,
   runOpenRouter,
+  runOpenRouterStream,
+  FAST_MODELS,
+  listFastModels,
   ixagentAdapter,
   GameStateParser,
   // Interactive mode support
