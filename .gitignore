@@ -43,3 +43,6 @@ tmpclaude-*
 .claude/settings.local.json
 handoff.txt
 nul
+
+# Campaign state (local orchestration data)
+.campaign/

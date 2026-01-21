@@ -118,10 +118,23 @@ interface Message {
   collaborationType?: CollaborationType;
   pipelineName?: string;
   toolCalls?: ToolCallInfo[];
+  timestamp?: number; // Unix timestamp in ms
+}
+
+// Format timestamp for display (HH:MM)
+function formatTimestamp(ts?: number): string {
+  if (!ts) return '';
+  const date = new Date(ts);
+  return date.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false });
 }
 
 let messageId = 0;
 const nextId = () => String(++messageId);
+
+// Create a message with auto-generated id and timestamp
+function createMessage(msg: Omit<Message, 'id' | 'timestamp'>): Message {
+  return { ...msg, id: nextId(), timestamp: Date.now() };
+}
 
 type AppMode = 'chat' | 'workflows' | 'sessions' | 'settings' | 'model' | 'compare' | 'collaboration' | 'agent' | 'review' | 'index' | 'observe' | 'plan' | 'trust' | 'approval-mode';
 type AgenticSubMode = 'plan' | 'build';
@@ -1234,7 +1247,7 @@ Keep your response concise and focused on the plan, not the implementation.`;
     const sessionId = session?.id;
     const currentApprovalMode = approvalMode;
 
-    setMessages(prev => [...prev, { id: nextId(), role: 'user', content: userMessage }]);
+    setMessages(prev => [...prev, { id: nextId(), role: 'user', content: userMessage, timestamp: Date.now() }]);
 
     // Save user message to session
     if (sessionId) {
@@ -1438,10 +1451,11 @@ Keep your response concise and focused on the plan, not the implementation.`;
           setAgentPhase('analyzing');
         },
 
-        // Iteration callback
+        // Iteration callback - fires at start of each iteration
         onIteration: (iteration: number) => {
           setToolIteration(iteration);
           setLoadingText(`${agentName} exploring (${iteration})...`);
+          setAgentPhase('thinking'); // Reset to thinking at start of new iteration
         },
 
         // Diff preview handler for write/edit operations (single file)
@@ -1485,6 +1499,9 @@ Keep your response concise and focused on the plan, not the implementation.`;
             agent: m.agent
           }))
       });
+
+      // Set writing phase while processing the response
+      setAgentPhase('writing');
 
       const duration = result.duration;
       let content = result.content || 'No response';
@@ -1544,7 +1561,8 @@ Keep your response concise and focused on the plan, not the implementation.`;
         agent: agentName,
         duration,
         tokens: result.tokens,
-        toolCalls: currentToolCalls.length > 0 ? currentToolCalls : undefined
+        toolCalls: currentToolCalls.length > 0 ? currentToolCalls : undefined,
+        timestamp: Date.now()
       }]);
 
       // Save assistant response to session
@@ -1571,7 +1589,8 @@ Keep your response concise and focused on the plan, not the implementation.`;
         role: 'assistant',
         content: errorMsg,
         agent: agentName,
-        toolCalls: currentToolCalls.length > 0 ? currentToolCalls : undefined
+        toolCalls: currentToolCalls.length > 0 ? currentToolCalls : undefined,
+        timestamp: Date.now()
       }]);
 
       // Save error to session
@@ -3539,10 +3558,13 @@ ${result.finalSummary ? '\nSummary:\n' + result.finalSummary : ''}
               ) : (
                 <Box key={msg.id} marginBottom={1}>
                   {msg.role === 'user' ? (
-                    <Text>
+                    <Box>
                       <Text color="green" bold>{'> '}</Text>
                       <Text>{msg.content}</Text>
-                    </Text>
+                      {msg.timestamp && (
+                        <Text dimColor> [{formatTimestamp(msg.timestamp)}]</Text>
+                      )}
+                    </Box>
                   ) : (
                     <Box flexDirection="column">
                       {/* Tool calls history from exploration */}
@@ -3576,6 +3598,9 @@ ${result.finalSummary ? '\nSummary:\n' + result.finalSummary : ''}
                           <Text dimColor> {msg.duration ? (msg.duration / 1000).toFixed(1) + 's' : '-'}</Text>
                           {msg.tokens && (
                             <Text dimColor> · {msg.tokens.input}↓ {msg.tokens.output}↑</Text>
+                          )}
+                          {msg.timestamp && (
+                            <Text dimColor> · {formatTimestamp(msg.timestamp)}</Text>
                           )}
                         </Box>
                       )}
