@@ -25,7 +25,7 @@ export async function authRoutes(fastify: FastifyInstance) {
         }
       }
     }
-  }, async (request, reply) => {
+  }, async (request, _reply) => {
     const { username, password } = request.body;
     const user = await authService.registerUser(username, password);
     return { 
@@ -58,7 +58,7 @@ export async function authRoutes(fastify: FastifyInstance) {
         }
       }
     }
-  }, async (request, reply) => {
+  }, async (request, _reply) => {
     const { username, password } = request.body;
     return authService.loginUser(username, password, fastify);
   });
@@ -85,7 +85,7 @@ export async function authRoutes(fastify: FastifyInstance) {
         }
       }
     }
-  }, async (request, reply) => {
+  }, async (request, _reply) => {
     const { refreshToken } = request.body;
     return authService.refreshTokens(refreshToken, fastify);
   });
