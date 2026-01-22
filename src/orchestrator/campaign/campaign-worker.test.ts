@@ -21,7 +21,8 @@ describe('Campaign Worker Mode Selection', () => {
     acceptanceCriteria: ['Feature works correctly'],
     assignedFiles: [],
     attempts: 0,
-    createdAt: Date.now()
+    createdAt: Date.now(),
+    updatedAt: Date.now()
   };
 
   describe('Mode Detection from EnhancedCampaignTask', () => {
@@ -281,7 +282,8 @@ describe('Task Prompt Building', () => {
       acceptanceCriteria: [],
       assignedFiles: [],
       attempts: 0,
-      createdAt: Date.now()
+      createdAt: Date.now(),
+      updatedAt: Date.now()
     };
 
     const prompt = buildTaskPrompt(task, '/test/dir');
@@ -298,7 +300,8 @@ describe('Task Prompt Building', () => {
       acceptanceCriteria: [],
       assignedFiles: [],
       attempts: 0,
-      createdAt: Date.now()
+      createdAt: Date.now(),
+      updatedAt: Date.now()
     };
 
     const prompt = buildTaskPrompt(task, '/test/dir');
@@ -314,7 +317,8 @@ describe('Task Prompt Building', () => {
       acceptanceCriteria: ['Criterion 1', 'Criterion 2'],
       assignedFiles: [],
       attempts: 0,
-      createdAt: Date.now()
+      createdAt: Date.now(),
+      updatedAt: Date.now()
     };
 
     const prompt = buildTaskPrompt(task, '/test/dir');
@@ -332,7 +336,8 @@ describe('Task Prompt Building', () => {
       acceptanceCriteria: [],
       assignedFiles: [],
       attempts: 0,
-      createdAt: Date.now()
+      createdAt: Date.now(),
+      updatedAt: Date.now()
     };
 
     const prompt = buildTaskPrompt(task, '/test/working/directory');

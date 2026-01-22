@@ -93,10 +93,26 @@ export function AgentStatus({
     return () => clearInterval(interval);
   }, [isLoading]);
 
+  // Pulse effect for summary - cycles every 100ms
+  const [pulse, setPulse] = useState(0);
+  useEffect(() => {
+    if (!isLoading || !summary) {
+      setPulse(0);
+      return;
+    }
+    const interval = setInterval(() => {
+      setPulse(p => (p + 1) % 10); // 0-9 cycle
+    }, 100);
+    return () => clearInterval(interval);
+  }, [isLoading, summary]);
+
   if (!isLoading) return null;
 
   const spinner = SPINNER_FRAMES[spinnerFrame];
   const phaseInfo = getPhaseDisplay(phase);
+
+  // Calculate pulse intensity (0.5 to 1.0)
+  const pulseDim = pulse < 5 ? (0.7 + (pulse * 0.06)) : (1.0 - ((pulse - 5) * 0.06));
 
   return (
     <Box marginTop={1} flexDirection="column">
@@ -108,10 +124,24 @@ export function AgentStatus({
         )}
         <Text dimColor> · </Text>
         {summary ? (
-          <Text color={phaseInfo.color}>{summary}</Text>
+          <Text color={phaseInfo.color} bold={pulse > 3 && pulse < 7}>
+            {pulseDim < 0.85 ? <Text dimColor>{summary}</Text> : summary}
+          </Text>
         ) : (
           <Text color={phaseInfo.color}>{phaseInfo.text}</Text>
         )}
+      </Box>
+      <Box marginLeft={2} marginBottom={summary ? 1 : 0}>
+        {/* Progress Bar HUD style */}
+        <Text dimColor>[</Text>
+        <Text color={phaseInfo.color}>
+          {'█'.repeat(Math.max(1, (spinnerFrame % 10) + 1))}
+          {'░'.repeat(10 - ((spinnerFrame % 10) + 1))}
+        </Text>
+        <Text dimColor>] </Text>
+        <Text color={phaseInfo.color} dimColor={pulseDim < 0.9}>
+          {phase.replace('_', ' ').toUpperCase()}
+        </Text>
       </Box>
       <Box marginLeft={2}>
         <Text dimColor>⏱ </Text>

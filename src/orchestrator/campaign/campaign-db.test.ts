@@ -5,8 +5,8 @@
  * criteria validation results, and metrics tracking.
  */
 
-import { describe, test, it, expect, beforeAll, afterAll, beforeEach, afterEach } from 'bun:test';
-import { initDatabase, closeDatabase, getDatabase } from '../../memory/database.js';
+import { describe, test, it, expect, beforeAll, beforeEach, afterEach } from 'bun:test';
+import { initDatabase, getDatabase } from '../../memory/database.js';
 import {
   upsertCampaignProject,
   upsertCampaignTasks,
@@ -42,7 +42,8 @@ const TEST_TASK_1: CampaignTask = {
   acceptanceCriteria: ['Criterion 1', 'Criterion 2'],
   assignedFiles: ['file1.ts'],
   attempts: 0,
-  createdAt: Date.now()
+  createdAt: Date.now(),
+  updatedAt: Date.now()
 };
 
 const TEST_TASK_2: CampaignTask = {
@@ -54,25 +55,42 @@ const TEST_TASK_2: CampaignTask = {
   acceptanceCriteria: ['Criterion A'],
   assignedFiles: ['file2.ts'],
   attempts: 1,
-  createdAt: Date.now()
+  createdAt: Date.now(),
+  updatedAt: Date.now()
 };
 
 const TEST_STATE: CampaignState = {
   campaignId: TEST_PROJECT_ID,
   goal: 'Test campaign goal',
-  status: 'active',
-  tasks: [TEST_TASK_1, TEST_TASK_2],
-  completedTaskIds: [],
-  failedTaskIds: [],
+  status: 'running',
+  version: 1,
   createdAt: Date.now(),
-  currentIteration: 0
+  updatedAt: Date.now(),
+  tasks: [TEST_TASK_1, TEST_TASK_2],
+  checkpoints: [],
+  decisions: [],
+  artifacts: [],
+  meta: {
+    planner: 'test-planner',
+    subPlanner: 'test-subplanner',
+    workers: ['test-worker'],
+    maxWorkers: 1,
+    checkpointEvery: 5,
+    freshStartEvery: 10,
+    autonomy: 'checkpoint',
+    gitMode: 'campaign-branch',
+    mergeStrategy: 'merge',
+    useDroid: false
+  }
 };
 
 const TEST_DOMAIN: CampaignDomain = {
   name: 'ui',
   goal: 'Build UI components',
-  tasks: [TEST_TASK_1.id, TEST_TASK_2.id],
-  file_patterns: ['src/ui/**/*.ts', 'src/components/**/*.tsx']
+  stories: [TEST_TASK_1.id, TEST_TASK_2.id],
+  file_patterns: ['src/ui/**/*.ts', 'src/components/**/*.tsx'],
+  status: 'pending',
+  progress_percent: 0
 };
 
 // Legacy test state for backwards compatibility
@@ -80,6 +98,9 @@ const LEGACY_STATE: CampaignState = {
   campaignId: 'campaign_test_1',
   goal: 'Test campaign',
   status: 'running',
+  version: 1,
+  createdAt: Date.now(),
+  updatedAt: Date.now(),
   tasks: [
     {
       id: 'campaign_test_task_1',
@@ -94,10 +115,21 @@ const LEGACY_STATE: CampaignState = {
       updatedAt: Date.now()
     }
   ],
-  completedTaskIds: [],
-  failedTaskIds: [],
-  createdAt: Date.now(),
-  currentIteration: 0
+  checkpoints: [],
+  decisions: [],
+  artifacts: [],
+  meta: {
+    planner: 'test-planner',
+    subPlanner: 'test-subplanner',
+    workers: ['test-worker'],
+    maxWorkers: 1,
+    checkpointEvery: 5,
+    freshStartEvery: 10,
+    autonomy: 'checkpoint',
+    gitMode: 'campaign-branch',
+    mergeStrategy: 'merge',
+    useDroid: false
+  }
 };
 
 // Initialize before tests
@@ -198,14 +230,14 @@ describe('Domain Progress', () => {
     upsertDomainProgress(
       TEST_PROJECT_ID,
       TEST_DOMAIN,
-      'active',
+      'running',
       { total: 10, completed: 3, failed: 1, inProgress: 2 },
       'campaign/test/ui'
     );
 
     const progress = getDomainProgressByName(TEST_PROJECT_ID, 'ui');
     expect(progress).toBeTruthy();
-    expect(progress!.status).toBe('active');
+    expect(progress!.status).toBe('running');
     expect(progress!.progress_percent).toBe(30);
     expect(progress!.tasks_total).toBe(10);
     expect(progress!.tasks_completed).toBe(3);
@@ -218,11 +250,13 @@ describe('Domain Progress', () => {
     const domain2: CampaignDomain = {
       name: 'api',
       goal: 'Build API endpoints',
-      tasks: [],
-      file_patterns: ['src/api/**/*.ts']
+      stories: [],
+      file_patterns: ['src/api/**/*.ts'],
+      status: 'pending',
+      progress_percent: 0
     };
 
-    upsertDomainProgress(TEST_PROJECT_ID, TEST_DOMAIN, 'active', { total: 5, completed: 2, failed: 0, inProgress: 1 });
+    upsertDomainProgress(TEST_PROJECT_ID, TEST_DOMAIN, 'running', { total: 5, completed: 2, failed: 0, inProgress: 1 });
     upsertDomainProgress(TEST_PROJECT_ID, domain2, 'pending', { total: 3, completed: 0, failed: 0, inProgress: 0 });
 
     const domains = getDomainProgress(TEST_PROJECT_ID);
@@ -238,10 +272,10 @@ describe('Domain Progress', () => {
 
   it('should update existing domain on upsert', () => {
     upsertDomainProgress(TEST_PROJECT_ID, TEST_DOMAIN, 'pending', { total: 5, completed: 0, failed: 0, inProgress: 0 });
-    upsertDomainProgress(TEST_PROJECT_ID, TEST_DOMAIN, 'active', { total: 5, completed: 2, failed: 0, inProgress: 1 });
+    upsertDomainProgress(TEST_PROJECT_ID, TEST_DOMAIN, 'running', { total: 5, completed: 2, failed: 0, inProgress: 1 });
 
     const progress = getDomainProgressByName(TEST_PROJECT_ID, 'ui');
-    expect(progress!.status).toBe('active');
+    expect(progress!.status).toBe('running');
     expect(progress!.tasks_completed).toBe(2);
   });
 });
@@ -256,11 +290,12 @@ describe('Criteria Results', () => {
     logCriteriaResult(TEST_TASK_1.id, 'entry', {
       criterion: {
         description: 'TypeScript compiles',
-        check_command: 'npm run typecheck',
-        type: 'shell'
+        check_command: 'npm run typecheck'
       },
       passed: true,
-      duration_ms: 1234
+      duration_ms: 1234,
+      exit_code: 0,
+      output: ''
     });
 
     const results = getCriteriaResults(TEST_TASK_1.id);
@@ -274,17 +309,22 @@ describe('Criteria Results', () => {
   it('should log criteria validation batch', () => {
     const validation: CriteriaValidationResult = {
       valid: false,
+      duration_ms: 7000,
       results: [
         {
-          criterion: { description: 'Tests pass', check_command: 'npm test', type: 'shell' },
+          criterion: { description: 'Tests pass', check_command: 'npm test' },
           passed: true,
-          duration_ms: 5000
+          duration_ms: 5000,
+          exit_code: 0,
+          output: ''
         },
         {
-          criterion: { description: 'Lint passes', check_command: 'npm run lint', type: 'shell' },
+          criterion: { description: 'Lint passes', check_command: 'npm run lint' },
           passed: false,
           error: 'Lint errors found',
-          duration_ms: 2000
+          duration_ms: 2000,
+          exit_code: 1,
+          output: 'Lint errors found'
         }
       ],
       failures: ['Lint errors found']
@@ -300,12 +340,18 @@ describe('Criteria Results', () => {
 
   it('should filter criteria by type', () => {
     logCriteriaResult(TEST_TASK_1.id, 'entry', {
-      criterion: { description: 'Entry check', type: 'shell' },
-      passed: true
+      criterion: { description: 'Entry check', check_command: 'true' },
+      passed: true,
+      exit_code: 0,
+      output: '',
+      duration_ms: 100
     });
     logCriteriaResult(TEST_TASK_1.id, 'exit', {
-      criterion: { description: 'Exit check', type: 'shell' },
-      passed: true
+      criterion: { description: 'Exit check', check_command: 'true' },
+      passed: true,
+      exit_code: 0,
+      output: '',
+      duration_ms: 100
     });
 
     const entryResults = getCriteriaResults(TEST_TASK_1.id, 'entry');
@@ -319,20 +365,32 @@ describe('Criteria Results', () => {
 
   it('should calculate criteria pass rate', () => {
     logCriteriaResult(TEST_TASK_1.id, 'exit', {
-      criterion: { description: 'Check 1', type: 'shell' },
-      passed: true
+      criterion: { description: 'Check 1', check_command: 'true' },
+      passed: true,
+      exit_code: 0,
+      output: '',
+      duration_ms: 100
     });
     logCriteriaResult(TEST_TASK_1.id, 'exit', {
-      criterion: { description: 'Check 2', type: 'shell' },
-      passed: true
+      criterion: { description: 'Check 2', check_command: 'true' },
+      passed: true,
+      exit_code: 0,
+      output: '',
+      duration_ms: 100
     });
     logCriteriaResult(TEST_TASK_1.id, 'exit', {
-      criterion: { description: 'Check 3', type: 'shell' },
-      passed: false
+      criterion: { description: 'Check 3', check_command: 'false' },
+      passed: false,
+      exit_code: 1,
+      output: '',
+      duration_ms: 100
     });
     logCriteriaResult(TEST_TASK_2.id, 'exit', {
-      criterion: { description: 'Check 4', type: 'shell' },
-      passed: true
+      criterion: { description: 'Check 4', check_command: 'true' },
+      passed: true,
+      exit_code: 0,
+      output: '',
+      duration_ms: 100
     });
 
     const passRate = getCriteriaPassRate(TEST_PROJECT_ID);
@@ -405,7 +463,7 @@ describe('Campaign Metrics', () => {
   });
 
   it('should get campaign metrics aggregate', () => {
-    upsertDomainProgress(TEST_PROJECT_ID, TEST_DOMAIN, 'active', { total: 5, completed: 2, failed: 0, inProgress: 1 });
+    upsertDomainProgress(TEST_PROJECT_ID, TEST_DOMAIN, 'running', { total: 5, completed: 2, failed: 0, inProgress: 1 });
 
     const metrics = getCampaignMetrics(TEST_PROJECT_ID);
 
@@ -422,12 +480,26 @@ describe('Campaign Metrics', () => {
     const emptyState: CampaignState = {
       campaignId: emptyProjectId,
       goal: 'Empty project',
-      status: 'active',
-      tasks: [],
-      completedTaskIds: [],
-      failedTaskIds: [],
+      status: 'running',
+      version: 1,
       createdAt: Date.now(),
-      currentIteration: 0
+      updatedAt: Date.now(),
+      tasks: [],
+      checkpoints: [],
+      decisions: [],
+      artifacts: [],
+      meta: {
+        planner: 'test-planner',
+        subPlanner: 'test-subplanner',
+        workers: ['test-worker'],
+        maxWorkers: 1,
+        checkpointEvery: 5,
+        freshStartEvery: 10,
+        autonomy: 'checkpoint',
+        gitMode: 'campaign-branch',
+        mergeStrategy: 'merge',
+        useDroid: false
+      }
     };
     upsertCampaignProject(emptyState, null);
 
@@ -440,7 +512,7 @@ describe('Campaign Metrics', () => {
     updateTaskDomain(TEST_TASK_1.id, 'ui');
     updateTaskDomain(TEST_TASK_2.id, 'ui');
     updateTaskTiming(TEST_TASK_2.id, { durationMs: 3000 });
-    upsertDomainProgress(TEST_PROJECT_ID, TEST_DOMAIN, 'active', { total: 2, completed: 1, failed: 0, inProgress: 0 });
+    upsertDomainProgress(TEST_PROJECT_ID, TEST_DOMAIN, 'running', { total: 2, completed: 1, failed: 0, inProgress: 0 });
 
     const domainMetrics = getDomainMetricsByName(TEST_PROJECT_ID, 'ui');
 
@@ -454,11 +526,13 @@ describe('Campaign Metrics', () => {
     const domain2: CampaignDomain = {
       name: 'api',
       goal: 'Build API',
-      tasks: [],
-      file_patterns: ['src/api/**/*.ts']
+      stories: [],
+      file_patterns: ['src/api/**/*.ts'],
+      status: 'pending',
+      progress_percent: 0
     };
 
-    upsertDomainProgress(TEST_PROJECT_ID, TEST_DOMAIN, 'active', { total: 2, completed: 1, failed: 0, inProgress: 0 });
+    upsertDomainProgress(TEST_PROJECT_ID, TEST_DOMAIN, 'running', { total: 2, completed: 1, failed: 0, inProgress: 0 });
     upsertDomainProgress(TEST_PROJECT_ID, domain2, 'pending', { total: 3, completed: 0, failed: 0, inProgress: 0 });
 
     const allMetrics = getAllDomainMetrics(TEST_PROJECT_ID);
@@ -499,7 +573,7 @@ describe('Record Domain Metric', () => {
   beforeEach(() => {
     upsertCampaignProject(TEST_STATE, null);
     upsertCampaignTasks(TEST_STATE);
-    upsertDomainProgress(TEST_PROJECT_ID, TEST_DOMAIN, 'active', { total: 2, completed: 0, failed: 0, inProgress: 1 });
+    upsertDomainProgress(TEST_PROJECT_ID, TEST_DOMAIN, 'running', { total: 2, completed: 0, failed: 0, inProgress: 1 });
   });
 
   it('should record domain metric', () => {

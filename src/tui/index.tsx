@@ -88,6 +88,7 @@ import {
 } from '../observation';
 import { addMemory } from '../memory/vector-store';
 import { buildInjectionForAgent } from '../memory/injector';
+import { getSummaryGenerator } from '../lib/summary-generator';
 import {
   indexCodebase,
   getIndexSummary,
@@ -102,7 +103,6 @@ import {
 import { globSync } from 'glob';
 import { usePersistentState } from './hooks/usePersistentState';
 import { runCampaign, type CampaignOptions } from '../orchestrator/campaign/campaign-engine';
-import { getSummaryGenerator } from '../lib/summary-generator';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const pkg = JSON.parse(readFileSync(join(__dirname, '../../package.json'), 'utf-8'));
@@ -3137,664 +3137,735 @@ ${result.finalSummary ? '\nSummary:\n' + result.finalSummary : ''}
   };
 
   const isFirstMessage = messages.length === 0;
+  const terminalHeight = (process.stdout.rows || 24);
+  const hudHeight = 9; // Lines reserved for HUD
 
   return (
-    <Box flexDirection="column" padding={1}>
-      {/* Banner */}
-      <Banner version={pkg.version} agents={agentStatus} />
+    <Box flexDirection="column" height={terminalHeight} paddingX={1}>
+      {/* Main Content Area - Flexible height */}
+      <Box flexDirection="column" flexGrow={1} overflow="hidden">
+        <Banner version={pkg.version} agents={agentStatus} />
 
-      {/* Update Prompt */}
-      {showUpdatePrompt && updateInfo && (
-        <UpdatePrompt
-          currentVersion={updateInfo.current}
-          latestVersion={updateInfo.latest}
-          onUpdate={handleUpdate}
-          onSkip={handleSkipUpdate}
-        />
-      )}
-
-      {/* Trust Prompt - shown before anything else when directory is not trusted */}
-      {mode === 'trust' && (
-        <TrustPrompt
-          directory={process.cwd()}
-          onTrust={handleTrust}
-          onExit={handleTrustExit}
-        />
-      )}
-
-      {mode === 'chat' && (
-        isFirstMessage && <WelcomeMessage />
-      )}
-
-      {/* Workflows Mode */}
-      {mode === 'workflows' && (
-        <WorkflowsManager
-          onBack={() => setMode('chat')}
-          onRun={handleWorkflowRun}
-        />
-      )}
-
-      {/* Sessions Mode */}
-      {mode === 'sessions' && (
-        <SessionsManager
-          onBack={() => setMode('chat')}
-          onLoadSession={handleLoadSession}
-          currentAgent={currentAgent}
-        />
-      )}
-
-      {/* Settings Mode */}
-      {mode === 'settings' && (
-        <SettingsPanel
-          onBack={() => setMode('chat')}
-          version={pkg.version}
-          currentAgent={currentAgent}
-          routerAgent={currentRouter}
-          plannerAgent={currentPlanner}
-          session={session}
-          sequential={sequential}
-          pick={pick}
-          autoExecute={executeMode}
-          interactive={interactive}
-          onToggleSequential={() => setSequential(s => !s)}
-          onTogglePick={() => setPick(p => !p)}
-          onToggleExecute={() => setExecuteMode(e => !e)}
-          onToggleInteractive={() => setInteractive(i => !i)}
-          correctFix={correctFix}
-          debateRounds={debateRounds}
-          debateModerator={debateModerator}
-          consensusRounds={consensusRounds}
-          consensusSynthesizer={consensusSynthesizer}
-          onToggleCorrectFix={() => setCorrectFix(f => !f)}
-          onSetDebateRounds={setDebateRounds}
-          onSetDebateModerator={setDebateModerator}
-          onSetConsensusRounds={setConsensusRounds}
-          onSetConsensusSynthesizer={setConsensusSynthesizer}
-        />
-      )}
-
-      {/* Model Selection Mode */}
-      {mode === 'model' && (
-        <ModelPanel
-          onBack={() => setMode('chat')}
-          claudeModel={claudeModel}
-          geminiModel={geminiModel}
-          codexModel={codexModel}
-          ollamaModel={ollamaModel}
-          mistralModel={mistralModel}
-          factoryModel={factoryModel}
-          onSetClaudeModel={handleSetClaudeModel}
-          onSetGeminiModel={handleSetGeminiModel}
-          onSetCodexModel={handleSetCodexModel}
-          onSetOllamaModel={handleSetOllamaModel}
-          onSetMistralModel={handleSetMistralModel}
-          onSetFactoryModel={handleSetFactoryModel}
-        />
-      )}
-
-      {/* Agent Selection Mode */}
-      {mode === 'agent' && (
-        <AgentPanel
-          currentAgent={currentAgent}
-          agentStatus={agentStatus}
-          onSelect={(agent) => {
-            setCurrentAgent(agent);
-            setMode('chat');
-            setNotification('Agent set to: ' + agent);
-            setTimeout(() => setNotification(null), 2000);
-          }}
-          onBack={() => setMode('chat')}
-        />
-      )}
-
-      {/* Approval Mode Selection */}
-      {mode === 'approval-mode' && (
-        <ApprovalModePanel
-          currentMode={approvalMode}
-          onSelect={(selectedMode) => {
-            setApprovalMode(selectedMode);
-            setMode('chat');
-            const modeNames: Record<ApprovalMode, string> = {
-              default: 'Default',
-              plan: 'Plan (no execution)',
-              accept: 'Accept Edits (auto-apply)',
-              yolo: 'YOLO (full auto)'
-            };
-            setNotification('Approval mode: ' + modeNames[selectedMode]);
-            setTimeout(() => setNotification(null), 2000);
-          }}
-          onBack={() => setMode('chat')}
-        />
-      )}
-
-      {/* Index Mode */}
-      {mode === 'index' && (
-        <IndexPanel
-          onSelect={(option) => {
-            setMode('chat');
-            if (option === 'search') {
-              setInput('/index search ');
-              setInputKey(k => k + 1);
-            } else if (option === 'context') {
-              setInput('/index context ');
-              setInputKey(k => k + 1);
-            } else if (option === 'config') {
-              // Show config immediately
-              setMessages(prev => [...prev, { id: nextId(), role: 'user', content: '/index config' }]);
-              try {
-                const config = detectProjectConfig(process.cwd());
-                if (config.configFiles.length === 0) {
-                  setMessages(prev => [...prev, { id: nextId(), role: 'assistant', content: 'No project configuration files found.\n\nSupported: AGENTS.md, CLAUDE.md, .cursorrules, copilot-instructions.md', agent: 'system' }]);
-                } else {
-                  setMessages(prev => [...prev, { id: nextId(), role: 'assistant', content: 'Project Configuration:\n' + getConfigSummary(config), agent: 'system' }]);
-                }
-              } catch (err) {
-                setMessages(prev => [...prev, { id: nextId(), role: 'assistant', content: 'Config error: ' + (err as Error).message, agent: 'system' }]);
-              }
-            } else if (option === 'graph') {
-              // Build and show graph - defer to allow UI update
-              setMessages(prev => [...prev, { id: nextId(), role: 'user', content: '/index graph' }]);
-              setLoading(true);
-              setLoadingText('building dependency graph...');
-              setTimeout(async () => {
-                try {
-                  const rootDir = process.cwd();
-                  const files = globSync('**/*.{ts,tsx,js,jsx}', {
-                    cwd: rootDir,
-                    absolute: true,
-                    ignore: ['**/node_modules/**', '**/dist/**', '**/build/**']
-                  }).slice(0, 500);
-                  const structures = parseFiles(files, rootDir);
-                  const graph = buildDependencyGraph(structures, rootDir);
-                  setMessages(prev => [...prev, { id: nextId(), role: 'assistant', content: 'Dependency Graph:\n' + getGraphSummary(graph), agent: 'system' }]);
-                } catch (err) {
-                  setMessages(prev => [...prev, { id: nextId(), role: 'assistant', content: 'Graph error: ' + (err as Error).message, agent: 'system' }]);
-                }
-                setLoading(false);
-              }, 50);
-            } else {
-              // full or quick index - defer to allow UI update
-              const isQuick = option === 'quick';
-              setMessages(prev => [...prev, { id: nextId(), role: 'user', content: `/index ${isQuick ? 'quick' : 'full'}` }]);
-              setLoading(true);
-              setLoadingText(`indexing codebase${isQuick ? ' (quick)' : ' with embeddings'}...`);
-              setTimeout(async () => {
-                try {
-                  const result = await indexCodebase(process.cwd(), { skipEmbedding: isQuick });
-                  const summary = getIndexSummary(result);
-                  let msg = summary;
-                  if (result.config.configFiles.length > 0) {
-                    msg += '\n\nProject Config:\n' + getConfigSummary(result.config);
-                  }
-                  setMessages(prev => [...prev, { id: nextId(), role: 'assistant', content: msg, agent: 'system' }]);
-                } catch (err) {
-                  setMessages(prev => [...prev, { id: nextId(), role: 'assistant', content: 'Index error: ' + (err as Error).message, agent: 'system' }]);
-                }
-                setLoading(false);
-              }, 50);
-            }
-          }}
-          onBack={() => setMode('chat')}
-        />
-      )}
-
-      {/* Observe Mode */}
-      {mode === 'observe' && (
-        <ObservePanel
-          onSelect={(option) => {
-            setMode('chat');
-            if (option === 'summary') {
-              // Show summary immediately
-              setMessages(prev => [...prev, { id: nextId(), role: 'user', content: '/observe summary' }]);
-              try {
-                const summary = getExportSummary({});
-                let msg = 'All Observations:\n' + '─'.repeat(40) + '\n';
-                msg += `Total observations: ${summary.observations}\n`;
-                msg += `Preference pairs: ${summary.preferencePairs}`;
-                if (Object.keys(summary.bySignalType).length > 0) {
-                  msg += '\n\nBy signal type:';
-                  for (const [type, count] of Object.entries(summary.bySignalType)) {
-                    msg += `\n  ${type}: ${count}`;
-                  }
-                }
-                setMessages(prev => [...prev, { id: nextId(), role: 'assistant', content: msg, agent: 'system' }]);
-              } catch (err) {
-                setMessages(prev => [...prev, { id: nextId(), role: 'assistant', content: 'Summary error: ' + (err as Error).message, agent: 'system' }]);
-              }
-            } else if (option === 'list') {
-              // Show recent observations
-              setMessages(prev => [...prev, { id: nextId(), role: 'user', content: '/observe list' }]);
-              try {
-                const observations = getRecentObservations({ limit: 10 });
-                if (observations.length === 0) {
-                  setMessages(prev => [...prev, { id: nextId(), role: 'assistant', content: 'No observations found.', agent: 'system' }]);
-                } else {
-                  let msg = 'Recent Observations:\n' + '─'.repeat(40) + '\n';
-                  observations.forEach((obs, i) => {
-                    const date = new Date(obs.timestamp).toLocaleString();
-                    const prompt = obs.prompt?.slice(0, 60) || '(no prompt)';
-                    msg += `${i + 1}. [${date}] ${obs.agent}/${obs.model}\n`;
-                    msg += `   ${obs.tokensIn || 0} in / ${obs.tokensOut || 0} out | ${obs.durationMs || 0}ms\n`;
-                    msg += `   ${prompt}${obs.prompt && obs.prompt.length > 60 ? '...' : ''}\n\n`;
-                  });
-                  setMessages(prev => [...prev, { id: nextId(), role: 'assistant', content: msg.trim(), agent: 'system' }]);
-                }
-              } catch (err) {
-                setMessages(prev => [...prev, { id: nextId(), role: 'assistant', content: 'List error: ' + (err as Error).message, agent: 'system' }]);
-              }
-            } else if (option === 'export') {
-              // Export to file
-              setMessages(prev => [...prev, { id: nextId(), role: 'user', content: '/observe export' }]);
-              try {
-                const result = exportObservations({
-                  outputPath: 'observations.jsonl',
-                  format: 'jsonl',
-                  limit: 10000,
-                  includeContent: true
-                });
-                if (result.success) {
-                  setMessages(prev => [...prev, { id: nextId(), role: 'assistant', content: `Exported ${result.count} observations to ${result.path}`, agent: 'system' }]);
-                } else {
-                  setMessages(prev => [...prev, { id: nextId(), role: 'assistant', content: `Export failed: ${result.error}`, agent: 'system' }]);
-                }
-              } catch (err) {
-                setMessages(prev => [...prev, { id: nextId(), role: 'assistant', content: 'Export error: ' + (err as Error).message, agent: 'system' }]);
-              }
-            } else if (option === 'preferences') {
-              // Export preference pairs
-              setMessages(prev => [...prev, { id: nextId(), role: 'user', content: '/observe preferences' }]);
-              try {
-                const result = exportPreferencePairs({
-                  outputPath: 'preferences.jsonl',
-                  format: 'jsonl',
-                  limit: 10000
-                });
-                if (result.success) {
-                  setMessages(prev => [...prev, { id: nextId(), role: 'assistant', content: `Exported ${result.count} preference pairs to ${result.path}`, agent: 'system' }]);
-                } else {
-                  setMessages(prev => [...prev, { id: nextId(), role: 'assistant', content: `Export failed: ${result.error}`, agent: 'system' }]);
-                }
-              } catch (err) {
-                setMessages(prev => [...prev, { id: nextId(), role: 'assistant', content: 'Export error: ' + (err as Error).message, agent: 'system' }]);
-              }
-            }
-          }}
-          onBack={() => setMode('chat')}
-        />
-      )}
-
-      {/* Edit Review Mode */}
-      {mode === 'review' && (
-        <DiffReview
-          edits={proposedEdits}
-          onComplete={(result) => {
-            // Log review decision to observation
-            if (currentObservationId !== null) {
-              // Build final files record from accepted edits
-              const finalFiles: Record<string, string> = {};
-              for (const edit of proposedEdits) {
-                const content = edit.proposedContent || (edit as any).newContent;
-                if (result.accepted.includes(edit.filePath) && content) {
-                  finalFiles[edit.filePath] = content;
-                }
-              }
-
-              logReviewDecision(currentObservationId, {
-                acceptedFiles: result.accepted,
-                rejectedFiles: result.rejected,
-                finalFiles: Object.keys(finalFiles).length > 0 ? finalFiles : undefined
-              });
-
-              // Complete observation (saves to memory)
-              completeObservation(currentObservationId);
-              setCurrentObservationId(null);
-              setCurrentAgenticResult(null);
-            }
-
-            const summary: string[] = [];
-            if (result.accepted.length > 0) {
-              summary.push('Applied ' + result.accepted.length + ' file(s)');
-            }
-            if (result.rejected.length > 0) {
-              summary.push('Rejected ' + result.rejected.length + ' file(s)');
-            }
-            if (result.skipped.length > 0) {
-              summary.push('Skipped ' + result.skipped.length + ' file(s)');
-            }
-            setMessages(prev => [...prev, {
-              id: nextId(),
-              role: 'assistant',
-              content: summary.join(', ') || 'Review complete',
-              agent: 'review'
-            }]);
-            setProposedEdits([]);
-            setMode('chat');
-            // Reset input to fix cursor issues when returning to chat
-            setInput('');
-            setInputKey(k => k + 1);
-          }}
-          onCancel={() => {
-            // Log cancellation as full rejection
-            if (currentObservationId !== null) {
-              const allPaths = proposedEdits.map(e => e.filePath);
-              logReviewDecision(currentObservationId, {
-                rejectedFiles: allPaths
-              });
-              completeObservation(currentObservationId);
-              setCurrentObservationId(null);
-              setCurrentAgenticResult(null);
-            }
-
-            setMessages(prev => [...prev, {
-              id: nextId(),
-              role: 'assistant',
-              content: 'Review cancelled',
-              agent: 'review'
-            }]);
-            setProposedEdits([]);
-            setMode('chat');
-            // Reset input to fix cursor issues when returning to chat
-            setInput('');
-            setInputKey(k => k + 1);
-          }}
-        />
-      )}
-
-      {/* Chat Mode (also shows compare/collaboration results inline) */}
-      {(mode === 'chat' || mode === 'plan' || mode === 'compare' || mode === 'collaboration') && (
-        <>
-          {/* Messages - hide when active compare/collaboration to prevent terminal scroll */}
-          {(mode === 'chat' || mode === 'plan') && (
-            <Box flexDirection="column" marginBottom={1} width="100%">
-              {messages.map((msg) => (
-                msg.role === 'compare' && msg.compareResults ? (
-                  // Compact view for historical compare results (like collaboration)
-                  <Box key={msg.id} flexDirection="column" width="100%">
-                    <Text color="#fc8657">─── <Text bold>Compare</Text> <Text color="gray">[completed]</Text> ───</Text>
-                    <Box height={1} />
-                    <Box flexDirection="row" width="100%">
-                      {msg.compareResults.map((result, i) => {
-                        const isError = !!result.error;
-                        const content = result.content || result.error || 'No response';
-                        // Truncate to 3 lines
-                        const lines = content.split('\n').slice(0, 3);
-                        const truncated = content.split('\n').length > 3;
-                        const remaining = content.split('\n').length - 3;
-                        const displayText = lines.join('\n');
-
-                        return (
-                          <Box
-                            key={i}
-                            flexDirection="column"
-                            borderStyle="round"
-                            borderColor={isError ? 'red' : 'gray'}
-                            flexGrow={1}
-                            flexBasis={0}
-                            minWidth={25}
-                            marginRight={i < msg.compareResults!.length - 1 ? 1 : 0}
-                          >
-                            {/* Header */}
-                            <Box paddingX={1}>
-                              <Text bold color="#06ba9e">{result.agent}</Text>
-                              {isError && <Text color="red"> ✗</Text>}
-                              {result.duration && <Text dimColor> {(result.duration / 1000).toFixed(1)}s</Text>}
-                            </Box>
-
-                            {/* Content */}
-                            <Box paddingX={1} paddingY={1}>
-                              <Text color={isError ? 'red' : 'gray'} wrap="wrap">
-                                {displayText}
-                              </Text>
-                              {truncated && (
-                                <Text dimColor> [+{remaining} lines]</Text>
-                              )}
-                            </Box>
-                          </Box>
-                        );
-                      })}
-                    </Box>
-                    <Box marginTop={1}>
-                      <Text dimColor>Press </Text>
-                      <Text color="#fc8657">Ctrl+E</Text>
-                      <Text dimColor> to expand this compare result</Text>
-                    </Box>
-                  </Box>
-                ) : msg.role === 'collaboration' && msg.collaborationSteps ? (
-                  // Static render for historical collaboration results
-                  <CollaborationView
-                    key={msg.id}
-                    type={msg.collaborationType || 'correct'}
-                    steps={msg.collaborationSteps}
-                    onExit={() => { }}
-                    interactive={false}
-                    pipelineName={msg.pipelineName}
-                  />
-                ) : (
-                  <Box key={msg.id} marginBottom={1}>
-                    {msg.role === 'user' ? (
-                      <Box>
-                        <Text color="green" bold>{'> '}</Text>
-                        <Text>{msg.content}</Text>
-                        {msg.timestamp && (
-                          <Text dimColor> [{formatTimestamp(msg.timestamp)}]</Text>
-                        )}
-                      </Box>
-                    ) : (
-                      <Box flexDirection="column">
-                        {/* Tool calls history from exploration */}
-                        {msg.toolCalls && msg.toolCalls.length > 0 && (
-                          <ToolActivity calls={msg.toolCalls} iteration={0} />
-                        )}
-                        {msg.agent === 'autopilot' ? (
-                          <Text>
-                            <Text color="#fc8657">──</Text>
-                            <Text bold color="#06ba9e"> {msg.agent} </Text>
-                            <Text color="yellow">[Autopilot Mode]</Text>
-                            <Text color="#fc8657"> ──</Text>
-                          </Text>
-                        ) : msg.agent && (
-                          <>
-                            <Text>
-                              <Text dimColor>{'─'.repeat(2)} </Text>
-                              <Text bold color="#06ba9e">{msg.agent}</Text>
-                              <Text dimColor> </Text>
-                              <Text color="#666666">[Single]</Text>
-                              <Text dimColor> </Text>
-                              <Text color="#888888">{currentAgent === 'auto' ? 'auto' : 'selected'}</Text>
-                            </Text>
-                            <Text dimColor>{'─'.repeat(Math.floor(((process.stdout.columns || 80) - 2) * 0.8))}</Text>
-                          </>
-                        )}
-                        <Text wrap="wrap">{msg.content}</Text>
-                        {msg.agent && msg.agent !== 'autopilot' && (
-                          <Box marginTop={1}>
-                            <Text color="green">●</Text>
-                            <Text dimColor> {msg.duration ? (msg.duration / 1000).toFixed(1) + 's' : '-'}</Text>
-                            {msg.tokens && (
-                              <Text dimColor> · {msg.tokens.input}↓ {msg.tokens.output}↑</Text>
-                            )}
-                            {msg.timestamp && (
-                              <Text dimColor> · {formatTimestamp(msg.timestamp)}</Text>
-                            )}
-                          </Box>
-                        )}
-                      </Box>
-                    )}
-                  </Box>
-                )
-              ))}
-            </Box>
-          )}
-
-          {/* Background Loading Indicator - shows when compare/collaboration hidden but still loading */}
-          {(mode === 'chat' || mode === 'plan') && (hasHiddenCompareLoading || hasHiddenCollaborationLoading) && (
-            <Box flexDirection="column" marginBottom={1}>
-              <Text color="#fc8657">─── <Text bold>{hasHiddenCompareLoading ? 'Compare' : 'Collaboration'}</Text> <Text color="yellow">[running]</Text> ───</Text>
-              <Box height={1} />
-              <Box flexDirection="row" width="100%">
-                {hasHiddenCompareLoading && compareResults.map((result, i) => (
-                  <Box
-                    key={i}
-                    flexDirection="column"
-                    borderStyle="round"
-                    borderColor={result.loading ? 'yellow' : result.error ? 'red' : 'gray'}
-                    flexGrow={1}
-                    flexBasis={0}
-                    minWidth={25}
-                    marginRight={i < compareResults.length - 1 ? 1 : 0}
-                  >
-                    <Box paddingX={1}>
-                      <Text bold color="#06ba9e">{result.agent}</Text>
-                      {result.loading && <Text color="yellow"> ⏳</Text>}
-                      {!result.loading && !result.error && <Text color="green"> ✓</Text>}
-                      {result.error && <Text color="red"> ✗</Text>}
-                    </Box>
-                    <Box paddingX={1} paddingY={1}>
-                      <Text color="gray">
-                        {result.loading ? 'Loading...' : result.error ? 'Error' : (result.content || '').split('\n').slice(0, 2).join('\n').slice(0, 60) + '...'}
-                      </Text>
-                    </Box>
-                  </Box>
-                ))}
-                {hasHiddenCollaborationLoading && collaborationSteps.slice(0, 3).map((step, i) => (
-                  <Box
-                    key={i}
-                    flexDirection="column"
-                    borderStyle="round"
-                    borderColor={step.loading ? 'yellow' : step.error ? 'red' : 'gray'}
-                    flexGrow={1}
-                    flexBasis={0}
-                    minWidth={25}
-                    marginRight={i < Math.min(collaborationSteps.length, 3) - 1 ? 1 : 0}
-                  >
-                    <Box paddingX={1}>
-                      <Text bold color="#06ba9e">{step.agent}</Text>
-                      <Text dimColor> [{step.role}]</Text>
-                      {step.loading && <Text color="yellow"> ⏳</Text>}
-                      {!step.loading && !step.error && <Text color="green"> ✓</Text>}
-                      {step.error && <Text color="red"> ✗</Text>}
-                    </Box>
-                    <Box paddingX={1} paddingY={1}>
-                      <Text color="gray">
-                        {step.loading ? 'Loading...' : step.error ? 'Error' : (step.content || '').split('\n').slice(0, 2).join('\n').slice(0, 60) + '...'}
-                      </Text>
-                    </Box>
-                  </Box>
-                ))}
-              </Box>
-              {hasHiddenCollaborationLoading && collaborationSteps.length > 3 && (
-                <Text dimColor>  +{collaborationSteps.length - 3} more steps</Text>
-              )}
-              <Box marginTop={1}>
-                <Text dimColor>Press </Text>
-                <Text color="#fc8657">Ctrl+E</Text>
-                <Text dimColor> to expand | </Text>
-                <Text color="red">Ctrl+C</Text>
-                <Text dimColor> to cancel</Text>
-              </Box>
-            </Box>
-          )}
-
-          {/* Compare View (inline) */}
-          {mode === 'compare' && (
-            <>
-              {messages.length > 0 && (
-                <Box marginBottom={1}>
-                  <Text dimColor>({messages.length} messages hidden - Esc to return to chat)</Text>
-                </Box>
-              )}
-              <CompareView
-                key={compareKey}
-                results={compareResults}
-                onExit={saveCompareToHistory}
-              />
-            </>
-          )}
-
-          {/* Collaboration View (inline) */}
-          {mode === 'collaboration' && (
-            <>
-              {messages.length > 0 && (
-                <Box marginBottom={1}>
-                  <Text dimColor>({messages.length} messages hidden - Esc to return to chat)</Text>
-                </Box>
-              )}
-              <CollaborationView
-                key={collaborationKey}
-                type={collaborationType}
-                steps={collaborationSteps}
-                onExit={saveCollaborationToHistory}
-                onAction={['consensus', 'debate', 'correct'].includes(collaborationType) ? handleCollaborationAction : undefined}
-                pipelineName={pipelineName}
-              />
-            </>
-          )}
-
-          {/* Tool Activity (shows when agent is using tools) */}
-          {loading && toolActivity.length > 0 && (
-            <ToolActivity calls={toolActivity} iteration={toolIteration} expanded={toolsExpanded} />
-          )}
-
-          {/* Permission Prompt (shows when tool needs user approval) */}
-          {pendingPermission && (
-            <PermissionPrompt
-              request={pendingPermission.request}
-              onDecision={handlePermissionDecision}
+        {/* Update Prompt */}
+        {
+          showUpdatePrompt && updateInfo && (
+            <UpdatePrompt
+              currentVersion={updateInfo.current}
+              latestVersion={updateInfo.latest}
+              onUpdate={handleUpdate}
+              onSkip={handleSkipUpdate}
             />
-          )}
+          )
+        }
 
-          {/* Diff Preview - Single file (shows for write/edit operations) */}
-          {pendingDiffPreview && !pendingBatchPreview && (
-            <SingleFileDiff
-              filePath={pendingDiffPreview.filePath}
-              operation={pendingDiffPreview.operation}
-              originalContent={pendingDiffPreview.originalContent}
-              newContent={pendingDiffPreview.newContent}
-              onDecision={(decision) => {
-                pendingDiffPreview.resolve(decision);
-                setPendingDiffPreview(null);
+        {/* Trust Prompt - shown before anything else when directory is not trusted */}
+        {
+          mode === 'trust' && (
+            <TrustPrompt
+              directory={process.cwd()}
+              onTrust={handleTrust}
+              onExit={handleTrustExit}
+            />
+          )
+        }
+
+        {
+          mode === 'chat' && (
+            isFirstMessage && <WelcomeMessage />
+          )
+        }
+
+        {/* Workflows Mode */}
+        {
+          mode === 'workflows' && (
+            <WorkflowsManager
+              onBack={() => setMode('chat')}
+              onRun={handleWorkflowRun}
+            />
+          )
+        }
+
+        {/* Sessions Mode */}
+        {
+          mode === 'sessions' && (
+            <SessionsManager
+              onBack={() => setMode('chat')}
+              onLoadSession={handleLoadSession}
+              currentAgent={currentAgent}
+            />
+          )
+        }
+
+        {/* Settings Mode */}
+        {
+          mode === 'settings' && (
+            <SettingsPanel
+              onBack={() => setMode('chat')}
+              version={pkg.version}
+              currentAgent={currentAgent}
+              routerAgent={currentRouter}
+              plannerAgent={currentPlanner}
+              session={session}
+              sequential={sequential}
+              pick={pick}
+              autoExecute={executeMode}
+              interactive={interactive}
+              onToggleSequential={() => setSequential(s => !s)}
+              onTogglePick={() => setPick(p => !p)}
+              onToggleExecute={() => setExecuteMode(e => !e)}
+              onToggleInteractive={() => setInteractive(i => !i)}
+              correctFix={correctFix}
+              debateRounds={debateRounds}
+              debateModerator={debateModerator}
+              consensusRounds={consensusRounds}
+              consensusSynthesizer={consensusSynthesizer}
+              onToggleCorrectFix={() => setCorrectFix(f => !f)}
+              onSetDebateRounds={setDebateRounds}
+              onSetDebateModerator={setDebateModerator}
+              onSetConsensusRounds={setConsensusRounds}
+              onSetConsensusSynthesizer={setConsensusSynthesizer}
+            />
+          )
+        }
+
+        {/* Model Selection Mode */}
+        {
+          mode === 'model' && (
+            <ModelPanel
+              onBack={() => setMode('chat')}
+              claudeModel={claudeModel}
+              geminiModel={geminiModel}
+              codexModel={codexModel}
+              ollamaModel={ollamaModel}
+              mistralModel={mistralModel}
+              factoryModel={factoryModel}
+              onSetClaudeModel={handleSetClaudeModel}
+              onSetGeminiModel={handleSetGeminiModel}
+              onSetCodexModel={handleSetCodexModel}
+              onSetOllamaModel={handleSetOllamaModel}
+              onSetMistralModel={handleSetMistralModel}
+              onSetFactoryModel={handleSetFactoryModel}
+            />
+          )
+        }
+
+        {/* Agent Selection Mode */}
+        {
+          mode === 'agent' && (
+            <AgentPanel
+              currentAgent={currentAgent}
+              agentStatus={agentStatus}
+              onSelect={(agent) => {
+                setCurrentAgent(agent);
+                setMode('chat');
+                setNotification('Agent set to: ' + agent);
+                setTimeout(() => setNotification(null), 2000);
               }}
+              onBack={() => setMode('chat')}
             />
-          )}
+          )
+        }
 
-          {/* Diff Preview - Batch (multiple files) */}
-          {pendingBatchPreview && (
+        {/* Approval Mode Selection */}
+        {
+          mode === 'approval-mode' && (
+            <ApprovalModePanel
+              currentMode={approvalMode}
+              onSelect={(selectedMode) => {
+                setApprovalMode(selectedMode);
+                setMode('chat');
+                const modeNames: Record<ApprovalMode, string> = {
+                  default: 'Default',
+                  plan: 'Plan (no execution)',
+                  accept: 'Accept Edits (auto-apply)',
+                  yolo: 'YOLO (full auto)'
+                };
+                setNotification('Approval mode: ' + modeNames[selectedMode]);
+                setTimeout(() => setNotification(null), 2000);
+              }}
+              onBack={() => setMode('chat')}
+            />
+          )
+        }
+
+        {/* Index Mode */}
+        {
+          mode === 'index' && (
+            <IndexPanel
+              onSelect={(option) => {
+                setMode('chat');
+                if (option === 'search') {
+                  setInput('/index search ');
+                  setInputKey(k => k + 1);
+                } else if (option === 'context') {
+                  setInput('/index context ');
+                  setInputKey(k => k + 1);
+                } else if (option === 'config') {
+                  // Show config immediately
+                  setMessages(prev => [...prev, { id: nextId(), role: 'user', content: '/index config' }]);
+                  try {
+                    const config = detectProjectConfig(process.cwd());
+                    if (config.configFiles.length === 0) {
+                      setMessages(prev => [...prev, { id: nextId(), role: 'assistant', content: 'No project configuration files found.\n\nSupported: AGENTS.md, CLAUDE.md, .cursorrules, copilot-instructions.md', agent: 'system' }]);
+                    } else {
+                      setMessages(prev => [...prev, { id: nextId(), role: 'assistant', content: 'Project Configuration:\n' + getConfigSummary(config), agent: 'system' }]);
+                    }
+                  } catch (err) {
+                    setMessages(prev => [...prev, { id: nextId(), role: 'assistant', content: 'Config error: ' + (err as Error).message, agent: 'system' }]);
+                  }
+                } else if (option === 'graph') {
+                  // Build and show graph - defer to allow UI update
+                  setMessages(prev => [...prev, { id: nextId(), role: 'user', content: '/index graph' }]);
+                  setLoading(true);
+                  setLoadingText('building dependency graph...');
+                  setTimeout(async () => {
+                    try {
+                      const rootDir = process.cwd();
+                      const files = globSync('**/*.{ts,tsx,js,jsx}', {
+                        cwd: rootDir,
+                        absolute: true,
+                        ignore: ['**/node_modules/**', '**/dist/**', '**/build/**']
+                      }).slice(0, 500);
+                      const structures = parseFiles(files, rootDir);
+                      const graph = buildDependencyGraph(structures, rootDir);
+                      setMessages(prev => [...prev, { id: nextId(), role: 'assistant', content: 'Dependency Graph:\n' + getGraphSummary(graph), agent: 'system' }]);
+                    } catch (err) {
+                      setMessages(prev => [...prev, { id: nextId(), role: 'assistant', content: 'Graph error: ' + (err as Error).message, agent: 'system' }]);
+                    }
+                    setLoading(false);
+                  }, 50);
+                } else {
+                  // full or quick index - defer to allow UI update
+                  const isQuick = option === 'quick';
+                  setMessages(prev => [...prev, { id: nextId(), role: 'user', content: `/index ${isQuick ? 'quick' : 'full'}` }]);
+                  setLoading(true);
+                  setLoadingText(`indexing codebase${isQuick ? ' (quick)' : ' with embeddings'}...`);
+                  setTimeout(async () => {
+                    try {
+                      const result = await indexCodebase(process.cwd(), { skipEmbedding: isQuick });
+                      const summary = getIndexSummary(result);
+                      let msg = summary;
+                      if (result.config.configFiles.length > 0) {
+                        msg += '\n\nProject Config:\n' + getConfigSummary(result.config);
+                      }
+                      setMessages(prev => [...prev, { id: nextId(), role: 'assistant', content: msg, agent: 'system' }]);
+                    } catch (err) {
+                      setMessages(prev => [...prev, { id: nextId(), role: 'assistant', content: 'Index error: ' + (err as Error).message, agent: 'system' }]);
+                    }
+                    setLoading(false);
+                  }, 50);
+                }
+              }}
+              onBack={() => setMode('chat')}
+            />
+          )
+        }
+
+        {/* Observe Mode */}
+        {
+          mode === 'observe' && (
+            <ObservePanel
+              onSelect={(option) => {
+                setMode('chat');
+                if (option === 'summary') {
+                  // Show summary immediately
+                  setMessages(prev => [...prev, { id: nextId(), role: 'user', content: '/observe summary' }]);
+                  try {
+                    const summary = getExportSummary({});
+                    let msg = 'All Observations:\n' + '─'.repeat(40) + '\n';
+                    msg += `Total observations: ${summary.observations}\n`;
+                    msg += `Preference pairs: ${summary.preferencePairs}`;
+                    if (Object.keys(summary.bySignalType).length > 0) {
+                      msg += '\n\nBy signal type:';
+                      for (const [type, count] of Object.entries(summary.bySignalType)) {
+                        msg += `\n  ${type}: ${count}`;
+                      }
+                    }
+                    setMessages(prev => [...prev, { id: nextId(), role: 'assistant', content: msg, agent: 'system' }]);
+                  } catch (err) {
+                    setMessages(prev => [...prev, { id: nextId(), role: 'assistant', content: 'Summary error: ' + (err as Error).message, agent: 'system' }]);
+                  }
+                } else if (option === 'list') {
+                  // Show recent observations
+                  setMessages(prev => [...prev, { id: nextId(), role: 'user', content: '/observe list' }]);
+                  try {
+                    const observations = getRecentObservations({ limit: 10 });
+                    if (observations.length === 0) {
+                      setMessages(prev => [...prev, { id: nextId(), role: 'assistant', content: 'No observations found.', agent: 'system' }]);
+                    } else {
+                      let msg = 'Recent Observations:\n' + '─'.repeat(40) + '\n';
+                      observations.forEach((obs, i) => {
+                        const date = new Date(obs.timestamp).toLocaleString();
+                        const prompt = obs.prompt?.slice(0, 60) || '(no prompt)';
+                        msg += `${i + 1}. [${date}] ${obs.agent}/${obs.model}\n`;
+                        msg += `   ${obs.tokensIn || 0} in / ${obs.tokensOut || 0} out | ${obs.durationMs || 0}ms\n`;
+                        msg += `   ${prompt}${obs.prompt && obs.prompt.length > 60 ? '...' : ''}\n\n`;
+                      });
+                      setMessages(prev => [...prev, { id: nextId(), role: 'assistant', content: msg.trim(), agent: 'system' }]);
+                    }
+                  } catch (err) {
+                    setMessages(prev => [...prev, { id: nextId(), role: 'assistant', content: 'List error: ' + (err as Error).message, agent: 'system' }]);
+                  }
+                } else if (option === 'export') {
+                  // Export to file
+                  setMessages(prev => [...prev, { id: nextId(), role: 'user', content: '/observe export' }]);
+                  try {
+                    const result = exportObservations({
+                      outputPath: 'observations.jsonl',
+                      format: 'jsonl',
+                      limit: 10000,
+                      includeContent: true
+                    });
+                    if (result.success) {
+                      setMessages(prev => [...prev, { id: nextId(), role: 'assistant', content: `Exported ${result.count} observations to ${result.path}`, agent: 'system' }]);
+                    } else {
+                      setMessages(prev => [...prev, { id: nextId(), role: 'assistant', content: `Export failed: ${result.error}`, agent: 'system' }]);
+                    }
+                  } catch (err) {
+                    setMessages(prev => [...prev, { id: nextId(), role: 'assistant', content: 'Export error: ' + (err as Error).message, agent: 'system' }]);
+                  }
+                } else if (option === 'preferences') {
+                  // Export preference pairs
+                  setMessages(prev => [...prev, { id: nextId(), role: 'user', content: '/observe preferences' }]);
+                  try {
+                    const result = exportPreferencePairs({
+                      outputPath: 'preferences.jsonl',
+                      format: 'jsonl',
+                      limit: 10000
+                    });
+                    if (result.success) {
+                      setMessages(prev => [...prev, { id: nextId(), role: 'assistant', content: `Exported ${result.count} preference pairs to ${result.path}`, agent: 'system' }]);
+                    } else {
+                      setMessages(prev => [...prev, { id: nextId(), role: 'assistant', content: `Export failed: ${result.error}`, agent: 'system' }]);
+                    }
+                  } catch (err) {
+                    setMessages(prev => [...prev, { id: nextId(), role: 'assistant', content: 'Export error: ' + (err as Error).message, agent: 'system' }]);
+                  }
+                }
+              }}
+              onBack={() => setMode('chat')}
+            />
+          )
+        }
+
+        {/* Edit Review Mode */}
+        {
+          mode === 'review' && (
             <DiffReview
-              edits={pendingBatchPreview.previews.map(p => ({
-                filePath: p.filePath,
-                operation: p.operation === 'create' ? 'Write' as const :
-                  p.operation === 'overwrite' ? 'Write' as const : 'Edit' as const,
-                proposedContent: p.newContent,
-                originalContent: p.originalContent,
-                // Store toolCallId in filePath for tracking (we'll use filePath as ID)
-              }))}
+              edits={proposedEdits}
               onComplete={(result) => {
-                // Map accepted filePaths back to toolCallIds
-                const acceptedIds = pendingBatchPreview.previews
-                  .filter(p => result.accepted.includes(p.filePath))
-                  .map(p => p.toolCallId);
-                const rejectedIds = pendingBatchPreview.previews
-                  .filter(p => result.rejected.includes(p.filePath) || result.skipped.includes(p.filePath))
-                  .map(p => p.toolCallId);
+                // Log review decision to observation
+                if (currentObservationId !== null) {
+                  // Build final files record from accepted edits
+                  const finalFiles: Record<string, string> = {};
+                  for (const edit of proposedEdits) {
+                    const content = edit.proposedContent || (edit as any).newContent;
+                    if (result.accepted.includes(edit.filePath) && content) {
+                      finalFiles[edit.filePath] = content;
+                    }
+                  }
 
-                // Check if "Yes to all" was selected (all accepted)
-                const allowAll = result.accepted.length === pendingBatchPreview.previews.length &&
-                  result.rejected.length === 0 && result.skipped.length === 0;
+                  logReviewDecision(currentObservationId, {
+                    acceptedFiles: result.accepted,
+                    rejectedFiles: result.rejected,
+                    finalFiles: Object.keys(finalFiles).length > 0 ? finalFiles : undefined
+                  });
 
-                pendingBatchPreview.resolve({ accepted: acceptedIds, rejected: rejectedIds, allowAll });
-                setPendingBatchPreview(null);
+                  // Complete observation (saves to memory)
+                  completeObservation(currentObservationId);
+                  setCurrentObservationId(null);
+                  setCurrentAgenticResult(null);
+                }
+
+                const summary: string[] = [];
+                if (result.accepted.length > 0) {
+                  summary.push('Applied ' + result.accepted.length + ' file(s)');
+                }
+                if (result.rejected.length > 0) {
+                  summary.push('Rejected ' + result.rejected.length + ' file(s)');
+                }
+                if (result.skipped.length > 0) {
+                  summary.push('Skipped ' + result.skipped.length + ' file(s)');
+                }
+                setMessages(prev => [...prev, {
+                  id: nextId(),
+                  role: 'assistant',
+                  content: summary.join(', ') || 'Review complete',
+                  agent: 'review'
+                }]);
+                setProposedEdits([]);
+                setMode('chat');
+                // Reset input to fix cursor issues when returning to chat
+                setInput('');
+                setInputKey(k => k + 1);
               }}
               onCancel={() => {
-                // Reject all on cancel
-                const allIds = pendingBatchPreview.previews.map(p => p.toolCallId);
-                pendingBatchPreview.resolve({ accepted: [], rejected: allIds, allowAll: false });
-                setPendingBatchPreview(null);
+                // Log cancellation as full rejection
+                if (currentObservationId !== null) {
+                  const allPaths = proposedEdits.map(e => e.filePath);
+                  logReviewDecision(currentObservationId, {
+                    rejectedFiles: allPaths
+                  });
+                  completeObservation(currentObservationId);
+                  setCurrentObservationId(null);
+                  setCurrentAgenticResult(null);
+                }
+
+                setMessages(prev => [...prev, {
+                  id: nextId(),
+                  role: 'assistant',
+                  content: 'Review cancelled',
+                  agent: 'review'
+                }]);
+                setProposedEdits([]);
+                setMode('chat');
+                // Reset input to fix cursor issues when returning to chat
+                setInput('');
+                setInputKey(k => k + 1);
               }}
             />
-          )}
+          )
+        }
 
-          {/* Agent Status Line (shows at bottom with timer) */}
-          {loading && !pendingPermission && !pendingDiffPreview && !pendingBatchPreview && (
+        {/* Chat Mode (also shows compare/collaboration results inline) */}
+        {
+          (mode === 'chat' || mode === 'plan' || mode === 'compare' || mode === 'collaboration') && (
+            <>
+              {/* Messages - hide when active compare/collaboration to prevent terminal scroll */}
+              {(mode === 'chat' || mode === 'plan') && (
+                <Box flexDirection="column" marginBottom={1} width="100%">
+                  {messages.map((msg) => (
+                    msg.role === 'compare' && msg.compareResults ? (
+                      // Compact view for historical compare results (like collaboration)
+                      <Box key={msg.id} flexDirection="column" width="100%">
+                        <Text color="#fc8657">─── <Text bold>Compare</Text> <Text color="gray">[completed]</Text> ───</Text>
+                        <Box height={1} />
+                        <Box flexDirection="row" width="100%">
+                          {msg.compareResults.map((result, i) => {
+                            const isError = !!result.error;
+                            const content = result.content || result.error || 'No response';
+                            // Truncate to 3 lines
+                            const lines = content.split('\n').slice(0, 3);
+                            const truncated = content.split('\n').length > 3;
+                            const remaining = content.split('\n').length - 3;
+                            const displayText = lines.join('\n');
+
+                            return (
+                              <Box
+                                key={i}
+                                flexDirection="column"
+                                borderStyle="round"
+                                borderColor={isError ? 'red' : 'gray'}
+                                flexGrow={1}
+                                flexBasis={0}
+                                minWidth={25}
+                                marginRight={i < msg.compareResults!.length - 1 ? 1 : 0}
+                              >
+                                {/* Header */}
+                                <Box paddingX={1}>
+                                  <Text bold color="#06ba9e">{result.agent}</Text>
+                                  {isError && <Text color="red"> ✗</Text>}
+                                  {result.duration && <Text dimColor> {(result.duration / 1000).toFixed(1)}s</Text>}
+                                </Box>
+
+                                {/* Content */}
+                                <Box paddingX={1} paddingY={1}>
+                                  <Text color={isError ? 'red' : 'gray'} wrap="wrap">
+                                    {displayText}
+                                  </Text>
+                                  {truncated && (
+                                    <Text dimColor> [+{remaining} lines]</Text>
+                                  )}
+                                </Box>
+                              </Box>
+                            );
+                          })}
+                        </Box>
+                        <Box marginTop={1}>
+                          <Text dimColor>Press </Text>
+                          <Text color="#fc8657">Ctrl+E</Text>
+                          <Text dimColor> to expand this compare result</Text>
+                        </Box>
+                      </Box>
+                    ) : msg.role === 'collaboration' && msg.collaborationSteps ? (
+                      // Static render for historical collaboration results
+                      <CollaborationView
+                        key={msg.id}
+                        type={msg.collaborationType || 'correct'}
+                        steps={msg.collaborationSteps}
+                        onExit={() => { }}
+                        interactive={false}
+                        pipelineName={msg.pipelineName}
+                      />
+                    ) : (
+                      <Box key={msg.id} marginBottom={1}>
+                        {msg.role === 'user' ? (
+                          <Box>
+                            <Text color="green" bold>{'> '}</Text>
+                            <Text>{msg.content}</Text>
+                            {msg.timestamp && (
+                              <Text dimColor> [{formatTimestamp(msg.timestamp)}]</Text>
+                            )}
+                          </Box>
+                        ) : (
+                          <Box flexDirection="column">
+                            {/* Tool calls history from exploration */}
+                            {msg.toolCalls && msg.toolCalls.length > 0 && (
+                              <ToolActivity calls={msg.toolCalls} iteration={0} />
+                            )}
+                            {msg.agent === 'autopilot' ? (
+                              <Text>
+                                <Text color="#fc8657">──</Text>
+                                <Text bold color="#06ba9e"> {msg.agent} </Text>
+                                <Text color="yellow">[Autopilot Mode]</Text>
+                                <Text color="#fc8657"> ──</Text>
+                              </Text>
+                            ) : msg.agent && (
+                              <>
+                                <Text>
+                                  <Text dimColor>{'─'.repeat(2)} </Text>
+                                  <Text bold color="#06ba9e">{msg.agent}</Text>
+                                  <Text dimColor> </Text>
+                                  <Text color="#666666">[Single]</Text>
+                                  <Text dimColor> </Text>
+                                  <Text color="#888888">{currentAgent === 'auto' ? 'auto' : 'selected'}</Text>
+                                </Text>
+                                <Text dimColor>{'─'.repeat(Math.floor(((process.stdout.columns || 80) - 2) * 0.8))}</Text>
+                              </>
+                            )}
+                            <Text wrap="wrap">{msg.content}</Text>
+                            {msg.agent && msg.agent !== 'autopilot' && (
+                              <Box marginTop={1}>
+                                <Text color="green">●</Text>
+                                <Text dimColor> {msg.duration ? (msg.duration / 1000).toFixed(1) + 's' : '-'}</Text>
+                                {msg.tokens && (
+                                  <Text dimColor> · {msg.tokens.input}↓ {msg.tokens.output}↑</Text>
+                                )}
+                                {msg.timestamp && (
+                                  <Text dimColor> · {formatTimestamp(msg.timestamp)}</Text>
+                                )}
+                              </Box>
+                            )}
+                          </Box>
+                        )}
+                      </Box>
+                    )
+                  ))}
+                </Box>
+              )}
+
+              {/* Background Loading Indicator - shows when compare/collaboration hidden but still loading */}
+              {(mode === 'chat' || mode === 'plan') && (hasHiddenCompareLoading || hasHiddenCollaborationLoading) && (
+                <Box flexDirection="column" marginBottom={1}>
+                  <Text color="#fc8657">─── <Text bold>{hasHiddenCompareLoading ? 'Compare' : 'Collaboration'}</Text> <Text color="yellow">[running]</Text> ───</Text>
+                  <Box height={1} />
+                  <Box flexDirection="row" width="100%">
+                    {hasHiddenCompareLoading && compareResults.map((result, i) => (
+                      <Box
+                        key={i}
+                        flexDirection="column"
+                        borderStyle="round"
+                        borderColor={result.loading ? 'yellow' : result.error ? 'red' : 'gray'}
+                        flexGrow={1}
+                        flexBasis={0}
+                        minWidth={25}
+                        marginRight={i < compareResults.length - 1 ? 1 : 0}
+                      >
+                        <Box paddingX={1}>
+                          <Text bold color="#06ba9e">{result.agent}</Text>
+                          {result.loading && <Text color="yellow"> ⏳</Text>}
+                          {!result.loading && !result.error && <Text color="green"> ✓</Text>}
+                          {result.error && <Text color="red"> ✗</Text>}
+                        </Box>
+                        <Box paddingX={1} paddingY={1}>
+                          <Text color="gray">
+                            {result.loading ? 'Loading...' : result.error ? 'Error' : (result.content || '').split('\n').slice(0, 2).join('\n').slice(0, 60) + '...'}
+                          </Text>
+                        </Box>
+                      </Box>
+                    ))}
+                    {hasHiddenCollaborationLoading && collaborationSteps.slice(0, 3).map((step, i) => (
+                      <Box
+                        key={i}
+                        flexDirection="column"
+                        borderStyle="round"
+                        borderColor={step.loading ? 'yellow' : step.error ? 'red' : 'gray'}
+                        flexGrow={1}
+                        flexBasis={0}
+                        minWidth={25}
+                        marginRight={i < Math.min(collaborationSteps.length, 3) - 1 ? 1 : 0}
+                      >
+                        <Box paddingX={1}>
+                          <Text bold color="#06ba9e">{step.agent}</Text>
+                          <Text dimColor> [{step.role}]</Text>
+                          {step.loading && <Text color="yellow"> ⏳</Text>}
+                          {!step.loading && !step.error && <Text color="green"> ✓</Text>}
+                          {step.error && <Text color="red"> ✗</Text>}
+                        </Box>
+                        <Box paddingX={1} paddingY={1}>
+                          <Text color="gray">
+                            {step.loading ? 'Loading...' : step.error ? 'Error' : (step.content || '').split('\n').slice(0, 2).join('\n').slice(0, 60) + '...'}
+                          </Text>
+                        </Box>
+                      </Box>
+                    ))}
+                  </Box>
+                  {hasHiddenCollaborationLoading && collaborationSteps.length > 3 && (
+                    <Text dimColor>  +{collaborationSteps.length - 3} more steps</Text>
+                  )}
+                  <Box marginTop={1}>
+                    <Text dimColor>Press </Text>
+                    <Text color="#fc8657">Ctrl+E</Text>
+                    <Text dimColor> to expand | </Text>
+                    <Text color="red">Ctrl+C</Text>
+                    <Text dimColor> to cancel</Text>
+                  </Box>
+                </Box>
+              )}
+
+              {/* Compare View (inline) */}
+              {mode === 'compare' && (
+                <>
+                  {messages.length > 0 && (
+                    <Box marginBottom={1}>
+                      <Text dimColor>({messages.length} messages hidden - Esc to return to chat)</Text>
+                    </Box>
+                  )}
+                  <CompareView
+                    key={compareKey}
+                    results={compareResults}
+                    onExit={saveCompareToHistory}
+                  />
+                </>
+              )}
+
+              {/* Collaboration View (inline) */}
+              {mode === 'collaboration' && (
+                <>
+                  {messages.length > 0 && (
+                    <Box marginBottom={1}>
+                      <Text dimColor>({messages.length} messages hidden - Esc to return to chat)</Text>
+                    </Box>
+                  )}
+                  <CollaborationView
+                    key={collaborationKey}
+                    type={collaborationType}
+                    steps={collaborationSteps}
+                    onExit={saveCollaborationToHistory}
+                    onAction={['consensus', 'debate', 'correct'].includes(collaborationType) ? handleCollaborationAction : undefined}
+                    pipelineName={pipelineName}
+                  />
+                </>
+              )}
+
+              {/* Tool Activity (shows when agent is using tools) */}
+              {loading && toolActivity.length > 0 && (
+                <ToolActivity calls={toolActivity} iteration={toolIteration} expanded={toolsExpanded} />
+              )}
+
+              {/* Permission Prompt (shows when tool needs user approval) */}
+              {pendingPermission && (
+                <PermissionPrompt
+                  request={pendingPermission.request}
+                  onDecision={handlePermissionDecision}
+                />
+              )}
+
+              {/* Diff Preview - Single file (shows for write/edit operations) */}
+              {pendingDiffPreview && !pendingBatchPreview && (
+                <SingleFileDiff
+                  filePath={pendingDiffPreview.filePath}
+                  operation={pendingDiffPreview.operation}
+                  originalContent={pendingDiffPreview.originalContent}
+                  newContent={pendingDiffPreview.newContent}
+                  onDecision={(decision) => {
+                    pendingDiffPreview.resolve(decision);
+                    setPendingDiffPreview(null);
+                  }}
+                />
+              )}
+
+              {/* Diff Preview - Batch (multiple files) */}
+              {pendingBatchPreview && (
+                <DiffReview
+                  edits={pendingBatchPreview.previews.map(p => ({
+                    filePath: p.filePath,
+                    operation: p.operation === 'create' ? 'Write' as const :
+                      p.operation === 'overwrite' ? 'Write' as const : 'Edit' as const,
+                    proposedContent: p.newContent,
+                    originalContent: p.originalContent,
+                    // Store toolCallId in filePath for tracking (we'll use filePath as ID)
+                  }))}
+                  onComplete={(result) => {
+                    // Map accepted filePaths back to toolCallIds
+                    const acceptedIds = pendingBatchPreview.previews
+                      .filter(p => result.accepted.includes(p.filePath))
+                      .map(p => p.toolCallId);
+                    const rejectedIds = pendingBatchPreview.previews
+                      .filter(p => result.rejected.includes(p.filePath) || result.skipped.includes(p.filePath))
+                      .map(p => p.toolCallId);
+
+                    // Check if "Yes to all" was selected (all accepted)
+                    const allowAll = result.accepted.length === pendingBatchPreview.previews.length &&
+                      result.rejected.length === 0 && result.skipped.length === 0;
+
+                    pendingBatchPreview.resolve({ accepted: acceptedIds, rejected: rejectedIds, allowAll });
+                    setPendingBatchPreview(null);
+                  }}
+                  onCancel={() => {
+                    // Reject all on cancel
+                    const allIds = pendingBatchPreview.previews.map(p => p.toolCallId);
+                    pendingBatchPreview.resolve({ accepted: [], rejected: allIds, allowAll: false });
+                    setPendingBatchPreview(null);
+                  }}
+                />
+              )}
+
+              {/* Autocomplete suggestions - aligned with input text (border + padding + "> ") */}
+              {mode === 'chat' && autocompleteItems.length > 0 && !loading && (
+                <Box flexDirection="column" marginTop={1} marginLeft={4}>
+                  {autocompleteItems.map((item, i) => {
+                    const isSelected = i === autocompleteIndex;
+                    const parts = item.label.split('  ');
+                    const cmd = parts[0];
+                    const desc = parts.slice(1).join('  ');
+                    return (
+                      <Box key={item.value}>
+                        <Text bold={isSelected} color={isSelected ? '#8CA9FF' : undefined} dimColor={!isSelected}>{cmd}</Text>
+                        <Text color={isSelected ? '#8CA9FF' : undefined} dimColor={!isSelected}> - {desc}</Text>
+                      </Box>
+                    );
+                  })}
+                  <Box marginTop={1}>
+                    <Text dimColor>↑↓ navigate · Enter select · Esc cancel</Text>
+                  </Box>
+                </Box>
+              )}
+            </>
+          )
+        }
+
+      </Box>
+
+      {/* Fixed HUD Section (Bottom) */}
+      <Box
+        flexDirection="column"
+        paddingX={1}
+        borderStyle="bold"
+        borderColor="#fc8657"
+        minHeight={hudHeight}
+      >
+        {/* Permission Prompt - shows here instead of main flow if we want it fixed */}
+        {pendingPermission && (
+          <PermissionPrompt
+            request={pendingPermission.request}
+            onDecision={handlePermissionDecision}
+          />
+        )}
+
+        {/* Agent Status HUD with AI Summary */}
+        {loading && !pendingPermission && !pendingDiffPreview && !pendingBatchPreview && (
+          <Box paddingY={1}>
             <AgentStatus
               agentName={loadingAgent || 'Agent'}
               isLoading={loading}
@@ -3802,67 +3873,50 @@ ${result.finalSummary ? '\nSummary:\n' + result.finalSummary : ''}
               phase={agentPhase}
               toolCount={toolActivity.length}
               iteration={toolIteration}
+              summary={agentSummary}
             />
-          )}
+          </Box>
+        )}
 
-          {/* Notification - shows above input */}
-          {notification && (
-            <Box marginBottom={1}>
-              <Text color="#fc3855">ℹ </Text>
-              <Text>{notification}</Text>
-            </Box>
-          )}
+        {/* Notification - shows in HUD above input */}
+        {notification && (
+          <Box marginBottom={1}>
+            <Text color="#fc3855">ℹ </Text>
+            <Text>{notification}</Text>
+          </Box>
+        )}
 
-          {/* Input - hidden when loading, in collaboration, compare mode, or permission prompt */}
-          {mode !== 'collaboration' && mode !== 'compare' && !pendingPermission && !loading && (
-            <Box borderStyle="round" borderColor="gray" paddingX={1}>
-              <Text color="green" bold>{'> '}</Text>
-              <TextInput
-                key={inputKey}
-                value={input}
-                onChange={setInput}
-                onSubmit={handleSubmit}
-                placeholder="Ask anything or describe a task..."
-                focus={!showUpdatePrompt}
-              />
-            </Box>
-          )}
-
-          {/* Autocomplete suggestions - aligned with input text (border + padding + "> ") */}
-          {mode === 'chat' && autocompleteItems.length > 0 && !loading && (
-            <Box flexDirection="column" marginTop={1} marginLeft={4}>
-              {autocompleteItems.map((item, i) => {
-                const isSelected = i === autocompleteIndex;
-                const parts = item.label.split('  ');
-                const cmd = parts[0];
-                const desc = parts.slice(1).join('  ');
-                return (
-                  <Box key={item.value}>
-                    <Text bold={isSelected} color={isSelected ? '#8CA9FF' : undefined} dimColor={!isSelected}>{cmd}</Text>
-                    <Text color={isSelected ? '#8CA9FF' : undefined} dimColor={!isSelected}> - {desc}</Text>
-                  </Box>
-                );
-              })}
-              <Box marginTop={1}>
-                <Text dimColor>↑↓ navigate · Enter select · Esc cancel</Text>
+        {/* Input & Key Info HUD */}
+        <Box flexDirection="row" justifyContent="space-between" alignItems="center">
+          <Box flexGrow={1}>
+            {mode !== 'collaboration' && mode !== 'compare' && !pendingPermission && !loading && (
+              <Box borderStyle="round" borderColor="gray" paddingX={1}>
+                <Text color="green" bold>{'> '}</Text>
+                <TextInput
+                  key={inputKey}
+                  value={input}
+                  onChange={setInput}
+                  onSubmit={handleSubmit}
+                  placeholder="Ask anything or describe a task..."
+                  focus={!showUpdatePrompt}
+                />
               </Box>
-            </Box>
-          )}
-        </>
-      )}
+            )}
+          </Box>
 
-      {/* Status Bar - hidden in collaboration/compare mode */}
-      {mode !== 'collaboration' && mode !== 'compare' && (
-        <StatusBar
-          agent={currentAgent}
-          messageCount={messages.length}
-          tokens={tokens}
-          mcpStatus={mcpStatus}
-          approvalMode={approvalMode as StatusBarApprovalMode}
-          sessionName={session?.name || session?.id?.slice(0, 8)}
-          isLoading={loading}
-        />
-      )}
+          <Box paddingLeft={2}>
+            <StatusBar
+              agent={currentAgent}
+              messageCount={messages.length}
+              tokens={tokens}
+              mcpStatus={mcpStatus}
+              approvalMode={approvalMode as StatusBarApprovalMode}
+              sessionName={session?.name || session?.id?.slice(0, 8)}
+              isLoading={loading}
+            />
+          </Box>
+        </Box>
+      </Box>
     </Box>
   );
 }
