@@ -12,6 +12,7 @@ interface AgentStatusProps {
   toolCount?: number;
   iteration?: number;
   summary?: string;
+  status?: string;
 }
 
 // Animated spinner frames
@@ -60,7 +61,8 @@ export function AgentStatus({
   phase = 'thinking',
   toolCount = 0,
   iteration = 1,
-  summary
+  summary,
+  status
 }: AgentStatusProps) {
   const [elapsed, setElapsed] = useState(0);
   const [spinnerFrame, setSpinnerFrame] = useState(0);
@@ -123,13 +125,9 @@ export function AgentStatus({
           <Text dimColor> (iter {iteration})</Text>
         )}
         <Text dimColor> · </Text>
-        {summary ? (
-          <Text color={phaseInfo.color} bold={pulse > 3 && pulse < 7}>
-            {pulseDim < 0.85 ? <Text dimColor>{summary}</Text> : summary}
-          </Text>
-        ) : (
-          <Text color={phaseInfo.color}>{phaseInfo.text}</Text>
-        )}
+        <Text color={phaseInfo.color} bold={pulse > 3 && pulse < 7}>
+          {summary ? (pulseDim < 0.85 ? <Text dimColor>{summary}</Text> : summary) : (status || phaseInfo.text)}
+        </Text>
       </Box>
       <Box marginLeft={2} marginBottom={summary ? 1 : 0}>
         {/* Progress Bar HUD style */}

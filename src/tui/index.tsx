@@ -19,7 +19,6 @@ import {
   buildDebatePlan,
   buildConsensusPlan,
   parseAgentsString,
-  parsePipelineString,
   execute,
   type AgentName
 } from '../executor';
@@ -44,7 +43,6 @@ import {
   loadUnifiedSession,
   addMessageCompat,
   clearUnifiedSessionMessages,
-  listUnifiedSessions,
   type UnifiedSession,
 } from '../context';
 
@@ -55,16 +53,13 @@ import { IndexPanel } from './components/IndexPanel';
 import { ObservePanel } from './components/ObservePanel';
 import { DiffReview } from './components/DiffReview';
 import { execa } from 'execa';
-import { claudeAdapter } from '../adapters/claude';
 
 import type { ProposedEdit } from '../lib/edit-review';
 import {
   runAgentic,
-  formatFileContext,
   runAgentLoop,
   getProjectStructure,
   permissionTracker,
-  type AgenticResult,
   type ToolCall,
   type ToolResult,
   type PermissionRequest,
@@ -130,13 +125,7 @@ function formatTimestamp(ts?: number): string {
 let messageId = 0;
 const nextId = () => String(++messageId);
 
-// Create a message with auto-generated id and timestamp
-function createMessage(msg: Omit<Message, 'id' | 'timestamp'>): Message {
-  return { ...msg, id: nextId(), timestamp: Date.now() };
-}
-
 type AppMode = 'chat' | 'workflows' | 'sessions' | 'settings' | 'model' | 'compare' | 'collaboration' | 'agent' | 'review' | 'index' | 'observe' | 'plan' | 'trust' | 'approval-mode';
-type AgenticSubMode = 'plan' | 'build';
 
 interface CompareResult {
   agent: string;
@@ -160,7 +149,6 @@ function App() {
   const [messages, setMessages] = useState<Message[]>([]);
   const [tokens, setTokens] = useState(0);
   const [loading, setLoading] = useState(false);
-  const [loadingText, setLoadingText] = useState('thinking...');
   const [mode, setMode] = useState<AppMode>('chat');
   const [compareResults, setCompareResults] = useState<CompareResult[]>([]);
   const [compareKey, setCompareKey] = useState(0); // Increments to reset CompareView state
@@ -171,22 +159,13 @@ function App() {
   const [notification, setNotification] = useState<string | null>(null);
   const [proposedEdits, setProposedEdits] = useState<ProposedEdit[]>([]);
   const [currentObservationId, setCurrentObservationId] = useState<number | null>(null);
-  const [currentAgenticResult, setCurrentAgenticResult] = useState<AgenticResult | null>(null);
   const [agentStatus, setAgentStatus] = useState<AgentStatus[]>([]);
   const [session, setSession] = useState<UnifiedSession | null>(null);
   const [updateInfo, setUpdateInfo] = useState<{ current: string; latest: string } | null>(null);
   const [showUpdatePrompt, setShowUpdatePrompt] = useState(false);
-  const [isUpdating, setIsUpdating] = useState(false);
   const [ctrlCPressed, setCtrlCPressed] = useState(false);
-  const [lastMode, setLastMode] = useState<'compare' | 'debate' | 'pipeline' | null>(null);
-  const [consensusContext, setConsensusContext] = useState<string | null>(null); // For follow-up context
   const [isReEnteringCollaboration, setIsReEnteringCollaboration] = useState(false); // Track re-enter to avoid duplicate saves
   const [isReEnteringCompare, setIsReEnteringCompare] = useState(false); // Track re-enter to avoid duplicate saves
-  const [agenticSubMode, setAgenticSubMode] = useState<AgenticSubMode>('plan'); // Plan vs Build mode
-  const [currentPlan, setCurrentPlan] = useState<string | null>(null); // Current plan content for Tab toggle
-  const [currentPlanTask, setCurrentPlanTask] = useState<string | null>(null); // Task that generated the plan
-  const [modeChangeNotice, setModeChangeNotice] = useState<string | null>(null); // Brief notification when mode changes
-  const [isTrusted, setIsTrusted] = useState<boolean | null>(null); // null = checking, true/false = result
   const [approvalMode, setApprovalMode] = usePersistentState<ApprovalMode>('approvalMode', 'default');
 
   const [allowAllEdits, setAllowAllEdits] = usePersistentState('allowAllEdits', false); // Persists "allow all edits" across messages
@@ -584,7 +563,6 @@ function App() {
   useEffect(() => {
     const cwd = process.cwd();
     const trusted = isDirectoryTrusted(cwd);
-    setIsTrusted(trusted);
     if (!trusted) {
       setMode('trust');
     }
@@ -598,7 +576,6 @@ function App() {
     } else {
       trustDirectory(cwd, false);
     }
-    setIsTrusted(true);
     setMode('chat');
   };
 
@@ -653,7 +630,6 @@ function App() {
 
   // Handle update action
   const handleUpdate = async () => {
-    setIsUpdating(true);
     setShowUpdatePrompt(false);
     setNotification('Updating PuzldAI...');
     try {
@@ -666,7 +642,6 @@ function App() {
     } catch {
       setNotification('Update failed. Run: npm update -g puzldai');
     }
-    setIsUpdating(false);
   };
 
   // Handle skip update
@@ -825,7 +800,7 @@ function App() {
   };
 
   // Handle keyboard shortcuts - only for navigation keys, not regular typing
-  useInput((char, key) => {
+  useInput((_, key) => {
     // Only handle specific navigation/control keys - let TextInput handle all other input
     const isNavigationKey = key.upArrow || key.downArrow || key.tab || key.escape;
     if (!isNavigationKey) {
@@ -963,7 +938,6 @@ function App() {
           adapter,
           projectRoot: process.cwd()
         });
-        setCurrentAgenticResult(result);
         setLoading(false);
 
         if (!result.proposedEdits || result.proposedEdits.length === 0) {
@@ -988,14 +962,12 @@ function App() {
 
     } else if (action === 'continue') {
       // Preserve content context for follow-up chat
-      setConsensusContext(content);
       setMode('chat');
       resetInputState();
       addSystemMessage(`Continuing with ${modeLabel} context. Your next message will have access to the ${collaborationType} result.`);
 
     } else if (action === 'reject') {
       // Still pass context so user can reference it if needed
-      setConsensusContext(content);
       setMode('chat');
       resetInputState();
       addSystemMessage(`${collaborationType.charAt(0).toUpperCase() + collaborationType.slice(1)} rejected. Context still available for your next message.`);
@@ -1011,8 +983,6 @@ function App() {
       return;
     }
 
-    setCurrentPlanTask(task);
-    setAgenticSubMode('plan');
     setMessages(prev => [...prev, { id: nextId(), role: 'user', content: task }]);
     setLoading(true);
     setLoadingText(`planning with ${agentName}...`);
@@ -2288,9 +2258,6 @@ Compare View:
             addMessage(`Already trusted: ${targetPath}`);
           } else {
             trustDirectory(targetPath, false);
-            if (targetPath === process.cwd()) {
-              setIsTrusted(true);
-            }
             addMessage(`Trusted: ${targetPath}`);
           }
         } else if (subCmd === 'remove') {
@@ -2310,9 +2277,6 @@ Compare View:
           addMessage(`Already trusted: ${targetPath}`);
         } else {
           trustDirectory(targetPath, false);
-          if (targetPath === process.cwd()) {
-            setIsTrusted(true);
-          }
           addMessage(`Trusted: ${targetPath}`);
         }
         break;
@@ -2505,7 +2469,6 @@ Compare View:
           });
 
           setCompareResults(visualResults);
-          setLastMode('compare'); // Track for preference detection
           // Keep in compare mode - will be saved to history when user types something new
         } catch (err) {
           // Show error in compare view
@@ -2684,7 +2647,7 @@ ${result.finalSummary ? '\nSummary:\n' + result.finalSummary : ''}
           const result = await execute(plan);
 
           // Build visual collaboration steps from results
-          const pipelineSteps: CollaborationStep[] = plan.steps.map((step, i) => {
+          const pipelineSteps: CollaborationStep[] = plan.steps.map((step) => {
             const stepResult = result.results.find(r => r.stepId === step.id);
             return {
               agent: step.agent || 'auto',
@@ -2955,7 +2918,6 @@ ${result.finalSummary ? '\nSummary:\n' + result.finalSummary : ''}
           }
 
           setCollaborationSteps(debateSteps);
-          setLastMode('debate'); // Track for preference detection
         } catch (err) {
           // Show error in collaboration view
           const errorSteps = initialDebateSteps.map(s => ({
@@ -3481,7 +3443,6 @@ ${result.finalSummary ? '\nSummary:\n' + result.finalSummary : ''}
                   // Complete observation (saves to memory)
                   completeObservation(currentObservationId);
                   setCurrentObservationId(null);
-                  setCurrentAgenticResult(null);
                 }
 
                 const summary: string[] = [];
@@ -3515,7 +3476,6 @@ ${result.finalSummary ? '\nSummary:\n' + result.finalSummary : ''}
                   });
                   completeObservation(currentObservationId);
                   setCurrentObservationId(null);
-                  setCurrentAgenticResult(null);
                 }
 
                 setMessages(prev => [...prev, {
@@ -3881,6 +3841,7 @@ ${result.finalSummary ? '\nSummary:\n' + result.finalSummary : ''}
               toolCount={toolActivity.length}
               iteration={toolIteration}
               summary={agentSummary}
+              status={loadingText}
             />
           </Box>
         )}

@@ -383,7 +383,6 @@ export async function runArena(options: ArenaOptions = {}): Promise<{
     configs = ARENA_CONFIGS.map(c => c.id),
     tasks = ARENA_TASKS.map(t => t.id),
     judge: judgeModel = 'gemini',
-    rounds = 1,
     timeout = 120000,
 
     verbose = false

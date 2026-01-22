@@ -9,9 +9,9 @@
  */
 
 import type { AgentName, PlanMode } from '../../executor/types.js';
-import type { CampaignTask, CampaignTaskStatus } from './campaign-state.js';
-export { CampaignStatus } from './campaign-state.js';
-export type { CampaignTaskStatus };
+import type { CampaignTask } from './campaign-state.js';
+import { CampaignTaskStatus } from './campaign-state.js';
+export { CampaignStatus, CampaignTaskStatus } from './campaign-state.js';
 
 
 // ============================================================================
