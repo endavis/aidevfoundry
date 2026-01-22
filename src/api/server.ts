@@ -1,16 +1,14 @@
 import Fastify from 'fastify';
 import fastifyStatic from '@fastify/static';
-import fastifySwagger from '@fastify/swagger';
-import fastifySwaggerUi from '@fastify/swagger-ui';
 import fastifyJwt from '@fastify/jwt';
 import { resolve } from 'path';
 import { orchestrate } from '../orchestrator';
 import { adapters, getAvailableAdapters } from '../adapters';
 import type { Adapter } from '../lib/types';
-import { TaskQueue, TaskStatus, MAX_CONCURRENT_TASKS } from './task-queue';
+import { TaskQueue } from './task-queue';
 import * as persistence from './task-persistence';
 import { authRoutes } from './auth/routes';
-import { logger, createLogger, generateRequestId, apiLogger } from '../lib/logger';
+import { createLogger, generateRequestId, apiLogger } from '../lib/logger';
 import {
   taskSubmissionSchema,
   taskResponseSchema,
@@ -20,7 +18,7 @@ import {
   errorResponseSchema
 } from './schema';
 import { getSummaryGenerator } from '../lib/summary-generator';
-import { AppError, ValidationError, NotFoundError, DatabaseError } from './errors';
+import { AppError } from './errors';
 import { type IAsyncCache, createAsyncCache } from '../memory/cache';
 import type { TaskEntry } from './task-persistence';
 

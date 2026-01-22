@@ -6,8 +6,8 @@
  */
 
 import { execa } from 'execa';
-import { existsSync, readFileSync, writeFileSync, unlinkSync, mkdirSync, rmSync, readdirSync, statSync, copyFileSync } from 'fs';
-import { join, dirname, relative } from 'path';
+import { existsSync, readFileSync, writeFileSync, unlinkSync, mkdirSync, rmSync, readdirSync, statSync } from 'fs';
+import { join, dirname } from 'path';
 import { tmpdir } from 'os';
 import type { Adapter, ModelResponse, RunOptions } from '../lib/types';
 import { getConfig } from '../lib/config';

@@ -122,7 +122,7 @@ export function getTool(name: string): Tool | undefined {
 }
 
 // Normalize argument names to match our tool parameter names
-function normalizeArguments(toolName: string, args: Record<string, unknown>): Record<string, unknown> {
+function normalizeArguments(_toolName: string, args: Record<string, unknown>): Record<string, unknown> {
   const normalized: Record<string, unknown> = { ...args };
 
   // Map various path argument names -> path

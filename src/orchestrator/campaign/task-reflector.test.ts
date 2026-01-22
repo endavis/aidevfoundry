@@ -23,7 +23,8 @@ const basicTask: CampaignTask = {
   acceptanceCriteria: ['Feature works correctly', 'Tests pass'],
   assignedFiles: ['src/feature.ts'],
   attempts: 0,
-  createdAt: Date.now()
+  createdAt: Date.now(),
+  updatedAt: Date.now()
 };
 
 const taskWithAttempts: CampaignTask = {

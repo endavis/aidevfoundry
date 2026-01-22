@@ -83,6 +83,11 @@ describe('TaskQueue', () => {
 
 describe('TaskStatus', () => {
   it('should have correct status values', () => {
+    expect(TaskStatus.Queued).toBe(TaskStatus.Queued);
+    expect(TaskStatus.Running).toBe(TaskStatus.Running);
+    expect(TaskStatus.Completed).toBe(TaskStatus.Completed);
+    expect(TaskStatus.Failed).toBe(TaskStatus.Failed);
+    // Also verify string values match
     expect(TaskStatus.Queued).toBe('queued');
     expect(TaskStatus.Running).toBe('running');
     expect(TaskStatus.Completed).toBe('completed');

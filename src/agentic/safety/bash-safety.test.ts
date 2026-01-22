@@ -1,4 +1,5 @@
-import { describe, it, expect } from 'bun:test'; \r\nimport { assessBashSafety, formatSafetyMessage } from './bash-safety';
+import { describe, it, expect } from 'bun:test';
+import { assessBashSafety, formatSafetyMessage } from './bash-safety';
 
 describe('bash-safety', () => {
   describe('assessBashSafety', () => {

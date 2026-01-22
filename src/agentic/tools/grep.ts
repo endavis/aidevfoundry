@@ -6,7 +6,6 @@ import type { Tool, ToolResult } from './types';
 
 const MAX_RESULTS = 50;
 const MAX_FILE_SIZE = 1024 * 1024; // 1MB
-const CONTEXT_LINES = 2;
 
 export const grepTool: Tool = {
   name: 'grep',

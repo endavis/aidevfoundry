@@ -14,7 +14,7 @@
  * This makes PuzldAI the execution layer - LLMs explore and propose, we apply.
  */
 
-import type { Adapter, ModelResponse, RunOptions } from '../lib/types';
+import type { Adapter, ModelResponse } from '../lib/types';
 import type { ProposedEdit } from '../lib/edit-review';
 import {
   wrapPrompt,

@@ -11,7 +11,7 @@ import {
 import { getConfig } from '../lib/config';
 // Direct imports to avoid circular dependency through responder.ts
 import { getSessionManager, type ManagedSession } from '../interactive/session-manager';
-import { CODEX_PATTERNS, PromptDetector } from '../interactive/prompt-detector';
+import { PromptDetector } from '../interactive/prompt-detector';
 import { detectVersion } from '../interactive/version-detector';
 
 /**

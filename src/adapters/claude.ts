@@ -17,7 +17,7 @@ import { extractProposedEdits, type ProposedEdit } from '../lib/edit-review';
 // Import directly from specific files to avoid circular dependency
 // (interactive/index.ts re-exports responder.ts which imports from adapters)
 import { getSessionManager, type ManagedSession } from '../interactive/session-manager';
-import { CLAUDE_PATTERNS, PromptDetector } from '../interactive/prompt-detector';
+import { PromptDetector } from '../interactive/prompt-detector';
 import { detectVersion } from '../interactive/version-detector';
 
 /**
