@@ -95,7 +95,9 @@ import {
 } from '../indexing';
 import { globSync } from 'glob';
 import { usePersistentState } from './hooks/usePersistentState';
+import { useTerminalSize } from './hooks/useTerminalSize';
 import { runCampaign, type CampaignOptions } from '../orchestrator/campaign/campaign-engine';
+import { patchConsole, restoreConsole } from './utils/patchConsole';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const pkg = JSON.parse(readFileSync(join(__dirname, '../../package.json'), 'utf-8'));
@@ -586,13 +588,15 @@ function App() {
 
   // Check router availability on startup
   useEffect(() => {
-    isRouterAvailable().then(available => {
-      if (!available) {
+    if (config.adapters.ollama.enabled) {
+      isRouterAvailable().then(available => {
+        if (!available) {
+          setNotification('Router offline, using fallback agent');
+        }
+      }).catch(() => {
         setNotification('Router offline, using fallback agent');
-      }
-    }).catch(() => {
-      setNotification('Router offline, using fallback agent');
-    });
+      });
+    }
   }, []);
 
   // Check for updates on startup
@@ -2925,7 +2929,7 @@ ${result.finalSummary ? '\nSummary:\n' + result.finalSummary : ''}
   };
 
   const isFirstMessage = messages.length === 0;
-  const terminalHeight = (process.stdout.rows || 24);
+  const { rows: terminalHeight } = useTerminalSize();
   const hudHeight = 9; // Lines reserved for HUD
 
   return (
@@ -3706,8 +3710,16 @@ ${result.finalSummary ? '\nSummary:\n' + result.finalSummary : ''}
 }
 
 export function startTUI() {
+  // Patch console to prevent stray logs from breaking the UI
+  patchConsole();
+
   // Disable mouse tracking to prevent escape sequence garbage
   process.stdout.write('\x1b[?1000l\x1b[?1002l\x1b[?1003l\x1b[?1006l');
 
-  render(<App />, { exitOnCtrlC: false });
+  const instance = render(<App />, { exitOnCtrlC: false });
+
+  // Restore console on exit
+  instance.waitUntilExit().then(() => {
+    restoreConsole();
+  });
 }
