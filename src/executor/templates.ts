@@ -4,7 +4,7 @@
  * Load, save, and manage reusable pipeline templates
  */
 
-import { existsSync, mkdirSync, readFileSync, writeFileSync, readdirSync, unlinkSync, cpSync } from 'fs';
+import { existsSync, mkdirSync, readFileSync, writeFileSync, readdirSync, unlinkSync } from 'fs';
 import { join } from 'path';
 import { homedir } from 'os';
 import type { PipelineTemplate, PipelineStep } from './types';

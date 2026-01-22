@@ -4,8 +4,6 @@ import * as authService from './service';
 export async function authRoutes(fastify: FastifyInstance) {
   fastify.post<{ Body: { username: string; password: string } }>('/auth/register', {
     schema: {
-      description: 'Register a new user',
-      tags: ['Auth'],
       body: {
         type: 'object',
         required: ['username', 'password'],
@@ -37,8 +35,6 @@ export async function authRoutes(fastify: FastifyInstance) {
 
   fastify.post<{ Body: { username: string; password: string } }>('/auth/login', {
     schema: {
-      description: 'Login to get access and refresh tokens',
-      tags: ['Auth'],
       body: {
         type: 'object',
         required: ['username', 'password'],
@@ -65,8 +61,6 @@ export async function authRoutes(fastify: FastifyInstance) {
 
   fastify.post<{ Body: { refreshToken: string } }>('/auth/refresh', {
     schema: {
-      description: 'Refresh access token using a refresh token',
-      tags: ['Auth'],
       body: {
         type: 'object',
         required: ['refreshToken'],
@@ -94,8 +88,6 @@ export async function authRoutes(fastify: FastifyInstance) {
   fastify.get('/auth/me', {
     onRequest: [fastify.authenticate],
     schema: {
-      description: 'Get current user info (Protected)',
-      tags: ['Auth'],
       response: {
         200: {
           type: 'object',

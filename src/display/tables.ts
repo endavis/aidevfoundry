@@ -4,8 +4,6 @@
  * Detects markdown tables and renders them as pretty ASCII tables.
  */
 
-import pc from 'picocolors';
-
 // Box drawing characters
 const BOX = {
   topLeft: '┌',

@@ -32,7 +32,7 @@ describe('TaskQueue', () => {
       // Task starts executing immediately (no backlog), so pending may be 0
       const metrics = queue.metrics;
       expect(metrics.total).toBeGreaterThanOrEqual(0);
-      
+
       const result = await promise;
       expect(result).toBe('result');
     });
@@ -88,9 +88,9 @@ describe('TaskStatus', () => {
     expect(TaskStatus.Completed).toBe(TaskStatus.Completed);
     expect(TaskStatus.Failed).toBe(TaskStatus.Failed);
     // Also verify string values match
-    expect(TaskStatus.Queued).toBe('queued');
-    expect(TaskStatus.Running).toBe('running');
-    expect(TaskStatus.Completed).toBe('completed');
-    expect(TaskStatus.Failed).toBe('failed');
+    expect(TaskStatus.Queued).toBe('queued' as TaskStatus);
+    expect(TaskStatus.Running).toBe('running' as TaskStatus);
+    expect(TaskStatus.Completed).toBe('completed' as TaskStatus);
+    expect(TaskStatus.Failed).toBe('failed' as TaskStatus);
   });
 });

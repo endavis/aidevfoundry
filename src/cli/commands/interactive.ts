@@ -17,7 +17,6 @@ import {
   renderSessionSummary,
   renderHistorySummary,
   renderBanner,
-  printDivider,
 } from '../../display';
 
 interface InteractiveCommandOptions {
@@ -105,7 +104,7 @@ export async function interactiveCommand(
         }
         console.log('');
       },
-      onStateChange: (state) => {
+      onStateChange: (_state) => {
         // Status updates are shown in onInteraction
       },
       onOutput: (chunk) => {

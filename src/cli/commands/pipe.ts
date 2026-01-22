@@ -87,9 +87,9 @@ async function executePlan(plan: ExecutionPlan, interactive?: boolean): Promise<
       if (event.type === 'start') {
         currentStep++;
         const step = plan.steps.find(s => s.id === event.stepId);
-        const agent = step?.agent || 'auto';
+        const _agent = step?.agent || 'auto';
         const modelStr = step?.model ? pc.cyan(` [${step.model}]`) : '';
-        console.log(pc.yellow(`[${currentStep}/${stepCount}] ${agent}${modelStr}: running...`));
+        console.log(pc.yellow(`[${currentStep}/${stepCount}] ${_agent}${modelStr}: running...`));
       } else if (event.type === 'complete') {
         const data = event.data as { content?: string; model?: string; duration?: number } | undefined;
         const timeStr = data?.duration ? ` (${(data.duration / 1000).toFixed(1)}s)` : '';

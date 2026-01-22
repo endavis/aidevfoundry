@@ -50,7 +50,7 @@ const DEFAULT_OPTIONS: Required<EmbedOptions> = {
  */
 export async function embedFileStructures(
   structures: FileStructure[],
-  rootDir: string,
+  _rootDir: string,
   options: EmbedOptions = {}
 ): Promise<EmbedResult> {
   const opts = { ...DEFAULT_OPTIONS, ...options };

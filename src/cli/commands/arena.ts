@@ -11,7 +11,6 @@
 import pc from 'picocolors';
 import {
   runArena,
-  runQuickArena,
   ARENA_CONFIGS,
   ARENA_TASKS
 } from '../../eval/arena';

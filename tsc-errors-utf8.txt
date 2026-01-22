@@ -1,0 +1,152 @@
+﻿src/agentic/agent-loop.test.ts(10,32): error TS6133: 'beforeEach' is declared but its value is never read.
+src/api/server.ts(12,1): error TS6192: All imports in import declaration are unused.
+src/api/task-persistence.test.ts(25,9): error TS6133: 'testTasks' is declared but its value is never read.
+src/api/task-persistence.test.ts(203,13): error TS6133: 'deleted' is declared but its value is never read.
+src/cli/commands/audit.ts(596,3): error TS6133: 'issues' is declared but its value is never read.
+src/cli/commands/campaign.ts(30,1): error TS6192: All imports in import declaration are unused.
+src/cli/commands/chat.ts(387,9): error TS6133: '_prompt' is declared but its value is never read.
+src/cli/commands/mcp-status.ts(61,9): error TS6133: '_status' is declared but its value is never read.
+src/cli/commands/pipe.ts(80,49): error TS6133: 'interactive' is declared but its value is never read.
+src/context/unified-session.ts(409,54): error TS6133: 'sessionId' is declared but its value is never read.
+src/eval/arena.ts(386,5): error TS2339: Property '_rounds' does not exist on type 'ArenaOptions'.
+src/eval/arena.ts(386,5): error TS6133: '_rounds' is declared but its value is never read.
+src/interactive/prompt-detector.ts(215,20): error TS6133: '_debounceMs' is declared but its value is never read.
+src/interactive/prompt-detector.ts(218,11): error TS6133: '_debounceTimer' is declared but its value is never read.
+src/interactive/pty-session.ts(313,15): error TS6133: 'reason' is declared but its value is never read.
+src/interactive/responder.ts(9,1): error TS6133: 'AgentName' is declared but its value is never read.
+src/interactive/session-manager.ts(19,29): error TS6133: 'PromptEvent' is declared but its value is never read.
+src/lib/config.ts(91,7): error TS6133: 'CONFIG_PATH' is declared but its value is never read.
+src/lib/os-utils.ts(36,11): error TS6133: 'spawn' is declared but its value is never read.
+src/lib/stream-parser.test.ts(6,24): error TS6133: 'parseLine' is declared but its value is never read.
+src/memory/cache.ts(111,38): error TS6133: 'options' is declared but its value is never read.
+src/memory/cache.ts(116,43): error TS6133: 'options' is declared but its value is never read.
+src/memory/vector-store.ts(10,30): error TS6133: 'EMBEDDING_DIMENSION' is declared but its value is never read.
+src/observation/logger.ts(336,10): error TS6133: 'computeHash' is declared but its value is never read.
+src/observation/observation.test.ts(13,3): error TS6133: 'completeObservation' is declared but its value is never read.
+src/observation/observation.test.ts(28,24): error TS6133: 'closeDatabase' is declared but its value is never read.
+src/observation/preference-extractor.ts(10,1): error TS6133: 'Observation' is declared but its value is never read.
+src/orchestrator/campaign/campaign-agent.ts(3,1): error TS6133: 'adapters' is declared but its value is never read.
+src/orchestrator/campaign/campaign-checkpoint.ts(398,9): error TS6133: 'storedSize' is declared but its value is never read.
+src/orchestrator/campaign/campaign-db.ts(8,3): error TS6196: 'CampaignMetrics' is declared but never used.
+src/orchestrator/campaign/campaign-drift.test.ts(18,31): error TS6196: 'DriftSeverity' is declared but never used.
+src/orchestrator/campaign/campaign-drift.ts(16,3): error TS6196: 'EnhancedCampaignTask' is declared but never used.
+src/orchestrator/campaign/campaign-drift.ts(157,5): error TS6133: 'reason' is declared but its value is never read.
+src/orchestrator/campaign/campaign-drift.ts(357,11): error TS6133: 'stateWithDomains' is declared but its value is never read.
+src/orchestrator/campaign/campaign-engine.ts(5,3): error TS6196: 'CampaignDecision' is declared but never used.
+src/orchestrator/campaign/campaign-engine.ts(496,49): error TS6133: 'iterations' is declared but its value is never read.
+src/orchestrator/campaign/campaign-git.test.ts(8,32): error TS6133: 'beforeAll' is declared but its value is never read.
+src/orchestrator/campaign/campaign-git.test.ts(23,7): error TS6133: 'TEST_CAMPAIGN' is declared but its value is never read.
+src/orchestrator/campaign/campaign-git.ts(16,8): error TS6133: 'GitStatus' is declared but its value is never read.
+src/orchestrator/campaign/campaign-git.ts(18,31): error TS6196: 'ParallelGitStrategy' is declared but never used.
+src/orchestrator/campaign/campaign-metrics.ts(8,30): error TS6196: 'CampaignTask' is declared but never used.
+src/orchestrator/campaign/campaign-metrics.ts(9,15): error TS6196: 'CampaignMetrics' is declared but never used.
+src/orchestrator/campaign/campaign-metrics.ts(9,32): error TS6196: 'DomainMetrics' is declared but never used.
+src/orchestrator/campaign/campaign-queue.ts(6,3): error TS6196: 'isEnhancedTask' is declared but never used.
+src/orchestrator/campaign/campaign-types.ts(467,23): error TS2552: Cannot find name 'CampaignTaskStatus'. Did you mean 'CampaignTask'?
+src/orchestrator/campaign/campaign-validation.test.ts(5,32): error TS6133: 'beforeAll' is declared but its value is never read.
+src/orchestrator/campaign/campaign-validation.ts(15,3): error TS6196: 'DEFAULT_TASK_CRITERION' is declared but never used.
+src/orchestrator/campaign/campaign-validation.ts(21,7): error TS6133: 'DEFAULT_TIMEOUT_MS' is declared but its value is never read.
+src/orchestrator/campaign/campaign-worker.test.ts(9,37): error TS6196: 'TaskCriterion' is declared but never used.
+src/orchestrator/campaign/parallel-orchestrator.test.ts(5,32): error TS6133: 'mock' is declared but its value is never read.
+src/orchestrator/campaign/parallel-orchestrator.test.ts(12,53): error TS6196: 'ParallelCampaignConfig' is declared but never used.
+src/orchestrator/campaign/parallel-orchestrator.ts(17,3): error TS6196: 'DEFAULT_PARALLEL_CONFIG' is declared but never used.
+src/orchestrator/campaign/parallel-orchestrator.ts(19,29): error TS6196: 'CampaignState' is declared but never used.
+src/orchestrator/campaign/parallel-orchestrator.ts(21,3): error TS6133: 'createDomainQueue' is declared but its value is never read.
+src/orchestrator/campaign/task-reflector.test.ts(8,32): error TS6133: 'beforeAll' is declared but its value is never read.
+src/orchestrator/intelligent-orchestrator.ts(78,9): error TS6133: 'config' is declared but its value is never read.
+src/orchestrator/intelligent-orchestrator.ts(79,9): error TS6133: 'startTime' is declared but its value is never read.
+src/orchestrator/intelligent-orchestrator.ts(119,17): error TS6133: 'name' is declared but its value is never read.
+src/orchestrator/intelligent-orchestrator.ts(251,9): error TS6133: 'config' is declared but its value is never read.
+src/orchestrator/intelligent-orchestrator.ts(290,9): error TS6133: 'config' is declared but its value is never read.
+src/orchestrator/intelligent-orchestrator.ts(354,28): error TS6133: 'task' is declared but its value is never read.
+src/orchestrator/profile-orchestrator.ts(146,3): error TS6133: 'profile' is declared but its value is never read.
+src/orchestrator/puzzle-assembly.ts(27,1): error TS6133: 'adapters' is declared but its value is never read.
+src/orchestrator/puzzle-assembly.ts(28,1): error TS6192: All imports in import declaration are unused.
+src/orchestrator/puzzle-assembly.ts(91,9): error TS6133: 'maxDepth' is declared but its value is never read.
+src/orchestrator/puzzle-assembly.ts(558,3): error TS6133: 'options' is declared but its value is never read.
+src/router/router.ts(70,7): error TS6133: 'HARNESS_RECOMMENDATIONS' is declared but its value is never read.
+src/router/router.ts(95,9): error TS6133: 'taskLower' is declared but its value is never read.
+src/router/router.ts(190,9): error TS6133: 'config' is declared but its value is never read.
+src/router/router.ts(245,9): error TS6133: 'config' is declared but its value is never read.
+src/tui/components/AgentPanel.tsx(1,8): error TS6133: 'React' is declared but its value is never read.
+src/tui/components/AgentPanel.tsx(34,13): error TS6133: 'input' is declared but its value is never read.
+src/tui/components/AgentStatus.tsx(1,8): error TS6133: 'React' is declared but its value is never read.
+src/tui/components/ApprovalModePanel.tsx(1,8): error TS6133: 'React' is declared but its value is never read.
+src/tui/components/ApprovalModePanel.tsx(57,13): error TS6133: 'input' is declared but its value is never read.
+src/tui/components/Autocomplete.tsx(1,1): error TS6133: 'React' is declared but its value is never read.
+src/tui/components/Autocomplete.tsx(3,1): error TS6133: 'SelectInput' is declared but its value is never read.
+src/tui/components/Autocomplete.tsx(56,40): error TS6133: 'onSelect' is declared but its value is never read.
+src/tui/components/Autocomplete.tsx(56,50): error TS6133: 'onCancel' is declared but its value is never read.
+src/tui/components/Autocomplete.tsx(66,9): error TS6133: 'items' is declared but its value is never read.
+src/tui/components/Autocomplete.tsx(74,29): error TS6133: 'index' is declared but its value is never read.
+src/tui/components/Banner.tsx(1,1): error TS6192: All imports in import declaration are unused.
+src/tui/components/Banner.tsx(29,9): error TS6133: 'maxPuzldWidth' is declared but its value is never read.
+src/tui/components/CampaignPanel.tsx(1,8): error TS6133: 'React' is declared but its value is never read.
+src/tui/components/CampaignPanel.tsx(2,31): error TS6133: 'useStdout' is declared but its value is never read.
+src/tui/components/CollaborationView.tsx(117,68): error TS6133: 'onReEnter' is declared but its value is never read.
+src/tui/components/CollaborationView.tsx(144,9): error TS6133: 'hasSynthesis' is declared but its value is never read.
+src/tui/components/CollaborationView.tsx(169,13): error TS6133: 'char' is declared but its value is never read.
+src/tui/components/CompareView.tsx(1,8): error TS6133: 'React' is declared but its value is never read.
+src/tui/components/CompareView.tsx(87,13): error TS6133: 'char' is declared but its value is never read.
+src/tui/components/DiffReview.tsx(8,8): error TS6133: 'React' is declared but its value is never read.
+src/tui/components/DiffReview.tsx(132,13): error TS6133: 'input' is declared but its value is never read.
+src/tui/components/DomainProgress.tsx(1,1): error TS6133: 'React' is declared but its value is never read.
+src/tui/components/DomainProgress.tsx(159,57): error TS6133: 'showTasks' is declared but its value is never read.
+src/tui/components/IndexPanel.tsx(1,8): error TS6133: 'React' is declared but its value is never read.
+src/tui/components/IndexPanel.tsx(29,13): error TS6133: 'input' is declared but its value is never read.
+src/tui/components/InputBox.tsx(1,1): error TS6133: 'React' is declared but its value is never read.
+src/tui/components/ModelPanel.tsx(86,13): error TS6133: 'input' is declared but its value is never read.
+src/tui/components/ModelPanel.tsx(103,13): error TS6133: 'input' is declared but its value is never read.
+src/tui/components/ObservePanel.tsx(1,8): error TS6133: 'React' is declared but its value is never read.
+src/tui/components/ObservePanel.tsx(27,13): error TS6133: 'input' is declared but its value is never read.
+src/tui/components/PermissionPrompt.tsx(1,8): error TS6133: 'React' is declared but its value is never read.
+src/tui/components/PermissionPrompt.tsx(57,13): error TS6133: 'input' is declared but its value is never read.
+src/tui/components/SessionsManager.tsx(1,8): error TS6133: 'React' is declared but its value is never read.
+src/tui/components/SessionsManager.tsx(74,13): error TS6133: 'input' is declared but its value is never read.
+src/tui/components/SessionsManager.tsx(94,13): error TS6133: 'input' is declared but its value is never read.
+src/tui/components/SessionsManager.tsx(113,13): error TS6133: 'input' is declared but its value is never read.
+src/tui/components/SessionsManager.tsx(130,13): error TS6133: 'input' is declared but its value is never read.
+src/tui/components/SessionsManager.tsx(143,13): error TS6133: 'input' is declared but its value is never read.
+src/tui/components/SettingsPanel.tsx(106,13): error TS6133: 'input' is declared but its value is never read.
+src/tui/components/SettingsPanel.tsx(330,32): error TS6133: 'options' is declared but its value is never read.
+src/tui/components/SettingsPanel.tsx(341,21): error TS6133: 'currentIndex' is declared but its value is never read.
+src/tui/components/SingleFileDiff.tsx(8,8): error TS6133: 'React' is declared but its value is never read.
+src/tui/components/SingleFileDiff.tsx(116,13): error TS6133: 'input' is declared but its value is never read.
+src/tui/components/StatusBar.tsx(1,8): error TS6133: 'React' is declared but its value is never read.
+src/tui/components/ToolActivity.tsx(1,8): error TS6133: 'React' is declared but its value is never read.
+src/tui/components/UpdatePrompt.tsx(1,1): error TS6133: 'React' is declared but its value is never read.
+src/tui/components/WorkflowsManager.tsx(1,8): error TS6133: 'React' is declared but its value is never read.
+src/tui/components/WorkflowsManager.tsx(64,13): error TS6133: 'input' is declared but its value is never read.
+src/tui/components/WorkflowsManager.tsx(96,13): error TS6133: 'input' is declared but its value is never read.
+src/tui/components/WorkflowsManager.tsx(133,13): error TS6133: 'input' is declared but its value is never read.
+src/tui/components/WorkflowsManager.tsx(153,9): error TS6133: 'handleMenuSelect' is declared but its value is never read.
+src/tui/components/WorkflowsManager.tsx(183,13): error TS6133: 'input' is declared but its value is never read.
+src/tui/components/WorkflowsManager.tsx(199,9): error TS6133: 'handleListSelect' is declared but its value is never read.
+src/tui/components/WorkflowsManager.tsx(214,13): error TS6133: 'input' is declared but its value is never read.
+src/tui/index.tsx(7,1): error TS6133: 'orchestrate' is declared but its value is never read.
+src/tui/index.tsx(8,1): error TS6133: 'chatOrchestrator' is declared but its value is never read.
+src/tui/index.tsx(9,1): error TS6192: All imports in import declaration are unused.
+src/tui/index.tsx(10,1): error TS6192: All imports in import declaration are unused.
+src/tui/index.tsx(11,1): error TS6133: 'pipelineOrchestrator' is declared but its value is never read.
+src/tui/index.tsx(26,3): error TS6133: 'parsePipelineString' is declared but its value is never read.
+src/tui/index.tsx(30,10): error TS6133: 'listTemplates' is declared but its value is never read.
+src/tui/index.tsx(50,3): error TS6133: 'listUnifiedSessions' is declared but its value is never read.
+src/tui/index.tsx(60,1): error TS6192: All imports in import declaration are unused.
+src/tui/index.tsx(61,1): error TS6192: All imports in import declaration are unused.
+src/tui/index.tsx(65,3): error TS6133: 'formatFileContext' is declared but its value is never read.
+src/tui/index.tsx(136,10): error TS6133: 'createMessage' is declared but its value is never read.
+src/tui/index.tsx(165,10): error TS6133: 'loadingText' is declared but its value is never read.
+src/tui/index.tsx(176,10): error TS6133: 'currentAgenticResult' is declared but its value is never read.
+src/tui/index.tsx(181,10): error TS6133: 'isUpdating' is declared but its value is never read.
+src/tui/index.tsx(183,10): error TS6133: 'lastMode' is declared but its value is never read.
+src/tui/index.tsx(184,10): error TS6133: 'consensusContext' is declared but its value is never read.
+src/tui/index.tsx(187,10): error TS6133: 'agenticSubMode' is declared but its value is never read.
+src/tui/index.tsx(188,10): error TS6133: 'currentPlan' is declared but its value is never read.
+src/tui/index.tsx(189,10): error TS6133: 'currentPlanTask' is declared but its value is never read.
+src/tui/index.tsx(190,10): error TS6133: 'modeChangeNotice' is declared but its value is never read.
+src/tui/index.tsx(190,28): error TS6133: 'setModeChangeNotice' is declared but its value is never read.
+src/tui/index.tsx(191,10): error TS6133: 'isTrusted' is declared but its value is never read.
+src/tui/index.tsx(829,13): error TS6133: 'char' is declared but its value is never read.
+src/tui/index.tsx(1007,9): error TS6133: 'runPlanMode' is declared but its value is never read.
+src/tui/index.tsx(1073,9): error TS6133: 'runBuildMode' is declared but its value is never read.
+src/tui/index.tsx(2688,76): error TS6133: 'i' is declared but its value is never read.

@@ -12,7 +12,7 @@
  * 5. Poetiq - Verification-first implementation with diverge/converge
  */
 
-import type { AgentName, ExecutionPlan, PlanStep, PKPoetOptions } from './types';
+import type { ExecutionPlan, PlanStep, PKPoetOptions } from './types';
 
 function generatePlanId(): string {
   return `pkpoet_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;

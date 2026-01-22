@@ -212,15 +212,15 @@ export const GENERIC_PATTERNS: PromptPattern[] = [
 export class PromptDetector {
   private buffer = '';
   private readonly maxBufferSize: number;
-  private readonly debounceMs: number;
+  private readonly _debounceMs: number;
   private readonly patterns: Map<string, PromptPattern[]>;
   private currentTool: string = 'generic';
-  private debounceTimer: NodeJS.Timeout | null = null;
+  private _debounceTimer: NodeJS.Timeout | null = null;
   private lastDetection: PromptEvent | null = null;
 
   constructor(options: PromptDetectorOptions = {}) {
     this.maxBufferSize = options.maxBufferSize ?? 10000;
-    this.debounceMs = options.debounceMs ?? 100;
+    this._debounceMs = options.debounceMs ?? 100;
 
     // Initialize pattern registry
     this.patterns = new Map();

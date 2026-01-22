@@ -10,6 +10,9 @@
 
 import type { AgentName, PlanMode } from '../../executor/types.js';
 import type { CampaignTask, CampaignTaskStatus } from './campaign-state.js';
+export { CampaignStatus } from './campaign-state.js';
+export type { CampaignTaskStatus };
+
 
 // ============================================================================
 // Domain Types

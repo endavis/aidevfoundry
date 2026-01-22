@@ -14,8 +14,7 @@ import type {
   CorrectionOptions,
   DebateOptions,
   ConsensusOptions,
-  PickBuildOptions,
-  PKPoetOptions
+  PickBuildOptions
 } from './types';
 
 // Re-export PK-Poet builder

@@ -4,7 +4,7 @@ import { getConfig } from '../../lib/config';
 import { routeTask, isRouterAvailable } from '../../router/router';
 import { resolveAgentSelection } from '../../lib/agent-selection';
 import type { AgentName } from '../../executor/types';
-import type { Adapter, ModelResponse } from '../../lib/types';
+import type { ModelResponse } from '../../lib/types';
 
 interface RalphOptions {
   planner?: string;

@@ -382,18 +382,9 @@ function printBanner() {
   console.log();
 }
 
-// Format streaming spinner
-function createSpinner() {
-  const frames = ['⠋', '⠙', '⠹', '⠸', '⠼', '⠴', '⠦', '⠧', '⠇', '⠏'];
-  let i = 0;
-  return {
-    frame: () => frames[i++ % frames.length],
-  };
-}
-
 // Main chat function
 async function runChat(state: ChatState): Promise<void> {
-  const prompt = state.messages.length > 0
+  const _prompt = state.messages.length > 0
     ? state.messages.map(m => `${m.role}: ${m.content}`).join('\n\n') + '\n\nuser: '
     : '';
 

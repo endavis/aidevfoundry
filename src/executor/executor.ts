@@ -440,7 +440,7 @@ async function executeStep(
  */
 async function executeStepOnce(
   step: PlanStep,
-  ctx: ExecutionContext,
+  _ctx: ExecutionContext,
   config: ExecutorConfig,
   _emit: (event: Omit<TimelineEvent, 'timestamp'>) => void
 ): Promise<StepResult> {

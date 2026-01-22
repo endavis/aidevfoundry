@@ -32,7 +32,6 @@
 import { execa } from 'execa';
 import pc from 'picocolors';
 import { adapters } from '../adapters';
-import { getConfig } from '../lib/config';
 
 // ============================================================================
 // TYPES
@@ -326,9 +325,9 @@ Output ONLY valid JSON:
     return {
       taskId: task.id,
       winnerId: parsed.winner === 'A' ? resultA.configId :
-                parsed.winner === 'B' ? resultB.configId : 'TIE',
+        parsed.winner === 'B' ? resultB.configId : 'TIE',
       loserId: parsed.winner === 'A' ? resultB.configId :
-               parsed.winner === 'B' ? resultA.configId : 'TIE',
+        parsed.winner === 'B' ? resultA.configId : 'TIE',
       reasoning: parsed.reasoning,
       scores: {
         [resultA.configId]: parsed.scoreA,
@@ -386,6 +385,7 @@ export async function runArena(options: ArenaOptions = {}): Promise<{
     judge: judgeModel = 'gemini',
     rounds = 1,
     timeout = 120000,
+
     verbose = false
   } = options;
 

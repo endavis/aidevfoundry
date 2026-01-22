@@ -16,7 +16,6 @@ export * from './searcher';
 export * from './config-detector';
 
 import { globSync } from 'glob';
-import { join } from 'path';
 import { parseFiles, type FileStructure } from './ast-parser';
 import { buildDependencyGraph, type DependencyGraph } from './dependency-graph';
 import { embedFileStructures, type EmbedResult } from './embedder';

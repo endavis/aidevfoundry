@@ -12,7 +12,7 @@
  * contain missing dependencies or cycles.
  */
 
-import type { ExecutionPlan, PlanStep, AgentName, StepAction } from './types';
+import type { ExecutionPlan, PlanStep, StepAction } from './types';
 import { adapters } from '../adapters';
 
 /**

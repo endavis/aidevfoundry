@@ -4,14 +4,10 @@ import TextInput from 'ink-text-input';
 import { existsSync, readFileSync } from 'fs';
 import { join, dirname, resolve } from 'path';
 import { fileURLToPath } from 'url';
-import { orchestrate } from '../orchestrator';
-import { chat as chatOrchestrator } from '../chat';
-import { compare as compareOrchestrator, recordComparePreference, hasPendingComparison } from '../chat/compare';
-import { debate as debateOrchestrator, recordDebateWinner, hasPendingDebate } from '../chat/debate';
-import { pipeline as pipelineOrchestrator } from '../chat/pipeline';
 import { Banner, WelcomeMessage } from './components/Banner';
 import { TrustPrompt } from './components/TrustPrompt';
 import { ApprovalModePanel, type ApprovalMode } from './components/ApprovalModePanel';
+
 import { isDirectoryTrusted, trustDirectory, getParentDirectory, getTrustedDirectories, untrustDirectory } from '../trust';
 import { useHistory } from './hooks/useHistory';
 import { getCommandSuggestions } from './components/Autocomplete';
@@ -27,7 +23,8 @@ import {
   execute,
   type AgentName
 } from '../executor';
-import { listTemplates, loadTemplate } from '../executor/templates';
+import { loadTemplate } from '../executor/templates';
+
 import { WorkflowsManager } from './components/WorkflowsManager';
 import { SessionsManager } from './components/SessionsManager';
 import { SingleFileDiff, type DiffDecision } from './components/SingleFileDiff';
@@ -50,6 +47,7 @@ import {
   listUnifiedSessions,
   type UnifiedSession,
 } from '../context';
+
 import { checkForUpdate, markUpdated } from '../lib/updateCheck';
 import { UpdatePrompt } from './components/UpdatePrompt';
 import { AgentPanel } from './components/AgentPanel';
@@ -57,8 +55,8 @@ import { IndexPanel } from './components/IndexPanel';
 import { ObservePanel } from './components/ObservePanel';
 import { DiffReview } from './components/DiffReview';
 import { execa } from 'execa';
-import type { PlanStep, StepResult } from '../executor';
-import { claudeAdapter, type DryRunResult } from '../adapters/claude';
+import { claudeAdapter } from '../adapters/claude';
+
 import type { ProposedEdit } from '../lib/edit-review';
 import {
   runAgentic,
@@ -190,6 +188,7 @@ function App() {
   const [modeChangeNotice, setModeChangeNotice] = useState<string | null>(null); // Brief notification when mode changes
   const [isTrusted, setIsTrusted] = useState<boolean | null>(null); // null = checking, true/false = result
   const [approvalMode, setApprovalMode] = usePersistentState<ApprovalMode>('approvalMode', 'default');
+
   const [allowAllEdits, setAllowAllEdits] = usePersistentState('allowAllEdits', false); // Persists "allow all edits" across messages
   const [mcpStatus, setMcpStatus] = useState<McpStatus>('local'); // MCP connection status
 
@@ -398,6 +397,91 @@ function App() {
   const [currentAgent, setCurrentAgent] = usePersistentState('currentAgent', 'auto');
   const [currentRouter, setCurrentRouter] = useState('ollama');
   const [currentPlanner, setCurrentPlanner] = useState('ollama');
+
+  // Helper to save compare results to history - defined early for use in useInput
+
+  const saveCompareToHistory = () => {
+    if (mode === 'compare') {
+      // Save results to history if we have any completed results (skip if re-entering)
+      const completedResults = compareResults.filter(r => !r.loading);
+      const allLoading = compareResults.length > 0 && completedResults.length === 0;
+
+      if (!isReEnteringCompare) {
+        if (completedResults.length > 0) {
+          setMessages(prev => [...prev, {
+            id: nextId(),
+            role: 'compare',
+            content: '',
+            compareResults: completedResults,
+            timestamp: Date.now()
+          }]);
+        } else if (allLoading) {
+          // Show aborted message if cancelled while all were still loading
+          setMessages(prev => [...prev, {
+            id: nextId(),
+            role: 'assistant',
+            content: '*Compare aborted*',
+            agent: 'system',
+            timestamp: Date.now()
+          }]);
+        }
+      }
+      // Always exit to chat mode (even if loading - allows abort)
+      setMode('chat');
+      setCompareResults([]);
+      setIsReEnteringCompare(false); // Reset flag
+      // Reset input to fix cursor issues when returning to chat
+      setInput('');
+      setInputKey(k => k + 1);
+    }
+  };
+
+  // Helper to save collaboration results to history - defined early for use in useInput
+  const saveCollaborationToHistory = () => {
+    if (mode === 'collaboration') {
+      // Save completed steps to history if we have any
+      const completedSteps = collaborationSteps.filter(s => !s.loading);
+      const allLoading = collaborationSteps.length > 0 && completedSteps.length === 0;
+
+      // Get display name for the collaboration type
+      const typeLabel = collaborationType === 'consensus' ? 'Consensus' :
+        collaborationType === 'debate' ? 'Debate' :
+          collaborationType === 'correct' ? 'Correction' :
+            collaborationType === 'pipeline' ? 'Pipeline' : 'Collaboration';
+
+      if (!isReEnteringCollaboration) {
+        if (completedSteps.length > 0) {
+          setMessages(prev => [...prev, {
+            id: nextId(),
+            role: 'collaboration',
+            content: '',
+            collaborationSteps: completedSteps,
+            collaborationType,
+            pipelineName,
+            timestamp: Date.now()
+          }]);
+        } else if (allLoading) {
+          // Show aborted message if cancelled while all were still loading
+          setMessages(prev => [...prev, {
+            id: nextId(),
+            role: 'assistant',
+            content: `*${typeLabel} aborted*`,
+            agent: 'system',
+            timestamp: Date.now()
+          }]);
+        }
+      }
+      // Always exit to chat mode (even if loading - allows abort)
+      setMode('chat');
+      setCollaborationSteps([]);
+      setIsReEnteringCollaboration(false); // Reset flag
+      // Reset input to fix cursor issues when returning to chat
+      setInput('');
+      setInputKey(k => k + 1);
+    }
+  };
+
+
 
   // Toggle options
   const [sequential, setSequential] = usePersistentState('sequential', false);
@@ -789,85 +873,8 @@ function App() {
     }
   }, { isActive: (mode === 'chat' || autocompleteItems.length > 0) && mode !== 'review' });
 
-  // Save current compare results to history and exit compare mode
-  const saveCompareToHistory = () => {
-    if (mode === 'compare') {
-      // Save results to history if we have any completed results (skip if re-entering)
-      const completedResults = compareResults.filter(r => !r.loading);
-      const allLoading = compareResults.length > 0 && completedResults.length === 0;
-
-      if (!isReEnteringCompare) {
-        if (completedResults.length > 0) {
-          setMessages(prev => [...prev, {
-            id: nextId(),
-            role: 'compare',
-            content: '',
-            compareResults: completedResults
-          }]);
-        } else if (allLoading) {
-          // Show aborted message if cancelled while all were still loading
-          setMessages(prev => [...prev, {
-            id: nextId(),
-            role: 'assistant',
-            content: '*Compare aborted*',
-            agent: 'system'
-          }]);
-        }
-      }
-      // Always exit to chat mode (even if loading - allows abort)
-      setMode('chat');
-      setCompareResults([]);
-      setIsReEnteringCompare(false); // Reset flag
-      // Reset input to fix cursor issues when returning to chat
-      setInput('');
-      setInputKey(k => k + 1);
-    }
-  };
-
-  // Save current collaboration results to history and exit collaboration mode
-  const saveCollaborationToHistory = () => {
-    if (mode === 'collaboration') {
-      // Save completed steps to history if we have any
-      const completedSteps = collaborationSteps.filter(s => !s.loading);
-      const allLoading = collaborationSteps.length > 0 && completedSteps.length === 0;
-
-      // Get display name for the collaboration type
-      const typeLabel = collaborationType === 'consensus' ? 'Consensus' :
-        collaborationType === 'debate' ? 'Debate' :
-          collaborationType === 'correct' ? 'Correction' :
-            collaborationType === 'pipeline' ? 'Pipeline' : 'Collaboration';
-
-      if (!isReEnteringCollaboration) {
-        if (completedSteps.length > 0) {
-          setMessages(prev => [...prev, {
-            id: nextId(),
-            role: 'collaboration',
-            content: '',
-            collaborationSteps: completedSteps,
-            collaborationType: collaborationType,
-            pipelineName: collaborationType === 'pipeline' ? pipelineName : undefined
-          }]);
-        } else if (allLoading) {
-          // Show aborted message if cancelled while all were still loading
-          setMessages(prev => [...prev, {
-            id: nextId(),
-            role: 'assistant',
-            content: `*${typeLabel} aborted*`,
-            agent: 'system'
-          }]);
-        }
-      }
-      // Always exit to chat mode (even if loading - allows abort)
-      setMode('chat');
-      setCollaborationSteps([]);
-      setIsReEnteringCollaboration(false); // Reset flag
-      // Reset input to fix cursor issues when returning to chat
-      setInput('');
-      setInputKey(k => k + 1);
-    }
-  };
-
   // Helper to add system messages
+
   const addSystemMessage = (content: string, agent?: string) => {
     setMessages(prev => [...prev, { id: nextId(), role: 'assistant', content, agent: agent || 'system' }]);
   };

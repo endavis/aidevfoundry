@@ -4,7 +4,6 @@ import { readFile, stat } from 'fs/promises';
 import { join } from 'path';
 import { globSync } from 'glob';
 import pc from 'picocolors';
-import { orchestrate } from '../../orchestrator';
 import { discoverAgents, getAgent, formatAgentList } from '../../lib/agent-discovery';
 import { getConfig } from '../../lib/config';
 import {
@@ -15,7 +14,6 @@ import {
   getDefaultModel,
   getFastModel,
   getBestModel,
-  type UnifiedCLIOptions,
 } from '../../lib/unified-cli';
 import type { AgentName } from '../../executor/types';
 import { transformTables, transformMermaid } from '../../display';

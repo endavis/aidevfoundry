@@ -16,11 +16,10 @@ import {
   InterfaceDeclaration,
   TypeAliasDeclaration,
   Node,
-  VariableDeclaration,
 } from 'ts-morph';
 import { existsSync } from 'fs';
 import { relative, extname } from 'path';
-import { toForwardSlash, isAbsolutePath } from '../lib/paths';
+import { isAbsolutePath } from '../lib/paths';
 
 export interface ParameterInfo {
   name: string;
@@ -113,7 +112,7 @@ const SUPPORTED_EXTENSIONS = ['.ts', '.tsx', '.js', '.jsx', '.mjs', '.cjs'];
 /**
  * Create a ts-morph Project for parsing
  */
-export function createProject(rootDir: string): Project {
+export function createProject(_rootDir: string): Project {
   return new Project({
     compilerOptions: {
       allowJs: true,

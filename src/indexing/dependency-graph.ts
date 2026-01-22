@@ -9,8 +9,8 @@
 
 import { resolve, dirname, join } from 'path';
 import { existsSync, readFileSync } from 'fs';
-import type { FileStructure, ImportInfo } from './ast-parser';
-import { isAbsolutePath, toForwardSlash } from '../lib/paths';
+import type { FileStructure } from './ast-parser';
+import { isAbsolutePath } from '../lib/paths';
 
 export interface DependencyNode {
   /** Absolute path to the file */
@@ -124,7 +124,7 @@ function loadPathAliases(rootDir: string): Map<string, string> {
 function resolveImportPath(
   moduleSpecifier: string,
   fromDir: string,
-  rootDir: string,
+  _rootDir: string,
   pathAliases: Map<string, string>
 ): string | null {
   // Try different extensions
@@ -289,7 +289,7 @@ export function getMostConnectedFiles(
 ): Array<{ path: string; connections: number }> {
   const connections: Array<{ path: string; connections: number }> = [];
 
-  for (const [path, node] of graph.nodes) {
+  for (const [_path, node] of graph.nodes) {
     connections.push({
       path: node.relativePath,
       connections: node.imports.length + node.importedBy.length,
@@ -353,7 +353,7 @@ export function getGraphSummary(graph: DependencyGraph): string {
   let maxImports = 0;
   let maxImportsFile = '';
 
-  for (const [path, node] of graph.nodes) {
+  for (const [_path, node] of graph.nodes) {
     totalImports += node.imports.length;
     if (node.imports.length > maxImports) {
       maxImports = node.imports.length;

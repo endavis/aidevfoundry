@@ -15,7 +15,6 @@ import type {
   IncludeMode,
   ContextPriority,
   StepRole,
-  StepResult,
   PlanStep
 } from '../executor/types';
 import { evaluateCondition, type ExecutionContext } from '../executor/context';

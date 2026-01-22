@@ -20,7 +20,7 @@ import pc from 'picocolors';
 import { writeFileSync, readFileSync, existsSync, mkdirSync } from 'fs';
 import { join } from 'path';
 import { adapters } from '../adapters';
-import { getConfig, getConfigDir } from '../lib/config';
+import { getConfigDir } from '../lib/config';
 
 // ============================================================================
 // TYPES
@@ -209,7 +209,7 @@ export class FeedbackLoop {
     }
 
     // Direct single agent
-    const [agent, action] = pattern.steps[0].split(':');
+    const [agent, _action] = pattern.steps[0].split(':');
     return `pk-puzldai run "${escapedTask}" -a ${agent}`;
   }
 
@@ -270,7 +270,7 @@ export class FeedbackLoop {
   /**
    * Judge comparison using LLM
    */
-  private async judge(task: LoopTask, outputA: string, outputB: string, configA: LoopConfig, configB: LoopConfig): Promise<{
+  private async judge(task: LoopTask, outputA: string, outputB: string, _configA: LoopConfig, _configB: LoopConfig): Promise<{
     winner: 'A' | 'B' | 'TIE';
     scoreA: number;
     scoreB: number;

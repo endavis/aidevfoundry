@@ -24,10 +24,7 @@ import {
 } from '../../orchestrator/campaign/campaign-drift.js';
 import type {
   DriftSeverity,
-  CampaignDomain,
   EnhancedCampaignTask,
-  ParallelCampaignConfig,
-  DEFAULT_PARALLEL_CONFIG,
   DriftDetectionResult
 } from '../../orchestrator/campaign/campaign-types.js';
 import {

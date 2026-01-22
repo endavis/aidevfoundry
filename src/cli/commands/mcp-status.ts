@@ -9,7 +9,7 @@
 
 import pc from 'picocolors';
 import { getConfig } from '../../lib/config';
-import { getBridgeState, getCapabilities, getMachineId } from '../../mcp/bridge';
+import { getBridgeState, getCapabilities } from '../../mcp/bridge';
 import { isConnected, getConnectionState } from '../../mcp/ws-client';
 
 interface McpStatus {
@@ -58,7 +58,7 @@ export async function mcpStatusCommand(): Promise<void> {
   // Get machine ID
   const machineId = config.cloud?.machineId || 'not configured';
 
-  const status: McpStatus = {
+  const _status: McpStatus = {
     mode,
     connectionState,
     localBridge: {
