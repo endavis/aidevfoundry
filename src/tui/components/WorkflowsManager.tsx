@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { Box, Text, useInput } from 'ink';
 import SelectInput, { ItemProps } from 'ink-select-input';
 import TextInput from 'ink-text-input';
@@ -61,7 +61,7 @@ export function WorkflowsManager({ onBack, onRun }: WorkflowsManagerProps) {
   ];
 
   // Handle edit keyboard (menu navigation)
-  useInput((input, key) => {
+  useInput((_, key) => {
     if (view !== 'edit' || editPhase !== 'menu') return;
 
     if (key.upArrow) {
@@ -93,7 +93,7 @@ export function WorkflowsManager({ onBack, onRun }: WorkflowsManagerProps) {
   }, { isActive: view === 'edit' && editPhase === 'menu' });
 
   // Handle Esc to go back
-  useInput((input, key) => {
+  useInput((_, key) => {
     if (key.escape) {
       if (view === 'menu') {
         onBack();
@@ -130,7 +130,7 @@ export function WorkflowsManager({ onBack, onRun }: WorkflowsManagerProps) {
   const [menuIndex, setMenuIndex] = useState(0);
 
   // Handle menu keyboard
-  useInput((input, key) => {
+  useInput((_, key) => {
     if (view !== 'menu') return;
     if (key.upArrow) {
       setMenuIndex(i => Math.max(0, i - 1));
@@ -148,18 +148,6 @@ export function WorkflowsManager({ onBack, onRun }: WorkflowsManagerProps) {
       }
     }
   }, { isActive: view === 'menu' });
-
-  // Handle menu selection (kept for compatibility but won't be used)
-  const handleMenuSelect = (item: { value: string }) => {
-    if (item.value === 'create') {
-      setView('create');
-      setCreateStep('name');
-      setNewWorkflow({ name: '', pipeline: '', description: '' });
-      setInputValue('');
-    } else if (item.value === 'list') {
-      setView('list');
-    }
-  };
 
   // Build items for the workflows list - built-in first, then custom
   const listItems = workflows.map(name => {
@@ -180,7 +168,7 @@ export function WorkflowsManager({ onBack, onRun }: WorkflowsManagerProps) {
   const [listIndex, setListIndex] = useState(0);
 
   // Handle list keyboard
-  useInput((input, key) => {
+  useInput((_, key) => {
     if (view !== 'list') return;
     if (key.upArrow) {
       setListIndex(i => Math.max(0, i - 1));
@@ -195,12 +183,6 @@ export function WorkflowsManager({ onBack, onRun }: WorkflowsManagerProps) {
     }
   }, { isActive: view === 'list' });
 
-  // Handle selection from workflows list (kept for compatibility)
-  const handleListSelect = (item: { value: string }) => {
-    setSelectedWorkflow(item.value);
-    setView('workflow');
-  };
-
   // Workflow action items
   const workflowActions = [
     { label: 'Edit', value: 'edit', hint: 'Enter to modify' },
@@ -211,7 +193,7 @@ export function WorkflowsManager({ onBack, onRun }: WorkflowsManagerProps) {
   const [actionIndex, setActionIndex] = useState(0);
 
   // Handle workflow keyboard
-  useInput((input, key) => {
+  useInput((_, key) => {
     if (view !== 'workflow') return;
     if (key.upArrow) {
       setActionIndex(i => Math.max(0, i - 1));

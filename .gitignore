@@ -46,3 +46,6 @@ nul
 
 # Campaign state (local orchestration data)
 .campaign/
+
+# Temporary verification logs
+tsc*.txt

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { Box, Text, useInput } from 'ink';
 
 const HIGHLIGHT_COLOR = '#8CA9FF';
@@ -24,7 +24,7 @@ export function ObservePanel({ onSelect, onBack }: ObservePanelProps) {
 
   const [selectedIndex, setSelectedIndex] = useState(0);
 
-  useInput((input, key) => {
+  useInput((_, key) => {
     if (key.escape) {
       onBack();
     } else if (key.upArrow) {

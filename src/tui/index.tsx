@@ -926,7 +926,6 @@ function App() {
 
       // Stay in chat mode while building (don't switch to review yet)
       setLoading(true);
-      setLoadingText(`building from ${modeLabel}...`);
       setMessages(prev => [...prev, {
         id: nextId(),
         role: 'user',
@@ -1069,7 +1068,6 @@ function App() {
     setLoading(true);
     setLoadingAgent(agentName);
     setLoadingStartTime(Date.now());
-    setLoadingText(`${agentName} is thinking...`);
     setAgentPhase('thinking');
     setToolActivity([]); // Reset tool activity for new execution
 
@@ -1247,7 +1245,6 @@ function App() {
           setToolActivity(prev => prev.map(t =>
             t.id === call.id ? { ...t, status: 'running' as const, startTime } : t
           ));
-          setLoadingText(`${agentName}: ${call.name}...`);
           setAgentPhase('tool_running');
 
           // Refresh summary (fire and forget)
@@ -1274,7 +1271,6 @@ function App() {
         // Iteration callback - fires at start of each iteration
         onIteration: (iteration: number) => {
           setToolIteration(iteration);
-          setLoadingText(`${agentName} exploring (${iteration})...`);
           setAgentPhase('thinking'); // Reset to thinking at start of new iteration
         },
 
@@ -1731,7 +1727,6 @@ Compare View:
         if (subCmd === 'search' && searchQuery) {
           // Search indexed code
           setLoading(true);
-          setLoadingText('searching indexed code...');
           try {
             const results = await searchCode(searchQuery, process.cwd(), {
               limit: 10,
@@ -1756,7 +1751,6 @@ Compare View:
             break;
           }
           setLoading(true);
-          setLoadingText('getting relevant context...');
           try {
             const context = await getTaskContext(searchQuery, process.cwd(), {
               maxFiles: 5,
@@ -1791,7 +1785,6 @@ Compare View:
         } else if (subCmd === 'graph') {
           // Show dependency graph
           setLoading(true);
-          setLoadingText('building dependency graph...');
           try {
             const rootDir = process.cwd();
             const files = globSync('**/*.{ts,tsx,js,jsx}', {
@@ -1809,7 +1802,6 @@ Compare View:
         } else if (subCmd === 'full' || subCmd === 'quick') {
           // Index current directory
           setLoading(true);
-          setLoadingText('indexing codebase...');
           try {
             const result = await indexCodebase(process.cwd(), { skipEmbedding: subCmd === 'quick' });
             const summary = getIndexSummary(result);
@@ -2324,7 +2316,6 @@ Compare View:
 
         setMessages(prev => [...prev, { id: nextId(), role: 'user', content: '/autopilot "' + task + '"' }]);
         setLoading(true);
-        setLoadingText('generating plan...');
 
         try {
           const planResult = await generatePlan(task, currentPlanner as AgentName);
@@ -2403,7 +2394,6 @@ Compare View:
 
         setMessages(prev => [...prev, { id: nextId(), role: 'user', content: '/campaign "' + goal + '"' }]);
         setLoading(true);
-        setLoadingText('starting campaign...');
 
         try {
           const options: CampaignOptions = {
@@ -3115,7 +3105,6 @@ ${result.finalSummary ? '\nSummary:\n' + result.finalSummary : ''}
                   // Build and show graph - defer to allow UI update
                   setMessages(prev => [...prev, { id: nextId(), role: 'user', content: '/index graph' }]);
                   setLoading(true);
-                  setLoadingText('building dependency graph...');
                   setTimeout(async () => {
                     try {
                       const rootDir = process.cwd();
@@ -3137,7 +3126,6 @@ ${result.finalSummary ? '\nSummary:\n' + result.finalSummary : ''}
                   const isQuick = option === 'quick';
                   setMessages(prev => [...prev, { id: nextId(), role: 'user', content: `/index ${isQuick ? 'quick' : 'full'}` }]);
                   setLoading(true);
-                  setLoadingText(`indexing codebase${isQuick ? ' (quick)' : ' with embeddings'}...`);
                   setTimeout(async () => {
                     try {
                       const result = await indexCodebase(process.cwd(), { skipEmbedding: isQuick });
@@ -3670,7 +3658,6 @@ ${result.finalSummary ? '\nSummary:\n' + result.finalSummary : ''}
               toolCount={toolActivity.length}
               iteration={toolIteration}
               summary={agentSummary}
-              status={loadingText}
             />
           </Box>
         )}

@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useEffect } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { Box, Text, useInput } from 'ink';
 import {
   listUnifiedSessions,
@@ -71,7 +71,7 @@ export function SessionsManager({ onBack, onLoadSession, currentAgent }: Session
   ];
 
   // Handle Esc to go back
-  useInput((input, key) => {
+  useInput((_, key) => {
     if (key.escape) {
       if (view === 'menu') {
         onBack();
@@ -91,7 +91,7 @@ export function SessionsManager({ onBack, onLoadSession, currentAgent }: Session
   });
 
   // Handle menu keyboard
-  useInput((input, key) => {
+  useInput((_, key) => {
     if (view !== 'menu') return;
     if (key.upArrow) {
       setMenuIndex(i => Math.max(0, i - 1));
@@ -110,7 +110,7 @@ export function SessionsManager({ onBack, onLoadSession, currentAgent }: Session
   }, { isActive: view === 'menu' });
 
   // Handle list keyboard
-  useInput((input, key) => {
+  useInput((_, key) => {
     if (view !== 'list') return;
     if (key.upArrow) {
       setListIndex(i => Math.max(0, i - 1));
@@ -127,7 +127,7 @@ export function SessionsManager({ onBack, onLoadSession, currentAgent }: Session
   }, { isActive: view === 'list' });
 
   // Handle session actions keyboard
-  useInput((input, key) => {
+  useInput((_, key) => {
     if (view !== 'session') return;
     if (key.upArrow) {
       setActionIndex(i => Math.max(0, i - 1));
@@ -140,7 +140,7 @@ export function SessionsManager({ onBack, onLoadSession, currentAgent }: Session
   }, { isActive: view === 'session' });
 
   // Handle confirm keyboard
-  useInput((input, key) => {
+  useInput((_, key) => {
     if (view !== 'confirm-delete' && view !== 'confirm-clear') return;
     if (key.upArrow || key.downArrow) {
       setConfirmIndex(i => i === 0 ? 1 : 0);

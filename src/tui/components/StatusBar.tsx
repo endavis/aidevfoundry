@@ -1,4 +1,4 @@
-import React, { memo } from 'react';
+import { memo } from 'react';
 import { Box, Text } from 'ink';
 
 export type McpStatus = 'connected' | 'disconnected' | 'local' | 'checking';

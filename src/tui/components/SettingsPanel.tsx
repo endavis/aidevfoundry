@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import { useState, Fragment } from 'react';
 import { Box, Text, useInput } from 'ink';
 import { getUnifiedSessionStats, type UnifiedSession } from '../../context';
 
@@ -103,7 +103,7 @@ export function SettingsPanel({
   const tabs: SettingsTab[] = ['status', 'session', 'config', 'collaboration'];
 
   // Handle tab cycling and escape
-  useInput((input, key) => {
+  useInput((_, key) => {
     if (key.escape) {
       onBack();
       return;
@@ -117,14 +117,14 @@ export function SettingsPanel({
   });
 
   // Handle config navigation
-  useInput((input, key) => {
+  useInput((_, key) => {
     if (tab !== 'config') return;
 
     if (key.upArrow) {
       setConfigIndex(i => Math.max(0, i - 1));
     } else if (key.downArrow) {
       setConfigIndex(i => Math.min(configOptions.length - 1, i + 1));
-    } else if (key.return || input === ' ') {
+    } else if (key.return || _ === ' ') {
       configOptions[configIndex].onToggle();
     }
   }, { isActive: tab === 'config' });
@@ -137,14 +137,14 @@ export function SettingsPanel({
   // 2: debateModerator (←/→)
   // 3: consensusRounds (←/→)
   // 4: consensusSynthesizer (←/→)
-  useInput((input, key) => {
+  useInput((_, key) => {
     if (tab !== 'collaboration') return;
 
     if (key.upArrow) {
       setCollabIndex(i => Math.max(0, i - 1));
     } else if (key.downArrow) {
       setCollabIndex(i => Math.min(4, i + 1));
-    } else if (key.return || input === ' ') {
+    } else if (key.return || _ === ' ') {
       if (collabIndex === 0) onToggleCorrectFix();
     } else if (key.leftArrow) {
       if (collabIndex === 1) onSetDebateRounds(Math.max(1, debateRounds - 1));
@@ -191,10 +191,10 @@ export function SettingsPanel({
       <Box marginBottom={1} flexWrap="wrap">
         <Text bold>Settings: </Text>
         {tabs.map((t, i) => (
-          <React.Fragment key={t}>
+          <Fragment key={t}>
             <Text inverse={tab === t} color={tab === t ? HIGHLIGHT : undefined}> {t.charAt(0).toUpperCase() + t.slice(1)} </Text>
             {i < tabs.length - 1 && <Text> </Text>}
-          </React.Fragment>
+          </Fragment>
         ))}
         <Text dimColor>  (Tab to cycle)</Text>
       </Box>
@@ -327,18 +327,18 @@ interface ConfigTabProps {
   selectedIndex: number;
 }
 
-function ConfigTab({ sections, options, selectedIndex }: ConfigTabProps) {
+function ConfigTab({ sections, options: _, selectedIndex }: ConfigTabProps) {
   let globalIndex = 0;
   return (
     <Box flexDirection="column">
       <Text dimColor>Configure PulzdAI preferences</Text>
       <Box flexDirection="column" marginTop={1}>
         {sections.map((section) => (
-          <React.Fragment key={section.title}>
+          <Fragment key={section.title}>
             <Text bold color="cyan">{section.title}</Text>
             {section.options.map((opt) => {
               const isSelected = globalIndex === selectedIndex;
-              const currentIndex = globalIndex;
+              // const currentIndex = globalIndex;
               globalIndex++;
               return (
                 <Box key={opt.key}>
@@ -351,7 +351,7 @@ function ConfigTab({ sections, options, selectedIndex }: ConfigTabProps) {
                 </Box>
               );
             })}
-          </React.Fragment>
+          </Fragment>
         ))}
       </Box>
     </Box>

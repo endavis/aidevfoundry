@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { Box, Text, useInput } from 'ink';
 import type { PermissionRequest, PermissionDecision } from '../../agentic/tools/permissions';
 import path from 'path';
@@ -54,7 +54,7 @@ export function PermissionPrompt({ request, onDecision }: PermissionPromptProps)
     { label: 'No', decision: 'deny' },
   );
 
-  useInput((input, key) => {
+  useInput((_, key) => {
     // Ignore input if already processing
     if (isProcessing) return;
 

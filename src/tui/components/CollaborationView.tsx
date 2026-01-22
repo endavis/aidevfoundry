@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { Box, Text, useInput } from 'ink';
 
 // Colors
@@ -114,7 +114,7 @@ function getRoleDisplay(step: CollaborationStep): string {
   }
 }
 
-export function CollaborationView({ type, steps, onExit, onAction, onReEnter, interactive = true, pipelineName }: CollaborationViewProps) {
+export function CollaborationView({ type, steps, onExit, onAction, interactive = true, pipelineName }: CollaborationViewProps) {
   const [viewMode, setViewMode] = useState<ViewMode>('side-by-side');
   const [expandedIndex, setExpandedIndex] = useState<number>(0);
   const [highlightedIndex, setHighlightedIndex] = useState<number>(0);
@@ -140,11 +140,9 @@ export function CollaborationView({ type, steps, onExit, onAction, onReEnter, in
   };
   const actionableContent = getActionableContent();
 
-  // Legacy alias for backward compat
-  const hasSynthesis = type === 'consensus' && steps.some(s => s.role === 'synthesis' && s.content);
 
   // Check if currently highlighted/expanded step is the actionable one
-  const isOnActionableStep = React.useMemo(() => {
+  const isOnActionableStep = useMemo(() => {
     const idx = viewMode === 'expanded' ? expandedIndex : highlightedIndex;
     const step = steps[idx];
     if (!step) return false;
@@ -155,7 +153,7 @@ export function CollaborationView({ type, steps, onExit, onAction, onReEnter, in
   }, [viewMode, expandedIndex, highlightedIndex, steps, type]);
 
   // Auto-show actions in 'all' view, or in 'expanded' view when on actionable step
-  React.useEffect(() => {
+  useEffect(() => {
     const showInAllView = viewMode === 'all' && isComplete && hasActionableOutput && onAction;
     const showInExpandedView = viewMode === 'expanded' && isComplete && isOnActionableStep && onAction;
 
@@ -166,7 +164,7 @@ export function CollaborationView({ type, steps, onExit, onAction, onReEnter, in
     }
   }, [viewMode, isComplete, hasActionableOutput, isOnActionableStep, onAction]);
 
-  useInput((char, key) => {
+  useInput((_, key) => {
     // Only handle specific keys - let all other input pass through to TextInput
     const isNavigationKey = key.leftArrow || key.rightArrow || key.upArrow || key.downArrow;
     const isControlKey = key.escape || key.return || key.tab;

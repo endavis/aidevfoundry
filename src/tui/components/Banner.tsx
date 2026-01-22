@@ -1,4 +1,3 @@
-import React, { useMemo } from 'react';
 import { Box, Text } from 'ink';
 import { readFileSync } from 'fs';
 import { join, dirname } from 'path';
@@ -26,7 +25,6 @@ function generateBannerArt(): string[] {
 
   // Calculate max widths for proper alignment
   const maxPkWidth = Math.max(...pkLines.map(l => l.length));
-  const maxPuzldWidth = Math.max(...puzldLines.map(l => l.length));
 
   // Interleave lines: PK in white, puzld in red, properly padded
   const lines: string[] = [];

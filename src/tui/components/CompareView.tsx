@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { Box, Text, useInput } from 'ink';
 
 // Colors
@@ -84,7 +84,7 @@ export function CompareView({ results, onExit, interactive = true }: CompareView
   const anyLoading = results.some(r => r.loading);
 
   // Only handle keyboard input for interactive views
-  useInput((char, key) => {
+  useInput((_, key) => {
     // Only handle specific keys - let all other input pass through to TextInput
     const isNavigationKey = key.leftArrow || key.rightArrow || key.upArrow || key.downArrow;
     const isControlKey = key.escape || key.return || key.tab;

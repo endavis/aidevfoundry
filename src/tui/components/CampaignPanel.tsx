@@ -1,5 +1,5 @@
-import React, { useState, useEffect, useCallback } from 'react';
-import { Box, Text, useInput, useStdout } from 'ink';
+import { useState, useEffect, useCallback } from 'react';
+import { Box, Text, useInput } from 'ink';
 import type { CampaignState, CampaignTask } from '../../orchestrator/campaign/campaign-state.js';
 import type { DriftDetectionResult } from '../../orchestrator/campaign/campaign-types.js';
 import { DomainProgress, DomainSummary } from './DomainProgress.js';

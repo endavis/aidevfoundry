@@ -5,7 +5,7 @@
  * User can Accept, Reject, or Skip each edit using vertical menu.
  */
 
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { Box, Text, useInput } from 'ink';
 import { createTwoFilesPatch } from 'diff';
 import { basename } from 'path';
@@ -129,7 +129,7 @@ export function DiffReview({ edits, onComplete, onCancel }: DiffReviewProps) {
   const lineNumWidth = String(maxLineNum).length || 3;
 
   // Handle keyboard input
-  useInput((input, key) => {
+  useInput((_, key) => {
     // Clear notification on any key
     setNotification(null);
 
@@ -264,7 +264,7 @@ export function DiffReview({ edits, onComplete, onCancel }: DiffReviewProps) {
 
   const stats = getDiffStats(currentEdit);
   const operationLabel = currentEdit.operation === 'Write' ? 'Create' :
-                         currentEdit.operation === 'Delete' ? 'Delete' : 'Edit';
+    currentEdit.operation === 'Delete' ? 'Delete' : 'Edit';
 
   // Truncate diff for display
   const displaySegments = diffSegments.slice(0, maxLines);
@@ -302,8 +302,8 @@ export function DiffReview({ edits, onComplete, onCancel }: DiffReviewProps) {
 
           // Prefix based on type
           const prefix = segment.type === 'add' ? '+' :
-                        segment.type === 'remove' ? '-' :
-                        segment.type === 'header' ? '' : ' ';
+            segment.type === 'remove' ? '-' :
+              segment.type === 'header' ? '' : ' ';
 
           const maxContentWidth = terminalCols - lineNumWidth - 4;
           const displayContent = segment.content.slice(0, maxContentWidth);
@@ -318,9 +318,9 @@ export function DiffReview({ edits, onComplete, onCancel }: DiffReviewProps) {
 
           // Use background colors for add/remove lines
           const bgColor = segment.type === 'add' ? ADD_BG :
-                         segment.type === 'remove' ? REMOVE_BG : undefined;
+            segment.type === 'remove' ? REMOVE_BG : undefined;
           const textColor = segment.type === 'add' ? ADD_COLOR :
-                           segment.type === 'remove' ? REMOVE_COLOR : undefined;
+            segment.type === 'remove' ? REMOVE_COLOR : undefined;
 
           return (
             <Box key={i}>

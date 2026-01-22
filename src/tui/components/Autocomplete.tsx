@@ -1,6 +1,4 @@
-import React from 'react';
 import { Box, Text } from 'ink';
-import SelectInput from 'ink-select-input';
 
 interface Command {
   label: string;
@@ -47,13 +45,8 @@ const COMMANDS: Command[] = [
   { label: '/exit', value: '/exit', description: 'Exit the application' },
 ];
 
-interface AutocompleteProps {
-  filter: string;
-  onSelect: (value: string) => void;
-  onCancel: () => void;
-}
 
-export function Autocomplete({ filter, onSelect, onCancel }: AutocompleteProps) {
+export function Autocomplete({ filter }: { filter: string }) {
   // Filter commands based on input
   const filtered = COMMANDS.filter(cmd =>
     cmd.value.toLowerCase().startsWith(filter.toLowerCase())
@@ -63,15 +56,11 @@ export function Autocomplete({ filter, onSelect, onCancel }: AutocompleteProps) 
     return null;
   }
 
-  const items = filtered.map(cmd => ({
-    label: cmd.label,
-    value: cmd.value,
-  }));
 
   return (
     <Box flexDirection="column" marginBottom={1}>
       <Box borderStyle="single" borderColor="gray" flexDirection="column" paddingX={1}>
-        {filtered.map((cmd, index) => (
+        {filtered.map((cmd) => (
           <Box key={cmd.value}>
             <Text color="cyan">{cmd.label}</Text>
             <Text dimColor> - {cmd.description}</Text>

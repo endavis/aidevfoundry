@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import { useState, Fragment } from 'react';
 import { Box, Text, useInput } from 'ink';
 import { getModelSuggestions, isModelAlias } from '../../lib/models';
 
@@ -83,7 +83,7 @@ export function ModelPanel({
   const currentModel = getCurrentModel();
 
   // Handle tab cycling and escape
-  useInput((input, key) => {
+  useInput((_, key) => {
     if (key.escape) {
       onBack();
       return;
@@ -100,7 +100,7 @@ export function ModelPanel({
   });
 
   // Handle model selection
-  useInput((input, key) => {
+  useInput((_, key) => {
     if (key.upArrow) {
       setSelectedIndex(i => Math.max(0, i - 1));
     } else if (key.downArrow) {
@@ -130,12 +130,12 @@ export function ModelPanel({
       <Box marginBottom={1} flexWrap="wrap">
         <Text bold>Model Selection: </Text>
         {tabs.map((t, i) => (
-          <React.Fragment key={t}>
+          <Fragment key={t}>
             <Text inverse={tab === t} color={tab === t ? HIGHLIGHT : undefined}>
               {' '}{getAgentLabel(t)}{' '}
             </Text>
             {i < tabs.length - 1 && <Text> </Text>}
-          </React.Fragment>
+          </Fragment>
         ))}
         <Text dimColor>  (Tab to cycle)</Text>
       </Box>
@@ -159,7 +159,7 @@ export function ModelPanel({
             const showSeparator = !isAlias && prevWasAlias && i > 0;
 
             return (
-              <React.Fragment key={model}>
+              <Fragment key={model}>
                 {showSeparator && (
                   <Box marginTop={1} marginBottom={1}>
                     <Text dimColor>── Specific versions ──</Text>
@@ -172,7 +172,7 @@ export function ModelPanel({
                   {isAlias && <Text dimColor> (latest)</Text>}
                   {isCurrent && <Text color="green"> ✓</Text>}
                 </Box>
-              </React.Fragment>
+              </Fragment>
             );
           })}
         </Box>

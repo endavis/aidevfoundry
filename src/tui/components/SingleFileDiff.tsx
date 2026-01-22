@@ -5,7 +5,7 @@
  * User can Accept or Reject with arrow keys and Enter.
  */
 
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { Box, Text, useInput } from 'ink';
 import { createTwoFilesPatch } from 'diff';
 import { basename } from 'path';
@@ -113,7 +113,7 @@ export function SingleFileDiff({ filePath, operation, originalContent, newConten
   const maxLineNum = Math.max(...diffSegments.filter(s => s.lineNum).map(s => s.lineNum!), 0);
   const lineNumWidth = String(maxLineNum).length;
 
-  useInput((input, key) => {
+  useInput((_, key) => {
     // Up/down to navigate options
     if (key.upArrow) {
       setSelectedIndex(i => Math.max(0, i - 1));
@@ -154,8 +154,8 @@ export function SingleFileDiff({ filePath, operation, originalContent, newConten
       <Box flexDirection="column" marginBottom={1}>
         {diffSegments.map((segment, i) => {
           const color = segment.type === 'add' ? ADD_COLOR :
-                       segment.type === 'remove' ? REMOVE_COLOR :
-                       segment.type === 'header' ? HEADER_COLOR : undefined;
+            segment.type === 'remove' ? REMOVE_COLOR :
+              segment.type === 'header' ? HEADER_COLOR : undefined;
 
           // Format line number
           const lineNumStr = segment.lineNum !== undefined
@@ -164,8 +164,8 @@ export function SingleFileDiff({ filePath, operation, originalContent, newConten
 
           // Prefix based on type
           const prefix = segment.type === 'add' ? '+' :
-                        segment.type === 'remove' ? '-' :
-                        segment.type === 'header' ? '' : ' ';
+            segment.type === 'remove' ? '-' :
+              segment.type === 'header' ? '' : ' ';
 
           const maxContentWidth = terminalCols - lineNumWidth - 4;
           const displayContent = segment.content.slice(0, maxContentWidth);
@@ -180,7 +180,7 @@ export function SingleFileDiff({ filePath, operation, originalContent, newConten
 
           // Use background colors for add/remove lines
           const bgColor = segment.type === 'add' ? ADD_BG :
-                         segment.type === 'remove' ? REMOVE_BG : undefined;
+            segment.type === 'remove' ? REMOVE_BG : undefined;
 
           return (
             <Box key={i}>

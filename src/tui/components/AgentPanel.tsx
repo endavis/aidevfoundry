@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { Box, Text, useInput } from 'ink';
 
 const HIGHLIGHT_COLOR = '#8CA9FF';
@@ -31,7 +31,7 @@ export function AgentPanel({ currentAgent, agentStatus, onSelect, onBack }: Agen
   const currentIndex = agents.findIndex(a => a.id === currentAgent);
   const [selectedIndex, setSelectedIndex] = useState(currentIndex >= 0 ? currentIndex : 0);
 
-  useInput((input, key) => {
+  useInput((_, key) => {
     if (key.escape) {
       onBack();
     } else if (key.upArrow) {

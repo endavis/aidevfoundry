@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { Box, Text } from 'ink';
 
 export type AgentPhase = 'thinking' | 'tool_pending' | 'tool_running' | 'analyzing' | 'writing';

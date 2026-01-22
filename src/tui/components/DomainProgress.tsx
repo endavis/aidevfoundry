@@ -1,4 +1,3 @@
-import React from 'react';
 import { Box, Text } from 'ink';
 import type { CampaignTask } from '../../orchestrator/campaign/campaign-state.js';
 import type { EnhancedCampaignTask, DomainStatus } from '../../orchestrator/campaign/campaign-types.js';
@@ -156,7 +155,7 @@ function DomainRow({ domain }: { domain: DomainData }) {
  * - Progress bar
  * - Task breakdown (completed, in_progress, pending, failed, blocked)
  */
-export function DomainProgress({ tasks, maxVisible = 8, showTasks = false }: DomainProgressProps) {
+export function DomainProgress({ tasks, maxVisible = 8 }: Pick<DomainProgressProps, 'tasks' | 'maxVisible'>) {
   const domains = extractDomains(tasks);
 
   if (domains.length === 0) {
