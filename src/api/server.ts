@@ -52,10 +52,6 @@ async function syncTaskToCache(id: string, entry: TaskEntry): Promise<void> {
   await taskCache.set(id, entry, 86400);
 }
 
-async function removeTaskFromCache(id: string): Promise<void> {
-  await taskCache.del(id);
-}
-
 // Evict completed/failed tasks from cache to prevent memory leaks (Fix #4)
 async function evictFromCache(id: string): Promise<void> {
   const task = await taskCache.get(id);
